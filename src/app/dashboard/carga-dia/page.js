@@ -6,11 +6,13 @@ import { api } from "@/lib/api";
 export default function CargaDiaPage() {
   const { user } = useAuth();
   const [equipos, setEquipos] = useState([]);
+  const [interior, setInterior] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [responsables, setResponsables] = useState([]);
 
-  // Servicio form
   const [svcFecha, setSvcFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [svcEquipo, setSvcEquipo] = useState("");
+  const [svcResponsable, setSvcResponsable] = useState("");
+  const [svcLocalidad, setSvcLocalidad] = useState("");
   const [svcHora, setSvcHora] = useState("");
   const [svcCliente, setSvcCliente] = useState("");
   const [svcTipo, setSvcTipo] = useState("INSTALACION");
@@ -20,20 +22,23 @@ export default function CargaDiaPage() {
   const [svcObs, setSvcObs] = useState("");
   const [svcMsg, setSvcMsg] = useState("");
 
-  // Camioneta form
-  const [camEquipo, setCamEquipo] = useState("");
-  const [camFecha, setCamFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [camSalida, setCamSalida] = useState("09:00");
-  const [camLlegada, setCamLlegada] = useState("");
-  const [camInicio, setCamInicio] = useState("");
-  const [camFin, setCamFin] = useState("");
-  const [camMsg, setCamMsg] = useState("");
+  const esInterior = interior.some(t => t.nombre === svcResponsable);
 
   useEffect(() => {
-    api.get("/equipos/").then(setEquipos).catch(() => {});
-    api.get("/directorio/").then((data) => {
-      const nombres = [...new Set(data.map((d) => d.nombre))];
-      setClientes(nombres);
+    Promise.all([
+      api.get("/equipos/"),
+      api.get("/directorio/interior"),
+      api.get("/directorio/", { tipo: "cliente" }),
+    ]).then(([eqs, int, cls]) => {
+      setEquipos(eqs);
+      setInterior(int);
+      setClientes(cls);
+      // Armar lista de responsables: Equipo 1, Equipo 2, + técnicos/talleres interior
+      const lista = [
+        ...eqs.map(e => e.nombre),
+        ...int.map(t => t.nombre),
+      ];
+      setResponsables(lista);
     }).catch(() => {});
   }, []);
 
@@ -41,10 +46,12 @@ export default function CargaDiaPage() {
     e.preventDefault();
     setSvcMsg("");
     try {
-      const equipo = equipos.find((eq) => eq.nombre === svcEquipo);
+      const equipo = equipos.find(eq => eq.nombre === svcResponsable);
       await api.post("/servicios/", {
         fecha: svcFecha,
         equipo_id: equipo?.id || null,
+        responsable: svcResponsable,
+        localidad: esInterior ? svcLocalidad : null,
         hora_programada: svcHora || null,
         cliente: svcCliente,
         tipo_servicio: svcTipo,
@@ -54,82 +61,85 @@ export default function CargaDiaPage() {
         observaciones: svcObs || null,
         cargado_por: user,
       });
-      setSvcMsg("Servicio guardado");
+      setSvcMsg("✓ Servicio guardado");
       setSvcHora("");
       setSvcPatente("");
       setSvcObs("");
+      setSvcLocalidad("");
     } catch (err) {
       setSvcMsg("Error: " + err.message);
     }
   };
 
-  const guardarCamioneta = async (e) => {
-    e.preventDefault();
-    setCamMsg("");
-    try {
-      const equipo = equipos.find((eq) => eq.nombre === camEquipo);
-      await api.post("/movimientos-camioneta/", {
-        equipo_id: equipo?.id,
-        fecha: camFecha,
-        hora_salida: camSalida || null,
-        hora_llegada: camLlegada || null,
-        punto_inicio: camInicio || null,
-        punto_fin: camFin || null,
-        cargado_por: user,
-        tecnicos: [],
-      });
-      setCamMsg("Movimiento guardado");
-    } catch (err) {
-      setCamMsg("Error: " + err.message);
-    }
-  };
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Carga del Día</h1>
 
-      {/* Servicio */}
       <form onSubmit={guardarServicio} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-700">Nuevo Servicio</h2>
+        <h2 className="text-base font-semibold text-slate-700 border-b border-slate-100 pb-2">Nuevo Servicio</h2>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Fecha</label>
-            <input type="date" value={svcFecha} onChange={(e) => setSvcFecha(e.target.value)}
+            <input type="date" value={svcFecha} onChange={e => setSvcFecha(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required />
           </div>
+
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Equipo</label>
-            <select value={svcEquipo} onChange={(e) => setSvcEquipo(e.target.value)}
+            <label className="block text-xs text-slate-500 mb-1">Responsable</label>
+            <select value={svcResponsable} onChange={e => setSvcResponsable(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
               <option value="">Seleccionar</option>
-              {equipos.map((eq) => <option key={eq.id} value={eq.nombre}>{eq.nombre}</option>)}
+              {equipos.length > 0 && (
+                <optgroup label="Equipos">
+                  {equipos.map(eq => <option key={eq.id} value={eq.nombre}>{eq.nombre}</option>)}
+                </optgroup>
+              )}
+              {interior.length > 0 && (
+                <optgroup label="Interior">
+                  {interior.map(t => <option key={t.id} value={t.nombre}>{t.nombre}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
+
+          {esInterior && (
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Localidad</label>
+              <input type="text" value={svcLocalidad} onChange={e => setSvcLocalidad(e.target.value)}
+                placeholder="Ej: Rosario"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
+          )}
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Hora</label>
-            <input type="time" value={svcHora} onChange={(e) => setSvcHora(e.target.value)}
+            <input type="time" value={svcHora} onChange={e => setSvcHora(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           </div>
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Cliente</label>
-            <select value={svcCliente} onChange={(e) => setSvcCliente(e.target.value)}
+            <select value={svcCliente} onChange={e => setSvcCliente(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
               <option value="">Seleccionar</option>
-              {clientes.map((c) => <option key={c} value={c}>{c}</option>)}
+              {clientes.map(c => <option key={c.id} value={c.empresa || c.nombre}>{c.empresa || c.nombre}</option>)}
             </select>
           </div>
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Tipo</label>
-            <select value={svcTipo} onChange={(e) => setSvcTipo(e.target.value)}
+            <select value={svcTipo} onChange={e => setSvcTipo(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
               <option>INSTALACION</option>
               <option>REVISION</option>
               <option>DESINSTALACION</option>
             </select>
           </div>
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
-            <select value={svcDispositivo} onChange={(e) => setSvcDispositivo(e.target.value)}
+            <select value={svcDispositivo} onChange={e => setSvcDispositivo(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
               <option>GPS</option>
               <option>LECTORA</option>
@@ -137,14 +147,16 @@ export default function CargaDiaPage() {
               <option>CAMARA</option>
             </select>
           </div>
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Patente</label>
-            <input type="text" value={svcPatente} onChange={(e) => setSvcPatente(e.target.value.toUpperCase())}
+            <input type="text" value={svcPatente} onChange={e => setSvcPatente(e.target.value.toUpperCase())}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required />
           </div>
+
           <div>
             <label className="block text-xs text-slate-500 mb-1">Estado</label>
-            <select value={svcEstado} onChange={(e) => setSvcEstado(e.target.value)}
+            <select value={svcEstado} onChange={e => setSvcEstado(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
               <option>PENDIENTE</option>
               <option>CONFIRMADO</option>
@@ -152,62 +164,23 @@ export default function CargaDiaPage() {
             </select>
           </div>
         </div>
+
         <div>
           <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
-          <input type="text" value={svcObs} onChange={(e) => setSvcObs(e.target.value)}
+          <input type="text" value={svcObs} onChange={e => setSvcObs(e.target.value)}
             className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
         </div>
+
         <div className="flex items-center gap-3">
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
+          <button type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
             Guardar servicio
           </button>
-          {svcMsg && <span className={`text-sm ${svcMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{svcMsg}</span>}
-        </div>
-      </form>
-
-      {/* Camioneta */}
-      <form onSubmit={guardarCamioneta} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-700">Movimiento Camioneta</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Equipo</label>
-            <select value={camEquipo} onChange={(e) => setCamEquipo(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
-              <option value="">Seleccionar</option>
-              {equipos.map((eq) => <option key={eq.id} value={eq.nombre}>{eq.nombre} ({eq.patente})</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Fecha</label>
-            <input type="date" value={camFecha} onChange={(e) => setCamFecha(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Hora salida</label>
-            <input type="time" value={camSalida} onChange={(e) => setCamSalida(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Hora llegada</label>
-            <input type="time" value={camLlegada} onChange={(e) => setCamLlegada(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Punto inicio</label>
-            <input type="text" value={camInicio} onChange={(e) => setCamInicio(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Punto fin</label>
-            <input type="text" value={camFin} onChange={(e) => setCamFin(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button type="submit" className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
-            Guardar camioneta
-          </button>
-          {camMsg && <span className={`text-sm ${camMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{camMsg}</span>}
+          {svcMsg && (
+            <span className={`text-sm font-medium ${svcMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+              {svcMsg}
+            </span>
+          )}
         </div>
       </form>
     </div>
