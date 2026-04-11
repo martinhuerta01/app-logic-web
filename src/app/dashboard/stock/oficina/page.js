@@ -1,8 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import * as XLSX from "xlsx";
 
 /* ───────── OFICINA — ACTUAL ───────── */
 function OficinaActual() {
@@ -99,9 +98,6 @@ function OficinaEntradas() {
   const [form, setForm] = useState({ codigo: "", cantidad: "", fecha: new Date().toISOString().split("T")[0] });
   const [msg, setMsg] = useState("");
   const [historial, setHistorial] = useState([]);
-  const [importMsg, setImportMsg] = useState("");
-  const [importando, setImportando] = useState(false);
-  const fileRef = useRef();
 
   useEffect(() => { cargarDatos(); }, []);
 
@@ -116,11 +112,10 @@ function OficinaEntradas() {
       setOficina(ofic);
       if (ofic) {
         const movs = await api.get("/stock/movimientos/");
-        const entradas = movs.filter((m) =>
+        setHistorial(movs.filter((m) =>
           (m.ubicacion_destino_id === ofic.id || m.destino_id === ofic.id) &&
           (m.tipo === "entrada" || m.tipo === "compra")
-        );
-        setHistorial(entradas);
+        ));
       }
     } catch {}
   };
@@ -133,10 +128,8 @@ function OficinaEntradas() {
     if (!prodSeleccionado || !oficina) { setMsg("Error: seleccione un producto válido"); return; }
     try {
       await api.post("/stock/entradas/", {
-        producto_id: prodSeleccionado.id,
-        ubicacion_id: oficina.id,
-        cantidad: parseInt(form.cantidad),
-        fecha: form.fecha,
+        producto_id: prodSeleccionado.id, ubicacion_id: oficina.id,
+        cantidad: parseInt(form.cantidad), fecha: form.fecha,
       });
       setMsg("Entrada registrada correctamente");
       setForm({ ...form, codigo: "", cantidad: "" });
@@ -144,42 +137,8 @@ function OficinaEntradas() {
     } catch (err) { setMsg("Error: " + err.message); }
   };
 
-  const importarExcel = (e) => {
-    const f = e.target.files[0];
-    if (!f || !oficina) return;
-    setImportMsg("");
-    setImportando(true);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        const hoy = new Date().toISOString().split("T")[0];
-        let ok = 0, err = 0;
-        for (const row of rows) {
-          const codigo = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
-          const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
-          const fecha = String(row["Fecha"] || row["fecha"] || hoy).trim() || hoy;
-          const prod = productos.find((p) => p.codigo?.toLowerCase() === codigo.toLowerCase());
-          if (!prod || isNaN(cantidad) || cantidad <= 0) { err++; continue; }
-          try {
-            await api.post("/stock/entradas/", { producto_id: prod.id, ubicacion_id: oficina.id, cantidad, fecha });
-            ok++;
-          } catch { err++; }
-        }
-        setImportMsg(`✓ ${ok} registros importados${err > 0 ? ` (${err} con error)` : ""}`);
-        cargarDatos();
-      } catch { setImportMsg("Error al leer el archivo"); }
-      setImportando(false);
-      if (fileRef.current) fileRef.current.value = "";
-    };
-    reader.readAsBinaryString(f);
-  };
-
   return (
     <div className="space-y-6">
-      {/* Formulario manual */}
       <form onSubmit={guardar} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 max-w-3xl">
         <h3 className="font-semibold text-slate-700">Registrar entrada a Oficina</h3>
         <div className="grid grid-cols-4 gap-3">
@@ -215,22 +174,6 @@ function OficinaEntradas() {
         </div>
       </form>
 
-      {/* Importar Excel */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 max-w-3xl space-y-3">
-        <h3 className="font-semibold text-slate-700">Importar entradas desde Excel</h3>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
-          Columnas requeridas: <strong>Código | Insumo | Cantidad | Fecha</strong>
-          <span className="ml-2 text-blue-400">(Insumo no se usa, Fecha opcional)</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={importarExcel} disabled={importando}
-            className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />
-          {importando && <span className="text-sm text-slate-500">Importando...</span>}
-          {importMsg && <span className={`text-sm font-medium ${importMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{importMsg}</span>}
-        </div>
-      </div>
-
-      {/* Planilla de entradas */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
         <h3 className="font-semibold text-slate-700 px-4 pt-4 pb-2">
           Planilla de Entradas {historial.length > 0 && <span className="text-slate-400 font-normal text-sm">({historial.length} registros)</span>}
@@ -275,9 +218,6 @@ function OficinaSalidas() {
   const [form, setForm] = useState({ destino: "", codigo: "", cantidad: "", fecha: new Date().toISOString().split("T")[0] });
   const [msg, setMsg] = useState("");
   const [historial, setHistorial] = useState([]);
-  const [importMsg, setImportMsg] = useState("");
-  const [importando, setImportando] = useState(false);
-  const fileRef = useRef();
 
   useEffect(() => { cargarDatos(); }, []);
 
@@ -293,19 +233,17 @@ function OficinaSalidas() {
       setOficina(ofic);
       if (ofic) {
         const movs = await api.get("/stock/movimientos/");
-        const salidas = movs.filter((m) =>
+        setHistorial(movs.filter((m) =>
           (m.ubicacion_origen_id === ofic.id || m.origen_id === ofic.id) &&
           (m.tipo === "transferencia" || m.tipo === "salida")
-        );
-        setHistorial(salidas);
+        ));
       }
     } catch {}
   };
 
   const prodSeleccionado = productos.find((p) => p.codigo === form.codigo);
-  const destinos = ubicaciones.filter((u) => u.tipo !== "oficina");
-  const destinosCDs = destinos.filter((u) => u.tipo === "cd");
-  const destinosGenerales = destinos.filter((u) => u.tipo !== "cd");
+  const destinosCDs = ubicaciones.filter((u) => u.tipo === "cd");
+  const destinosGenerales = ubicaciones.filter((u) => u.tipo !== "oficina" && u.tipo !== "cd");
 
   const guardar = async (e) => {
     e.preventDefault();
@@ -315,11 +253,8 @@ function OficinaSalidas() {
     if (!destUbic) { setMsg("Error: destino no encontrado en ubicaciones"); return; }
     try {
       await api.post("/stock/transferencias/", {
-        producto_id: prodSeleccionado.id,
-        ubicacion_origen_id: oficina.id,
-        ubicacion_destino_id: destUbic.id,
-        cantidad: parseInt(form.cantidad),
-        fecha: form.fecha,
+        producto_id: prodSeleccionado.id, ubicacion_origen_id: oficina.id,
+        ubicacion_destino_id: destUbic.id, cantidad: parseInt(form.cantidad), fecha: form.fecha,
       });
       setMsg("Salida registrada correctamente");
       setForm({ ...form, destino: "", codigo: "", cantidad: "" });
@@ -327,50 +262,8 @@ function OficinaSalidas() {
     } catch (err) { setMsg("Error: " + err.message); }
   };
 
-  const importarExcel = (e) => {
-    const f = e.target.files[0];
-    if (!f || !oficina) return;
-    setImportMsg("");
-    setImportando(true);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        const hoy = new Date().toISOString().split("T")[0];
-        let ok = 0, err = 0;
-        for (const row of rows) {
-          const ubicNombre = String(row["Ubicación"] || row["Ubicacion"] || row["ubicacion"] || "").trim();
-          const codigo = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
-          const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
-          const fecha = String(row["Fecha"] || row["fecha"] || hoy).trim() || hoy;
-          const prod = productos.find((p) => p.codigo?.toLowerCase() === codigo.toLowerCase());
-          const destUbic = ubicaciones.find((u) => u.nombre?.toLowerCase() === ubicNombre.toLowerCase());
-          if (!prod || !destUbic || isNaN(cantidad) || cantidad <= 0) { err++; continue; }
-          try {
-            await api.post("/stock/transferencias/", {
-              producto_id: prod.id,
-              ubicacion_origen_id: oficina.id,
-              ubicacion_destino_id: destUbic.id,
-              cantidad,
-              fecha,
-            });
-            ok++;
-          } catch { err++; }
-        }
-        setImportMsg(`✓ ${ok} registros importados${err > 0 ? ` (${err} con error)` : ""}`);
-        cargarDatos();
-      } catch { setImportMsg("Error al leer el archivo"); }
-      setImportando(false);
-      if (fileRef.current) fileRef.current.value = "";
-    };
-    reader.readAsBinaryString(f);
-  };
-
   return (
     <div className="space-y-6">
-      {/* Formulario manual */}
       <form onSubmit={guardar} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 max-w-4xl">
         <h3 className="font-semibold text-slate-700">Registrar salida de Oficina</h3>
         <div className="grid grid-cols-5 gap-3">
@@ -423,22 +316,6 @@ function OficinaSalidas() {
         </div>
       </form>
 
-      {/* Importar Excel */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 max-w-4xl space-y-3">
-        <h3 className="font-semibold text-slate-700">Importar salidas desde Excel</h3>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
-          Columnas requeridas: <strong>Ubicación | Código | Insumo | Cantidad | Fecha</strong>
-          <span className="ml-2 text-blue-400">(Insumo no se usa, Fecha opcional)</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={importarExcel} disabled={importando}
-            className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:bg-red-50 file:text-red-700 hover:file:bg-red-100" />
-          {importando && <span className="text-sm text-slate-500">Importando...</span>}
-          {importMsg && <span className={`text-sm font-medium ${importMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{importMsg}</span>}
-        </div>
-      </div>
-
-      {/* Planilla de salidas */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
         <h3 className="font-semibold text-slate-700 px-4 pt-4 pb-2">
           Planilla de Salidas {historial.length > 0 && <span className="text-slate-400 font-normal text-sm">({historial.length} registros)</span>}

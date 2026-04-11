@@ -184,11 +184,13 @@ function Importar() {
       let productos = [];
       let ubicaciones = [];
       let equipos = [];
-      if (tipo === "stock") {
+      let oficina = null;
+      if (tipo === "stock" || tipo === "stock-entradas" || tipo === "stock-salidas") {
         [productos, ubicaciones] = await Promise.all([
           api.get("/stock/productos/"),
           api.get("/stock/ubicaciones/"),
         ]);
+        oficina = ubicaciones.find(u => u.nombre?.toLowerCase() === "oficina" || u.tipo === "oficina");
       }
 
       const reader = new FileReader();
@@ -232,24 +234,42 @@ function Importar() {
               count++;
             } else if (tipo === "stock") {
               const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
-              const ubicFila = String(row["Ubicación"] || row["Ubicacion"] || row["ubicacion"] || "").trim();
-              const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
-              const prod = productos.find(
-                p => p.codigo?.toLowerCase() === codigoFila.toLowerCase()
-              );
-              const ubic = ubicaciones.find(
-                u => u.nombre?.toLowerCase() === ubicFila.toLowerCase()
-              );
-              if (!prod || !ubic || isNaN(cantidad) || cantidad <= 0) {
-                errores++;
-                continue;
-              }
+              const stockActual = parseInt(row["Stock actual"] || row["Stock Actual"] || row["stock actual"] || "0");
+              const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
+              if (!prod || !oficina || isNaN(stockActual) || stockActual <= 0) { errores++; continue; }
               await api.post("/stock/entradas/", {
                 producto_id: prod.id,
-                ubicacion_id: ubic.id,
-                cantidad,
-                fecha: row["Fecha"] || row["fecha"] || hoy,
-                observaciones: "Importación masiva",
+                ubicacion_id: oficina.id,
+                cantidad: stockActual,
+                fecha: hoy,
+                observaciones: "Importación stock actual",
+              });
+              count++;
+            } else if (tipo === "stock-entradas") {
+              const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
+              const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
+              const fecha = String(row["Fecha"] || row["fecha"] || hoy).trim() || hoy;
+              const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
+              if (!prod || !oficina || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
+              await api.post("/stock/entradas/", {
+                producto_id: prod.id,
+                ubicacion_id: oficina.id,
+                cantidad, fecha,
+              });
+              count++;
+            } else if (tipo === "stock-salidas") {
+              const ubicNombre = String(row["Ubicación"] || row["Ubicacion"] || row["ubicacion"] || "").trim();
+              const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
+              const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
+              const fecha = String(row["Fecha"] || row["fecha"] || hoy).trim() || hoy;
+              const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
+              const destUbic = ubicaciones.find(u => u.nombre?.toLowerCase() === ubicNombre.toLowerCase());
+              if (!prod || !oficina || !destUbic || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
+              await api.post("/stock/transferencias/", {
+                producto_id: prod.id,
+                ubicacion_origen_id: oficina.id,
+                ubicacion_destino_id: destUbic.id,
+                cantidad, fecha,
               });
               count++;
             }
@@ -276,6 +296,8 @@ function Importar() {
             <option value="servicios">Servicios</option>
             <option value="movimientos">Movimientos camioneta</option>
             <option value="stock">Stock actual</option>
+            <option value="stock-entradas">Stock — Entradas</option>
+            <option value="stock-salidas">Stock — Salidas</option>
           </select>
         </div>
         <div>
@@ -299,9 +321,23 @@ function Importar() {
       )}
       {tipo === "stock" && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Columnas esperadas para Stock:</p>
-          <p>Código | Ubicación | Cantidad | Fecha (opcional)</p>
-          <p className="mt-1 text-blue-500">El Código debe coincidir exactamente con el código del producto (ej: D03, A13). La Ubicación debe coincidir con el nombre en Configuración (ej: Oficina, CD General Rodriguez).</p>
+          <p className="font-semibold mb-1">Columnas esperadas para Stock Actual:</p>
+          <p>Código | Insumo | Cantidad inicial | Entradas | Salidas | Stock actual</p>
+          <p className="mt-1 text-blue-500">Solo se usa <strong>Código</strong> y <strong>Stock actual</strong> para la importación. Las demás columnas son informativas. Se importa a Oficina.</p>
+        </div>
+      )}
+      {tipo === "stock-entradas" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+          <p className="font-semibold mb-1">Columnas esperadas para Entradas de Stock:</p>
+          <p>Código | Insumo | Cantidad | Fecha</p>
+          <p className="mt-1 text-blue-500">Insumo no se usa (es informativo). Fecha opcional, si no se pone usa la fecha de hoy. Se registra como entrada a Oficina.</p>
+        </div>
+      )}
+      {tipo === "stock-salidas" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+          <p className="font-semibold mb-1">Columnas esperadas para Salidas de Stock:</p>
+          <p>Ubicación | Código | Insumo | Cantidad | Fecha</p>
+          <p className="mt-1 text-blue-500">Insumo no se usa. Ubicación = destino (ej: CD Mendoza, Camioneta 1). Se registra como salida de Oficina.</p>
         </div>
       )}
 
