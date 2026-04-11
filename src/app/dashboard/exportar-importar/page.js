@@ -180,6 +180,17 @@ function Importar() {
     setLoading(true);
     setMsg("");
     try {
+      // Pre-cargar catálogos si es stock
+      let productos = [];
+      let ubicaciones = [];
+      let equipos = [];
+      if (tipo === "stock") {
+        [productos, ubicaciones] = await Promise.all([
+          api.get("/stock/productos/"),
+          api.get("/stock/ubicaciones/"),
+        ]);
+      }
+
       const reader = new FileReader();
       reader.onload = async (evt) => {
         const wb = XLSX.read(evt.target.result, { type: "binary" });
@@ -187,6 +198,9 @@ function Importar() {
         const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
         let count = 0;
+        let errores = 0;
+        const hoy = new Date().toISOString().split("T")[0];
+
         for (const row of data) {
           try {
             if (tipo === "servicios") {
@@ -204,7 +218,7 @@ function Importar() {
               });
               count++;
             } else if (tipo === "movimientos") {
-              const equipos = await api.get("/equipos/");
+              if (!equipos.length) equipos = await api.get("/equipos/");
               const eq = equipos.find(e => e.nombre === (row["Equipo"] || row["equipo"]));
               await api.post("/movimientos-camioneta/", {
                 equipo_id: eq?.id || null,
@@ -216,10 +230,33 @@ function Importar() {
                 tecnicos: [],
               });
               count++;
+            } else if (tipo === "stock") {
+              const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
+              const ubicFila = String(row["Ubicación"] || row["Ubicacion"] || row["ubicacion"] || "").trim();
+              const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
+              const prod = productos.find(
+                p => p.codigo?.toLowerCase() === codigoFila.toLowerCase()
+              );
+              const ubic = ubicaciones.find(
+                u => u.nombre?.toLowerCase() === ubicFila.toLowerCase()
+              );
+              if (!prod || !ubic || isNaN(cantidad) || cantidad <= 0) {
+                errores++;
+                continue;
+              }
+              await api.post("/stock/entradas/", {
+                producto_id: prod.id,
+                ubicacion_id: ubic.id,
+                cantidad,
+                fecha: row["Fecha"] || row["fecha"] || hoy,
+                observaciones: "Importación masiva",
+              });
+              count++;
             }
-          } catch {}
+          } catch { errores++; }
         }
-        setMsg(`✓ ${count} registros importados`);
+        const msgExtra = errores > 0 ? ` (${errores} filas con error)` : "";
+        setMsg(`✓ ${count} registros importados${msgExtra}`);
         setLoading(false);
       };
       reader.readAsBinaryString(file);
@@ -238,6 +275,7 @@ function Importar() {
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
             <option value="servicios">Servicios</option>
             <option value="movimientos">Movimientos camioneta</option>
+            <option value="stock">Stock actual</option>
           </select>
         </div>
         <div>
@@ -257,6 +295,13 @@ function Importar() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
           <p className="font-semibold mb-1">Columnas esperadas para Movimientos:</p>
           <p>Fecha | Equipo | Hora Salida | Hora Llegada | Punto Inicio | Punto Fin</p>
+        </div>
+      )}
+      {tipo === "stock" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+          <p className="font-semibold mb-1">Columnas esperadas para Stock:</p>
+          <p>Código | Ubicación | Cantidad | Fecha (opcional)</p>
+          <p className="mt-1 text-blue-500">El Código debe coincidir exactamente con el código del producto (ej: D03, A13). La Ubicación debe coincidir con el nombre en Configuración (ej: Oficina, CD General Rodriguez).</p>
         </div>
       )}
 
