@@ -2,6 +2,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+
+const COLORES = ["#1e3a8a", "#0f766e", "#b45309", "#7c3aed", "#dc2626", "#059669", "#d97706", "#4f46e5"];
 
 // ─── HORAS TRABAJADAS ─────────────────────────────────────────────
 
@@ -150,6 +153,24 @@ function ServiciosResponsable() {
           </tbody>
         </table>
       </div>
+
+      {responsables.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios por Responsable</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={responsables}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="responsable" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="instalaciones" name="Instalaciones" fill="#0f766e" />
+              <Bar dataKey="revisiones" name="Revisiones" fill="#b45309" />
+              <Bar dataKey="desinstalaciones" name="Desinstalaciones" fill="#7c3aed" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -244,6 +265,41 @@ function ServiciosCliente() {
           </tbody>
         </table>
       </div>
+
+      {clientes.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios por Cliente</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={clientes.slice(0, 10)} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis dataKey="cliente" type="category" width={140} tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Bar dataKey="total" name="Total" fill="#1e3a8a" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+            <h3 className="text-sm font-semibold text-slate-600 mb-3">Distribución por tipo</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: "Instalaciones", value: resumen?.instalaciones || 0 },
+                    { name: "Revisiones", value: resumen?.revisiones || 0 },
+                    { name: "Desinstalaciones", value: resumen?.desinstalaciones || 0 },
+                  ].filter(d => d.value > 0)}
+                  cx="50%" cy="50%" outerRadius={100} dataKey="value" label={({ name, value }) => `${name}: ${value}`}
+                >
+                  {[0, 1, 2].map(i => <Cell key={i} fill={["#0f766e", "#b45309", "#7c3aed"][i]} />)}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -341,6 +397,24 @@ function ReporteCruzado() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {subTab === "productividad" && tecnicos.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios vs Horas por Técnico</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={tecnicos}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Legend />
+              <Bar yAxisId="left" dataKey="servicios_realizados" name="Servicios" fill="#1e3a8a" />
+              <Bar yAxisId="right" dataKey="horas_trabajadas" name="Horas" fill="#059669" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
 
