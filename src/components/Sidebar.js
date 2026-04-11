@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 
-const MODULOS = [
+const MODULOS_BASE = [
   {
     nombre: "Servicios",
     icon: "📋",
@@ -43,42 +44,7 @@ const MODULOS = [
   {
     nombre: "Stock",
     icon: "📦",
-    grupos: [
-      {
-        nombre: "Oficina",
-        subs: [
-          { href: "/dashboard/stock/oficina?tab=actual", label: "Actual" },
-          { href: "/dashboard/stock/oficina?tab=entradas", label: "Entradas" },
-          { href: "/dashboard/stock/oficina?tab=salidas", label: "Salidas" },
-        ],
-      },
-      {
-        nombre: "La Serenísima",
-        subs: [
-          { href: "/dashboard/stock/serenisima?cd=general-rodriguez", label: "CD General Rodriguez" },
-          { href: "/dashboard/stock/serenisima?cd=longchamps", label: "CD Longchamps" },
-          { href: "/dashboard/stock/serenisima?cd=rosario", label: "CD Rosario" },
-          { href: "/dashboard/stock/serenisima?cd=corrientes", label: "CD Corrientes" },
-          { href: "/dashboard/stock/serenisima?cd=cordoba", label: "CD Córdoba" },
-          { href: "/dashboard/stock/serenisima?cd=mar-del-plata", label: "CD Mar del Plata" },
-          { href: "/dashboard/stock/serenisima?cd=mendoza", label: "CD Mendoza" },
-          { href: "/dashboard/stock/serenisima?cd=tucuman", label: "CD Tucumán" },
-          { href: "/dashboard/stock/serenisima?cd=neuquen", label: "CD Neuquén" },
-          { href: "/dashboard/stock/serenisima?cd=bahia-blanca", label: "CD Bahía Blanca" },
-        ],
-      },
-      {
-        nombre: "General",
-        subs: [
-          { href: "/dashboard/stock/general?ub=camioneta-1", label: "Camioneta 1" },
-          { href: "/dashboard/stock/general?ub=camioneta-2", label: "Camioneta 2" },
-          { href: "/dashboard/stock/general?ub=vitaco", label: "Vitaco" },
-          { href: "/dashboard/stock/general?ub=claudio-violini", label: "Claudio Violini (Bahía)" },
-          { href: "/dashboard/stock/general?ub=alejandro", label: "Alejandro (Tucumán)" },
-          { href: "/dashboard/stock/general?ub=witralem", label: "Witralem Mendoza" },
-        ],
-      },
-    ],
+    isDynamic: true,
   },
   {
     nombre: "Configuración",
@@ -96,29 +62,75 @@ const MODULOS = [
   },
 ];
 
+function buildStockGrupos(ubicaciones) {
+  const cds = ubicaciones.filter((u) => u.tipo === "cd");
+  const generales = ubicaciones.filter(
+    (u) => u.tipo === "camioneta" || u.tipo === "tecnico"
+  );
+
+  return [
+    {
+      nombre: "Oficina",
+      subs: [
+        { href: "/dashboard/stock/oficina?tab=actual", label: "Actual" },
+        { href: "/dashboard/stock/oficina?tab=entradas", label: "Entradas" },
+        { href: "/dashboard/stock/oficina?tab=salidas", label: "Salidas" },
+      ],
+    },
+    {
+      nombre: "La Serenísima",
+      subs: cds.map((u) => ({
+        href: `/dashboard/stock/serenisima?cd=${encodeURIComponent(u.nombre)}`,
+        label: u.nombre,
+      })),
+    },
+    {
+      nombre: "General",
+      subs: generales.map((u) => ({
+        href: `/dashboard/stock/general?ub=${encodeURIComponent(u.nombre)}`,
+        label: u.nombre,
+      })),
+    },
+  ];
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [stockGrupos, setStockGrupos] = useState([
+    { nombre: "Oficina", subs: [
+      { href: "/dashboard/stock/oficina?tab=actual", label: "Actual" },
+      { href: "/dashboard/stock/oficina?tab=entradas", label: "Entradas" },
+      { href: "/dashboard/stock/oficina?tab=salidas", label: "Salidas" },
+    ]},
+    { nombre: "La Serenísima", subs: [] },
+    { nombre: "General", subs: [] },
+  ]);
+
+  useEffect(() => {
+    api.get("/stock/ubicaciones/")
+      .then((ubics) => setStockGrupos(buildStockGrupos(ubics)))
+      .catch(() => {});
+  }, []);
+
+  const MODULOS = MODULOS_BASE.map((mod) =>
+    mod.isDynamic ? { ...mod, grupos: stockGrupos } : mod
+  );
+
   const [openModulo, setOpenModulo] = useState(() => {
-    for (const mod of MODULOS) {
-      const allSubs = mod.grupos
-        ? mod.grupos.flatMap((g) => g.subs)
-        : mod.subs;
-      if (allSubs.some((s) => pathname.startsWith(s.href.split("?")[0]))) {
+    if (pathname.startsWith("/dashboard/stock")) return "Stock";
+    for (const mod of MODULOS_BASE) {
+      if (mod.subs?.some((s) => pathname.startsWith(s.href.split("?")[0]))) {
         return mod.nombre;
       }
     }
     return "Servicios";
   });
+
   const [openGrupo, setOpenGrupo] = useState(() => {
-    const stock = MODULOS.find((m) => m.grupos);
-    if (stock) {
-      for (const g of stock.grupos) {
-        if (g.subs.some((s) => pathname.startsWith(s.href.split("?")[0]))) {
-          return g.nombre;
-        }
-      }
-    }
+    if (pathname.includes("/stock/oficina")) return "Oficina";
+    if (pathname.includes("/stock/serenisima")) return "La Serenísima";
+    if (pathname.includes("/stock/general")) return "General";
     return "";
   });
 
@@ -140,7 +152,8 @@ export default function Sidebar() {
               <span className="flex-1 font-medium">{mod.nombre}</span>
               <span className="text-xs text-slate-500">{openModulo === mod.nombre ? "▾" : "▸"}</span>
             </button>
-            {openModulo === mod.nombre && !mod.grupos && (
+
+            {openModulo === mod.nombre && mod.subs && (
               <div className="ml-9 border-l border-slate-600">
                 {mod.subs.map((sub) => {
                   const isActive = pathname === sub.href.split("?")[0];
@@ -160,6 +173,7 @@ export default function Sidebar() {
                 })}
               </div>
             )}
+
             {openModulo === mod.nombre && mod.grupos && (
               <div className="ml-9 border-l border-slate-600">
                 {mod.grupos.map((grupo) => (
@@ -177,23 +191,28 @@ export default function Sidebar() {
                     </button>
                     {openGrupo === grupo.nombre && (
                       <div className="ml-4 border-l border-slate-700">
-                        {grupo.subs.map((sub) => {
-                          const isActive = pathname + (typeof window !== "undefined" ? window.location.search : "") === sub.href ||
-                            pathname === sub.href.split("?")[0];
-                          return (
-                            <Link
-                              key={sub.href}
-                              href={sub.href}
-                              className={`block px-4 py-1.5 text-xs transition ${
-                                isActive
-                                  ? "text-blue-400 bg-slate-700/50 font-medium"
-                                  : "hover:text-white hover:bg-slate-700/30"
-                              }`}
-                            >
-                              {sub.label}
-                            </Link>
-                          );
-                        })}
+                        {grupo.subs.length === 0 ? (
+                          <span className="block px-4 py-1.5 text-xs text-slate-600 italic">
+                            Sin ubicaciones
+                          </span>
+                        ) : (
+                          grupo.subs.map((sub) => {
+                            const isActive = pathname === sub.href.split("?")[0];
+                            return (
+                              <Link
+                                key={sub.href}
+                                href={sub.href}
+                                className={`block px-4 py-1.5 text-xs transition ${
+                                  isActive
+                                    ? "text-blue-400 bg-slate-700/50 font-medium"
+                                    : "hover:text-white hover:bg-slate-700/30"
+                                }`}
+                              >
+                                {sub.label}
+                              </Link>
+                            );
+                          })
+                        )}
                       </div>
                     )}
                   </div>
