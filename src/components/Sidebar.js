@@ -49,6 +49,20 @@ const MODULOS = [
       { href: "/dashboard/stock?tab=transferencias", label: "Transferencias" },
     ],
   },
+  {
+    nombre: "Configuración",
+    icon: "⚙️",
+    subs: [
+      { href: "/dashboard/configuracion", label: "Equipos, Ubicaciones, Productos" },
+    ],
+  },
+  {
+    nombre: "Exportar / Importar",
+    icon: "📥",
+    subs: [
+      { href: "/dashboard/exportar-importar", label: "Exportar / Importar" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
