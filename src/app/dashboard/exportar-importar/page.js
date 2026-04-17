@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import * as XLSX from "xlsx";
 
@@ -149,46 +149,56 @@ function Exportar() {
 
 // ─── IMPORTAR ─────────────────────────────────────────────────────
 
+// Normaliza texto para comparación flexible (sin tildes, minúsculas)
+const norm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+// Busca un valor en una fila probando varios nombres de columna
+const getCol = (row, ...names) => {
+  for (const name of names) {
+    const key = Object.keys(row).find((k) => norm(k) === norm(name));
+    if (key !== undefined && row[key] !== "" && row[key] !== undefined)
+      return row[key];
+  }
+  return "";
+};
+
+const COLUMNAS_INFO = {
+  servicios: "Fecha | Responsable | Hora | Cliente | Tipo | Dispositivo | Patente | Localidad | Estado | Observaciones",
+  movimientos: "Fecha | Equipo | Hora Salida | Hora Llegada | Punto Inicio | Punto Fin",
+  stock: "Codigo | Insumo | Cant. Inicial | Entradas | Salidas | Stock Actual",
+  "stock-entradas": "Codigo | Insumo | Cantidad | Fecha",
+  "stock-salidas": "Ubicacion | Codigo | Insumo | Cantidad | Fecha",
+};
+
 function Importar() {
   const [tipo, setTipo] = useState("servicios");
   const [preview, setPreview] = useState([]);
   const [columnas, setColumnas] = useState([]);
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
+  const [errDetalle, setErrDetalle] = useState([]);
   const [loading, setLoading] = useState(false);
   const [ubicaciones, setUbicaciones] = useState([]);
   const [ubicacionDestino, setUbicacionDestino] = useState("");
 
-  // Cargar ubicaciones cuando se selecciona un tipo de stock
-  const esStock = ["stock", "stock-entradas", "stock-salidas"].includes(tipo);
-  useState(() => {
-    if (esStock && ubicaciones.length === 0) {
-      api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
-    }
-  });
+  // Carga ubicaciones para los tipos de stock
+  useEffect(() => {
+    api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
+  }, []);
 
   const handleTipo = (e) => {
     setTipo(e.target.value);
-    setUbicacionDestino("");
     setPreview([]);
     setColumnas([]);
     setFile(null);
     setMsg("");
-    if (["stock", "stock-entradas", "stock-salidas"].includes(e.target.value)) {
-      api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
-    }
-  };
-
-  // Buscar valor de columna ignorando acentos y mayúsculas
-  const getCol = (row, ...names) => {
-    for (const name of names) {
-      const found = Object.keys(row).find(
-        k => k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
-             name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      );
-      if (found && row[found] !== "" && row[found] !== undefined) return row[found];
-    }
-    return "";
+    setErrDetalle([]);
+    setUbicacionDestino("");
   };
 
   const handleFile = (e) => {
@@ -196,6 +206,7 @@ function Importar() {
     if (!f) return;
     setFile(f);
     setMsg("");
+    setErrDetalle([]);
     const reader = new FileReader();
     reader.onload = (evt) => {
       const wb = XLSX.read(evt.target.result, { type: "binary" });
@@ -213,43 +224,197 @@ function Importar() {
     if (!file) return;
     setLoading(true);
     setMsg("");
-    try {
-      // Pre-cargar catálogos si es stock
-      let productos = [];
-      let ubicacionesList = ubicaciones;
-      let equipos = [];
-      let ubicOrigen = null;
-      if (tipo === "stock" || tipo === "stock-entradas" || tipo === "stock-salidas") {
-        if (!ubicacionDestino) {
-          setMsg("Error: seleccioná una ubicación destino antes de importar.");
-          setLoading(false);
-          return;
-        }
-        [productos, ubicacionesList] = await Promise.all([
-          api.get("/stock/productos/"),
-          api.get("/stock/ubicaciones/"),
-        ]);
-        ubicOrigen = ubicacionesList.find(u => u.nombre === ubicacionDestino);
-        if (!ubicOrigen) {
-          setMsg("Error: no se encontró la ubicación seleccionada.");
-          setLoading(false);
-          return;
-        }
-      }
+    setErrDetalle([]);
 
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-        const wb = XLSX.read(evt.target.result, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const wb = XLSX.read(evt.target.result, { type: "binary" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-        let count = 0;
-        let errores = 0;
-        const hoy = new Date().toISOString().split("T")[0];
+      let count = 0;
+      let saltados = 0;
+      const errores = [];
+      const hoy = new Date().toISOString().split("T")[0];
 
-        for (const row of data) {
-          try {
-            if (tipo === "servicios") {
+      try {
+        // ── STOCK ACTUAL ──────────────────────────────────────────
+        if (tipo === "stock") {
+          const ubicOrigen = ubicaciones.find(
+            (u) =>
+              (ubicacionDestino && norm(u.nombre) === norm(ubicacionDestino)) ||
+              (!ubicacionDestino && (norm(u.nombre) === "oficina" || u.tipo === "oficina"))
+          );
+          if (!ubicOrigen) {
+            setMsg("Error: seleccioná la ubicación destino antes de importar");
+            setLoading(false);
+            return;
+          }
+
+          const productos = await api.get("/stock/productos/");
+
+          for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const codigoFila = String(
+              getCol(row, "Código", "Codigo", "codigo", "CÓDIGO", "CODIGO") || ""
+            ).trim();
+
+            if (!codigoFila) {
+              saltados++;
+              continue;
+            }
+
+            const prod = productos.find(
+              (p) => norm(p.codigo) === norm(codigoFila)
+            );
+            if (!prod) {
+              errores.push(`Fila ${i + 2}: código "${codigoFila}" no existe en la base de datos`);
+              continue;
+            }
+
+            const stockRaw = getCol(
+              row,
+              "Stock Actual",
+              "Stock actual",
+              "stock actual",
+              "Actual",
+              "actual",
+              "Stock"
+            );
+            const stockVal = parseFloat(String(stockRaw).replace(",", "."));
+
+            // Si el stock es 0 o negativo, lo contamos como procesado sin llamar la API
+            // (aparecerá en la vista con stock 0 de todas formas)
+            if (isNaN(stockVal) || stockVal <= 0) {
+              count++;
+              continue;
+            }
+
+            try {
+              await api.post("/stock/entradas/", {
+                producto_id: prod.id,
+                ubicacion_id: ubicOrigen.id,
+                cantidad: Math.round(stockVal),
+                fecha: hoy,
+                observaciones: "Importación stock actual",
+              });
+              count++;
+            } catch (e) {
+              errores.push(`Fila ${i + 2} (${codigoFila}): ${e.message}`);
+            }
+          }
+
+        // ── STOCK ENTRADAS ────────────────────────────────────────
+        } else if (tipo === "stock-entradas") {
+          const ubicOrigen = ubicaciones.find(
+            (u) =>
+              (ubicacionDestino && norm(u.nombre) === norm(ubicacionDestino)) ||
+              (!ubicacionDestino && (norm(u.nombre) === "oficina" || u.tipo === "oficina"))
+          );
+          if (!ubicOrigen) {
+            setMsg("Error: seleccioná la ubicación destino antes de importar");
+            setLoading(false);
+            return;
+          }
+
+          const productos = await api.get("/stock/productos/");
+
+          for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const codigoFila = String(
+              getCol(row, "Código", "Codigo", "codigo") || ""
+            ).trim();
+            const cantidadRaw = getCol(row, "Cantidad", "cantidad", "Cant", "cant");
+            const cantidad = parseInt(String(cantidadRaw).replace(",", "."));
+            const fecha =
+              String(getCol(row, "Fecha", "fecha") || hoy).trim() || hoy;
+
+            if (!codigoFila) { saltados++; continue; }
+            const prod = productos.find((p) => norm(p.codigo) === norm(codigoFila));
+            if (!prod) {
+              errores.push(`Fila ${i + 2}: código "${codigoFila}" no encontrado`);
+              continue;
+            }
+            if (isNaN(cantidad) || cantidad <= 0) {
+              errores.push(`Fila ${i + 2} (${codigoFila}): cantidad inválida`);
+              continue;
+            }
+
+            try {
+              await api.post("/stock/entradas/", {
+                producto_id: prod.id,
+                ubicacion_id: ubicOrigen.id,
+                cantidad,
+                fecha,
+                observaciones: "Importación entradas",
+              });
+              count++;
+            } catch (e) {
+              errores.push(`Fila ${i + 2} (${codigoFila}): ${e.message}`);
+            }
+          }
+
+        // ── STOCK SALIDAS ─────────────────────────────────────────
+        } else if (tipo === "stock-salidas") {
+          const oficina = ubicaciones.find(
+            (u) => norm(u.nombre) === "oficina" || u.tipo === "oficina"
+          );
+          if (!oficina) {
+            setMsg("Error: no se encontró la ubicación Oficina en la base de datos");
+            setLoading(false);
+            return;
+          }
+
+          const productos = await api.get("/stock/productos/");
+
+          for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const codigoFila = String(
+              getCol(row, "Código", "Codigo", "codigo") || ""
+            ).trim();
+            const ubicNombre = String(
+              getCol(row, "Ubicacion", "Ubicación", "ubicacion", "Destino", "destino") || ""
+            ).trim();
+            const cantidadRaw = getCol(row, "Cantidad", "cantidad", "Cant");
+            const cantidad = parseInt(String(cantidadRaw).replace(",", "."));
+            const fecha =
+              String(getCol(row, "Fecha", "fecha") || hoy).trim() || hoy;
+
+            if (!codigoFila) { saltados++; continue; }
+
+            const prod = productos.find((p) => norm(p.codigo) === norm(codigoFila));
+            if (!prod) {
+              errores.push(`Fila ${i + 2}: código "${codigoFila}" no encontrado`);
+              continue;
+            }
+            const destino = ubicaciones.find((u) => norm(u.nombre) === norm(ubicNombre));
+            if (!destino) {
+              errores.push(`Fila ${i + 2}: ubicación "${ubicNombre}" no encontrada`);
+              continue;
+            }
+            if (isNaN(cantidad) || cantidad <= 0) {
+              errores.push(`Fila ${i + 2} (${codigoFila}): cantidad inválida`);
+              continue;
+            }
+
+            try {
+              await api.post("/stock/transferencias/", {
+                producto_id: prod.id,
+                ubicacion_origen_id: oficina.id,
+                ubicacion_destino_id: destino.id,
+                cantidad,
+                fecha,
+              });
+              count++;
+            } catch (e) {
+              errores.push(`Fila ${i + 2} (${codigoFila}): ${e.message}`);
+            }
+          }
+
+        // ── SERVICIOS ─────────────────────────────────────────────
+        } else if (tipo === "servicios") {
+          for (const row of data) {
+            try {
               await api.post("/servicios/", {
                 fecha: row["Fecha"] || row["fecha"] || null,
                 responsable: row["Responsable"] || row["responsable"] || null,
@@ -263,9 +428,19 @@ function Importar() {
                 observaciones: row["Observaciones"] || row["observaciones"] || null,
               });
               count++;
-            } else if (tipo === "movimientos") {
-              if (!equipos.length) equipos = await api.get("/equipos/");
-              const eq = equipos.find(e => e.nombre === (row["Equipo"] || row["equipo"]));
+            } catch (e) {
+              errores.push(e.message);
+            }
+          }
+
+        // ── MOVIMIENTOS ───────────────────────────────────────────
+        } else if (tipo === "movimientos") {
+          const equipos = await api.get("/equipos/");
+          for (const row of data) {
+            try {
+              const eq = equipos.find(
+                (e) => norm(e.nombre) === norm(row["Equipo"] || row["equipo"] || "")
+              );
               await api.post("/movimientos-camioneta/", {
                 equipo_id: eq?.id || null,
                 fecha: row["Fecha"] || row["fecha"] || null,
@@ -276,89 +451,62 @@ function Importar() {
                 tecnicos: [],
               });
               count++;
-            } else if (tipo === "stock") {
-              const codigoFila = String(getCol(row, "Código", "Codigo", "codigo") || "").trim();
-              const stockVal = parseFloat(String(getCol(row, "Stock Actual", "Stock actual", "stock actual") || "0").replace(",", "."));
-              const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              if (!prod || !codigoFila) { errores++; continue; }
-              if (isNaN(stockVal) || stockVal <= 0) continue; // saltear stock 0 o negativo
-              await api.post("/stock/entradas/", {
-                producto_id: prod.id,
-                ubicacion_id: ubicOrigen.id,
-                cantidad: Math.round(stockVal),
-                fecha: hoy,
-                observaciones: "Importación stock actual",
-              });
-              count++;
-            } else if (tipo === "stock-entradas") {
-              const codigoFila = String(getCol(row, "Código", "Codigo", "codigo") || "").trim();
-              const cantidad = parseInt(String(getCol(row, "Cantidad", "cantidad") || "0"));
-              const fecha = String(getCol(row, "Fecha", "fecha") || hoy).trim() || hoy;
-              const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              if (!prod || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
-              await api.post("/stock/entradas/", {
-                producto_id: prod.id,
-                ubicacion_id: ubicOrigen.id,
-                cantidad, fecha,
-              });
-              count++;
-            } else if (tipo === "stock-salidas") {
-              const ubicNombre = String(getCol(row, "Ubicación", "Ubicacion", "ubicacion") || "").trim();
-              const codigoFila = String(getCol(row, "Código", "Codigo", "codigo") || "").trim();
-              const cantidad = parseInt(String(getCol(row, "Cantidad", "cantidad") || "0"));
-              const fecha = String(getCol(row, "Fecha", "fecha") || hoy).trim() || hoy;
-              const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              const destUbic = ubicacionesList.find(u => u.nombre?.toLowerCase() === ubicNombre.toLowerCase());
-              if (!prod || !destUbic || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
-              await api.post("/stock/transferencias/", {
-                producto_id: prod.id,
-                ubicacion_origen_id: ubicOrigen.id,
-                ubicacion_destino_id: destUbic.id,
-                cantidad, fecha,
-              });
-              count++;
+            } catch (e) {
+              errores.push(e.message);
             }
-          } catch { errores++; }
+          }
         }
-        const msgExtra = errores > 0 ? ` (${errores} filas con error)` : "";
-        setMsg(`✓ ${count} registros importados${msgExtra}`);
+      } catch (e) {
+        setMsg(`Error inesperado: ${e.message}`);
         setLoading(false);
-      };
-      reader.readAsBinaryString(file);
-    } catch {
-      setMsg("Error al importar");
+        return;
+      }
+
+      let msgFinal = `✓ ${count} registros importados`;
+      if (saltados > 0) msgFinal += ` · ${saltados} filas vacías omitidas`;
+      if (errores.length > 0) msgFinal += ` · ${errores.length} con error`;
+      setMsg(msgFinal);
+      setErrDetalle(errores.slice(0, 10));
       setLoading(false);
-    }
+    };
+    reader.readAsBinaryString(file);
   };
+
+  const esStock = tipo === "stock" || tipo === "stock-entradas" || tipo === "stock-salidas";
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-3 flex-wrap">
+      <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Tipo de datos</label>
           <select value={tipo} onChange={handleTipo}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
             <option value="servicios">Servicios</option>
             <option value="movimientos">Movimientos camioneta</option>
-            <option value="stock">Stock actual</option>
+            <option value="stock">Stock Actual (Oficina)</option>
             <option value="stock-entradas">Stock — Entradas</option>
             <option value="stock-salidas">Stock — Salidas</option>
           </select>
         </div>
+
         {esStock && (
           <div>
-            <label className="block text-xs text-slate-500 mb-1">
-              {tipo === "stock-salidas" ? "Ubicación origen (Oficina)" : "Ubicación destino"}
-            </label>
-            <select value={ubicacionDestino} onChange={e => setUbicacionDestino(e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="">Seleccionar ubicación</option>
-              {ubicaciones.map(u => (
-                <option key={u.id} value={u.nombre}>{u.nombre}</option>
-              ))}
+            <label className="block text-xs text-slate-500 mb-1">Ubicación destino</label>
+            <select
+              value={ubicacionDestino}
+              onChange={(e) => setUbicacionDestino(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">Oficina (por defecto)</option>
+              {ubicaciones
+                .filter((u) => u.tipo === "oficina" || u.tipo === "cd" || u.tipo === "camioneta" || u.tipo === "tecnico")
+                .map((u) => (
+                  <option key={u.id} value={u.nombre}>{u.nombre}</option>
+                ))}
             </select>
           </div>
         )}
+
         <div>
           <label className="block text-xs text-slate-500 mb-1">Archivo Excel</label>
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile}
@@ -366,42 +514,13 @@ function Importar() {
         </div>
       </div>
 
-      {tipo === "servicios" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Columnas esperadas para Servicios:</p>
-          <p>Fecha | Responsable | Hora | Cliente | Tipo | Dispositivo | Patente | Localidad | Estado | Observaciones</p>
-        </div>
-      )}
-      {tipo === "movimientos" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Columnas esperadas para Movimientos:</p>
-          <p>Fecha | Equipo | Hora Salida | Hora Llegada | Punto Inicio | Punto Fin</p>
-        </div>
-      )}
-      {tipo === "stock" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Columnas esperadas para Stock Actual:</p>
-          <p>Código | Insumo | Cant. Inicial | Entradas | Salidas | Stock Actual</p>
-          <p className="mt-1 text-blue-500">Solo se usan <strong>Código</strong> y <strong>Stock Actual</strong>. Filas con stock 0 o negativo se saltean. Seleccioná la ubicación destino arriba.</p>
-        </div>
-      )}
-      {tipo === "stock-entradas" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Columnas esperadas para Entradas de Stock:</p>
-          <p>Código | Insumo | Cantidad | Fecha</p>
-          <p className="mt-1 text-blue-500">Insumo no se usa (es informativo). Fecha opcional, si no se pone usa la fecha de hoy. Se registra como entrada a Oficina.</p>
-        </div>
-      )}
-      {tipo === "stock-salidas" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-          <p className="font-semibold mb-1">Columnas esperadas para Salidas de Stock:</p>
-          <p>Ubicación | Código | Insumo | Cantidad | Fecha</p>
-          <p className="mt-1 text-blue-500">Insumo no se usa. Ubicación = destino (ej: CD Mendoza, Camioneta 1). Se registra como salida de Oficina.</p>
-        </div>
-      )}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+        <p className="font-semibold mb-1">Columnas esperadas:</p>
+        <p>{COLUMNAS_INFO[tipo]}</p>
+      </div>
 
       {preview.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-sm font-medium text-slate-700">Vista previa (primeras 5 filas):</p>
           <div className="overflow-x-auto bg-white rounded-lg border border-slate-200">
             <table className="w-full text-xs">
@@ -428,7 +547,14 @@ function Importar() {
       )}
 
       {msg && (
-        <p className={`text-sm font-medium ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
+        <p className={`text-sm font-medium ${msg.includes("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
+      )}
+
+      {errDetalle.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 space-y-1">
+          <p className="font-semibold">Detalle de errores (primeros {errDetalle.length}):</p>
+          {errDetalle.map((e, i) => <p key={i}>• {e}</p>)}
+        </div>
       )}
     </div>
   );
