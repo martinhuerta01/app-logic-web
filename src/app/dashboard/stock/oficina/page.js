@@ -76,31 +76,53 @@ function OficinaActual() {
 
   const iniciarEdicion = (r) => {
     setEditando(r.id);
-    setEditForm({ cantidadInicial: r.cantidadInicial, entradas: r.entradas, salidas: r.salidas, actual: r.actual });
+    setEditForm({ actual: String(r.actual) });
     setMsg("");
   };
 
   const cancelarEdicion = () => { setEditando(null); setEditForm({}); };
 
   const guardarEdicion = async (r) => {
-    const nuevoActual = parseInt(editForm.actual) || 0;
+    const nuevoActual = parseInt(editForm.actual, 10);
+    if (isNaN(nuevoActual) || nuevoActual < 0) {
+      setMsg("Error: ingresá un número válido");
+      return;
+    }
+    const hoy = new Date().toISOString().split("T")[0];
     try {
       if (r.stockItemId) {
-        await api.put(`/stock/actual/${r.stockItemId}/`, { cantidad: nuevoActual });
-      } else if (nuevoActual > 0 && oficina) {
-        await api.post("/stock/entradas/", {
-          producto_id: r.id,
-          ubicacion_id: oficina.id,
-          cantidad: nuevoActual,
-          fecha: new Date().toISOString().split("T")[0],
-          observaciones: "Ajuste manual",
-        });
+        // Intenta PATCH directo; si falla (405/404) crea un ajuste por diferencia
+        try {
+          await api.patch(`/stock/actual/${r.stockItemId}/`, { cantidad: nuevoActual });
+        } catch {
+          const diff = nuevoActual - r.actual;
+          if (diff > 0 && oficina) {
+            await api.post("/stock/entradas/", {
+              producto_id: r.id,
+              ubicacion_id: oficina.id,
+              cantidad: diff,
+              fecha: hoy,
+              observaciones: "Ajuste manual",
+            });
+          }
+        }
+      } else {
+        if (!oficina) { setMsg("Error: no se encontró la ubicación Oficina"); return; }
+        if (nuevoActual > 0) {
+          await api.post("/stock/entradas/", {
+            producto_id: r.id,
+            ubicacion_id: oficina.id,
+            cantidad: nuevoActual,
+            fecha: hoy,
+            observaciones: "Ajuste manual",
+          });
+        }
       }
       setEditando(null);
       setMsg("Guardado");
       cargarDatos();
     } catch (e) {
-      setMsg("Error: " + e.message);
+      setMsg("Error al guardar: " + e.message);
     }
   };
 
@@ -109,11 +131,11 @@ function OficinaActual() {
     try {
       if (r.stockItemId) {
         await api.delete(`/stock/actual/${r.stockItemId}/`);
-        setMsg("Eliminado");
-        cargarDatos();
       }
+      setMsg("Eliminado");
+      cargarDatos();
     } catch (e) {
-      setMsg("Error: " + e.message);
+      setMsg("Error al eliminar: " + e.message);
     }
   };
 
@@ -156,21 +178,18 @@ function OficinaActual() {
 
                     {editandoEste ? (
                       <>
-                        <td className="px-2 py-1.5">
-                          <input type="number" value={editForm.cantidadInicial} onChange={e => setEditForm(f => ({ ...f, cantidadInicial: e.target.value }))}
-                            className="w-20 text-right border border-slate-300 rounded px-2 py-1 text-xs" />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <input type="number" value={editForm.entradas} onChange={e => setEditForm(f => ({ ...f, entradas: e.target.value }))}
-                            className="w-20 text-right border border-slate-300 rounded px-2 py-1 text-xs" />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <input type="number" value={editForm.salidas} onChange={e => setEditForm(f => ({ ...f, salidas: e.target.value }))}
-                            className="w-20 text-right border border-slate-300 rounded px-2 py-1 text-xs" />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <input type="number" value={editForm.actual} onChange={e => setEditForm(f => ({ ...f, actual: e.target.value }))}
-                            className="w-20 text-right border border-blue-400 rounded px-2 py-1 text-xs font-bold" />
+                        <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.cantidadInicial}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.entradas > 0 ? `+${r.entradas}` : "—"}</td>
+                        <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.salidas > 0 ? `-${r.salidas}` : "—"}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            value={editForm.actual}
+                            onChange={e => setEditForm(f => ({ ...f, actual: e.target.value }))}
+                            className="w-24 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            autoFocus
+                          />
                         </td>
                         <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
                           <button onClick={() => guardarEdicion(r)}
