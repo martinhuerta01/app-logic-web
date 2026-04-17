@@ -10,6 +10,9 @@ function OficinaActual() {
   const [movimientos, setMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [oficina, setOficina] = useState(null);
+  const [editando, setEditando] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     cargarDatos();
@@ -41,10 +44,10 @@ function OficinaActual() {
     setLoading(false);
   };
 
-  // Build summary per product
   const resumen = productos.map((prod) => {
     const stockItem = stockActual.find((s) => s.producto_id === prod.id);
     const actual = stockItem ? stockItem.cantidad : 0;
+    const stockItemId = stockItem?.id ?? null;
 
     const entradas = movimientos
       .filter(
@@ -68,70 +71,155 @@ function OficinaActual() {
 
     const cantidadInicial = actual - entradas + salidas;
 
-    return {
-      codigo: prod.codigo,
-      descripcion: prod.descripcion,
-      cantidadInicial,
-      entradas,
-      salidas,
-      actual,
-    };
+    return { id: prod.id, stockItemId, codigo: prod.codigo, descripcion: prod.descripcion, cantidadInicial, entradas, salidas, actual };
   });
+
+  const iniciarEdicion = (r) => {
+    setEditando(r.id);
+    setEditForm({ cantidadInicial: r.cantidadInicial, entradas: r.entradas, salidas: r.salidas, actual: r.actual });
+    setMsg("");
+  };
+
+  const cancelarEdicion = () => { setEditando(null); setEditForm({}); };
+
+  const guardarEdicion = async (r) => {
+    const nuevoActual = parseInt(editForm.actual) || 0;
+    try {
+      if (r.stockItemId) {
+        await api.put(`/stock/actual/${r.stockItemId}/`, { cantidad: nuevoActual });
+      } else if (nuevoActual > 0 && oficina) {
+        await api.post("/stock/entradas/", {
+          producto_id: r.id,
+          ubicacion_id: oficina.id,
+          cantidad: nuevoActual,
+          fecha: new Date().toISOString().split("T")[0],
+          observaciones: "Ajuste manual",
+        });
+      }
+      setEditando(null);
+      setMsg("Guardado");
+      cargarDatos();
+    } catch (e) {
+      setMsg("Error: " + e.message);
+    }
+  };
+
+  const eliminar = async (r) => {
+    if (!window.confirm(`¿Eliminar stock de "${r.descripcion}"?`)) return;
+    try {
+      if (r.stockItemId) {
+        await api.delete(`/stock/actual/${r.stockItemId}/`);
+        setMsg("Eliminado");
+        cargarDatos();
+      }
+    } catch (e) {
+      setMsg("Error: " + e.message);
+    }
+  };
 
   if (loading) {
     return <p className="text-slate-500 text-sm">Cargando stock...</p>;
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 text-slate-600 bg-slate-50">
-            <th className="text-left px-4 py-3">Código</th>
-            <th className="text-left px-4 py-3">Insumo</th>
-            <th className="text-right px-4 py-3">Cant. Inicial</th>
-            <th className="text-right px-4 py-3">Entradas</th>
-            <th className="text-right px-4 py-3">Salidas</th>
-            <th className="text-right px-4 py-3">Stock Actual</th>
-          </tr>
-        </thead>
-        <tbody>
-          {resumen.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
-                No hay productos cargados
-              </td>
+    <div className="space-y-3">
+      {msg && (
+        <p className={`text-sm font-medium ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
+      )}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-slate-600 bg-slate-50">
+              <th className="text-left px-4 py-3">Código</th>
+              <th className="text-left px-4 py-3">Insumo</th>
+              <th className="text-right px-4 py-3">Cant. Inicial</th>
+              <th className="text-right px-4 py-3">Entradas</th>
+              <th className="text-right px-4 py-3">Salidas</th>
+              <th className="text-right px-4 py-3">Stock Actual</th>
+              <th className="px-4 py-3"></th>
             </tr>
-          ) : (
-            resumen.map((r) => (
-              <tr key={r.codigo} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-2.5 font-mono text-xs font-medium">{r.codigo}</td>
-                <td className="px-4 py-2.5">{r.descripcion}</td>
-                <td className="px-4 py-2.5 text-right">{r.cantidadInicial}</td>
-                <td className="px-4 py-2.5 text-right text-green-600 font-medium">
-                  {r.entradas > 0 ? `+${r.entradas}` : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right text-red-600 font-medium">
-                  {r.salidas > 0 ? `-${r.salidas}` : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <span
-                    className={`font-bold ${
-                      r.actual <= 0
-                        ? "text-red-600"
-                        : r.actual <= 5
-                        ? "text-orange-500"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {r.actual}
-                  </span>
+          </thead>
+          <tbody>
+            {resumen.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  No hay productos cargados
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              resumen.map((r) => {
+                const editandoEste = editando === r.id;
+                return (
+                  <tr key={r.codigo} className={`border-b border-slate-100 ${editandoEste ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                    <td className="px-4 py-2.5 font-mono text-xs font-medium">{r.codigo}</td>
+                    <td className="px-4 py-2.5">{r.descripcion}</td>
+
+                    {editandoEste ? (
+                      <>
+                        <td className="px-2 py-1.5">
+                          <input type="number" value={editForm.cantidadInicial} onChange={e => setEditForm(f => ({ ...f, cantidadInicial: e.target.value }))}
+                            className="w-20 text-right border border-slate-300 rounded px-2 py-1 text-xs" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" value={editForm.entradas} onChange={e => setEditForm(f => ({ ...f, entradas: e.target.value }))}
+                            className="w-20 text-right border border-slate-300 rounded px-2 py-1 text-xs" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" value={editForm.salidas} onChange={e => setEditForm(f => ({ ...f, salidas: e.target.value }))}
+                            className="w-20 text-right border border-slate-300 rounded px-2 py-1 text-xs" />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input type="number" value={editForm.actual} onChange={e => setEditForm(f => ({ ...f, actual: e.target.value }))}
+                            className="w-20 text-right border border-blue-400 rounded px-2 py-1 text-xs font-bold" />
+                        </td>
+                        <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
+                          <button onClick={() => guardarEdicion(r)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
+                            Guardar
+                          </button>
+                          <button onClick={cancelarEdicion}
+                            className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
+                            Cancelar
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2.5 text-right">{r.cantidadInicial}</td>
+                        <td className="px-4 py-2.5 text-right text-green-600 font-medium">
+                          {r.entradas > 0 ? `+${r.entradas}` : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-red-600 font-medium">
+                          {r.salidas > 0 ? `-${r.salidas}` : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <span className={`font-bold ${r.actual <= 0 ? "text-red-600" : r.actual <= 5 ? "text-orange-500" : "text-green-600"}`}>
+                            {r.actual}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
+                          <button onClick={() => iniciarEdicion(r)}
+                            className="text-slate-400 hover:text-blue-600 transition" title="Editar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
+                            </svg>
+                          </button>
+                          <button onClick={() => eliminar(r)}
+                            className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+                            </svg>
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
