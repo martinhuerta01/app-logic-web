@@ -156,6 +156,40 @@ function Importar() {
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [ubicaciones, setUbicaciones] = useState([]);
+  const [ubicacionDestino, setUbicacionDestino] = useState("");
+
+  // Cargar ubicaciones cuando se selecciona un tipo de stock
+  const esStock = ["stock", "stock-entradas", "stock-salidas"].includes(tipo);
+  useState(() => {
+    if (esStock && ubicaciones.length === 0) {
+      api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
+    }
+  });
+
+  const handleTipo = (e) => {
+    setTipo(e.target.value);
+    setUbicacionDestino("");
+    setPreview([]);
+    setColumnas([]);
+    setFile(null);
+    setMsg("");
+    if (["stock", "stock-entradas", "stock-salidas"].includes(e.target.value)) {
+      api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
+    }
+  };
+
+  // Buscar valor de columna ignorando acentos y mayúsculas
+  const getCol = (row, ...names) => {
+    for (const name of names) {
+      const found = Object.keys(row).find(
+        k => k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
+             name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      );
+      if (found && row[found] !== "" && row[found] !== undefined) return row[found];
+    }
+    return "";
+  };
 
   const handleFile = (e) => {
     const f = e.target.files[0];
@@ -182,17 +216,22 @@ function Importar() {
     try {
       // Pre-cargar catálogos si es stock
       let productos = [];
-      let ubicaciones = [];
+      let ubicacionesList = ubicaciones;
       let equipos = [];
-      let oficina = null;
+      let ubicOrigen = null;
       if (tipo === "stock" || tipo === "stock-entradas" || tipo === "stock-salidas") {
-        [productos, ubicaciones] = await Promise.all([
+        if (!ubicacionDestino) {
+          setMsg("Error: seleccioná una ubicación destino antes de importar.");
+          setLoading(false);
+          return;
+        }
+        [productos, ubicacionesList] = await Promise.all([
           api.get("/stock/productos/"),
           api.get("/stock/ubicaciones/"),
         ]);
-        oficina = ubicaciones.find(u => u.nombre?.toLowerCase() === "oficina" || u.tipo === "oficina");
-        if (!oficina) {
-          setMsg("Error: no se encontró la ubicación 'Oficina' en la base de datos. Creala desde Configuración > Ubicaciones de Stock con tipo 'oficina'.");
+        ubicOrigen = ubicacionesList.find(u => u.nombre === ubicacionDestino);
+        if (!ubicOrigen) {
+          setMsg("Error: no se encontró la ubicación seleccionada.");
           setLoading(false);
           return;
         }
@@ -238,42 +277,42 @@ function Importar() {
               });
               count++;
             } else if (tipo === "stock") {
-              const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
-              const stockActual = parseInt(row["Stock actual"] || row["Stock Actual"] || row["stock actual"] || "0");
+              const codigoFila = String(getCol(row, "Código", "Codigo", "codigo") || "").trim();
+              const stockVal = parseFloat(String(getCol(row, "Stock Actual", "Stock actual", "stock actual") || "0").replace(",", "."));
               const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              if (!prod) { errores++; continue; }
-              if (isNaN(stockActual) || stockActual <= 0) continue; // saltear sin error (stock 0 o negativo)
+              if (!prod || !codigoFila) { errores++; continue; }
+              if (isNaN(stockVal) || stockVal <= 0) continue; // saltear stock 0 o negativo
               await api.post("/stock/entradas/", {
                 producto_id: prod.id,
-                ubicacion_id: oficina.id,
-                cantidad: stockActual,
+                ubicacion_id: ubicOrigen.id,
+                cantidad: Math.round(stockVal),
                 fecha: hoy,
                 observaciones: "Importación stock actual",
               });
               count++;
             } else if (tipo === "stock-entradas") {
-              const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
-              const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
-              const fecha = String(row["Fecha"] || row["fecha"] || hoy).trim() || hoy;
+              const codigoFila = String(getCol(row, "Código", "Codigo", "codigo") || "").trim();
+              const cantidad = parseInt(String(getCol(row, "Cantidad", "cantidad") || "0"));
+              const fecha = String(getCol(row, "Fecha", "fecha") || hoy).trim() || hoy;
               const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              if (!prod || !oficina || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
+              if (!prod || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
               await api.post("/stock/entradas/", {
                 producto_id: prod.id,
-                ubicacion_id: oficina.id,
+                ubicacion_id: ubicOrigen.id,
                 cantidad, fecha,
               });
               count++;
             } else if (tipo === "stock-salidas") {
-              const ubicNombre = String(row["Ubicación"] || row["Ubicacion"] || row["ubicacion"] || "").trim();
-              const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
-              const cantidad = parseInt(row["Cantidad"] || row["cantidad"] || "0");
-              const fecha = String(row["Fecha"] || row["fecha"] || hoy).trim() || hoy;
+              const ubicNombre = String(getCol(row, "Ubicación", "Ubicacion", "ubicacion") || "").trim();
+              const codigoFila = String(getCol(row, "Código", "Codigo", "codigo") || "").trim();
+              const cantidad = parseInt(String(getCol(row, "Cantidad", "cantidad") || "0"));
+              const fecha = String(getCol(row, "Fecha", "fecha") || hoy).trim() || hoy;
               const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              const destUbic = ubicaciones.find(u => u.nombre?.toLowerCase() === ubicNombre.toLowerCase());
-              if (!prod || !oficina || !destUbic || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
+              const destUbic = ubicacionesList.find(u => u.nombre?.toLowerCase() === ubicNombre.toLowerCase());
+              if (!prod || !destUbic || isNaN(cantidad) || cantidad <= 0) { errores++; continue; }
               await api.post("/stock/transferencias/", {
                 producto_id: prod.id,
-                ubicacion_origen_id: oficina.id,
+                ubicacion_origen_id: ubicOrigen.id,
                 ubicacion_destino_id: destUbic.id,
                 cantidad, fecha,
               });
@@ -294,10 +333,10 @@ function Importar() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-3">
+      <div className="flex items-end gap-3 flex-wrap">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Tipo de datos</label>
-          <select value={tipo} onChange={e => setTipo(e.target.value)}
+          <select value={tipo} onChange={handleTipo}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
             <option value="servicios">Servicios</option>
             <option value="movimientos">Movimientos camioneta</option>
@@ -306,6 +345,20 @@ function Importar() {
             <option value="stock-salidas">Stock — Salidas</option>
           </select>
         </div>
+        {esStock && (
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">
+              {tipo === "stock-salidas" ? "Ubicación origen (Oficina)" : "Ubicación destino"}
+            </label>
+            <select value={ubicacionDestino} onChange={e => setUbicacionDestino(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="">Seleccionar ubicación</option>
+              {ubicaciones.map(u => (
+                <option key={u.id} value={u.nombre}>{u.nombre}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs text-slate-500 mb-1">Archivo Excel</label>
           <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFile}
@@ -328,8 +381,8 @@ function Importar() {
       {tipo === "stock" && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
           <p className="font-semibold mb-1">Columnas esperadas para Stock Actual:</p>
-          <p>Código | Insumo | Cantidad inicial | Entradas | Salidas | Stock actual</p>
-          <p className="mt-1 text-blue-500">Solo se usa <strong>Código</strong> y <strong>Stock actual</strong> para la importación. Las demás columnas son informativas. Se importa a Oficina.</p>
+          <p>Código | Insumo | Cant. Inicial | Entradas | Salidas | Stock Actual</p>
+          <p className="mt-1 text-blue-500">Solo se usan <strong>Código</strong> y <strong>Stock Actual</strong>. Filas con stock 0 o negativo se saltean. Seleccioná la ubicación destino arriba.</p>
         </div>
       )}
       {tipo === "stock-entradas" && (
