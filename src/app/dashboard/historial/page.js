@@ -95,15 +95,21 @@ export default function HistorialPage() {
     const params = {};
     if (filtroEstado) params.estado = filtroEstado;
     if (filtroMes) params.mes = filtroMes;
-    if (filtroDia) params.dia = filtroDia;
     if (filtroAnio) params.anio = filtroAnio;
     try {
       const [eq, int] = await Promise.all([
         api.get("/servicios/", { ...params, tipo: "equipos" }),
         api.get("/servicios/", { ...params, tipo: "interior" }),
       ]);
-      setSvcEquipos(eq);
-      setSvcInterior(int);
+      const porDia = (lista) => {
+        if (!filtroDia) return lista;
+        return lista.filter(s => {
+          const d = s.fecha ? new Date(s.fecha).getUTCDate() : null;
+          return d === parseInt(filtroDia, 10);
+        });
+      };
+      setSvcEquipos(porDia(eq));
+      setSvcInterior(porDia(int));
     } catch {}
   };
 
