@@ -83,6 +83,7 @@ export default function HistorialPage() {
   const [svcInterior, setSvcInterior] = useState([]);
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroMes, setFiltroMes] = useState("");
+  const [filtroDia, setFiltroDia] = useState("");
   const [filtroAnio, setFiltroAnio] = useState("2026");
   const [editando, setEditando] = useState(null);
 
@@ -94,6 +95,7 @@ export default function HistorialPage() {
     const params = {};
     if (filtroEstado) params.estado = filtroEstado;
     if (filtroMes) params.mes = filtroMes;
+    if (filtroDia) params.dia = filtroDia;
     if (filtroAnio) params.anio = filtroAnio;
     try {
       const [eq, int] = await Promise.all([
@@ -253,10 +255,19 @@ export default function HistorialPage() {
         </div>
         <div>
           <label className="block text-xs text-slate-500 mb-1">Mes</label>
-          <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)}
+          <select value={filtroMes} onChange={e => { setFiltroMes(e.target.value); if (!e.target.value) setFiltroDia(""); }}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
             <option value="">Todos</option>
             {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Día</label>
+          <select value={filtroDia} onChange={e => setFiltroDia(e.target.value)}
+            disabled={!filtroMes}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+            <option value="">Todos</option>
+            {[...Array(31)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
           </select>
         </div>
         <div>
