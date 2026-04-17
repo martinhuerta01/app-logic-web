@@ -277,6 +277,8 @@ function Importar() {
               "Stock Actual",
               "Stock actual",
               "stock actual",
+              "Cantidad",
+              "cantidad",
               "Actual",
               "actual",
               "Stock"
@@ -563,28 +565,10 @@ function Importar() {
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────
 
 export default function ExportarImportarPage() {
-  const [tab, setTab] = useState("exportar");
-
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Exportar / Importar</h1>
-
-      <div className="flex gap-2">
-        {[
-          { key: "exportar", label: "Exportar" },
-          { key: "importar", label: "Importar" },
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              tab === t.key ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600 hover:bg-slate-300"
-            }`}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "exportar" && <Exportar />}
-      {tab === "importar" && <Importar />}
+      <h1 className="text-2xl font-bold text-slate-800">Exportar</h1>
+      <Exportar />
     </div>
   );
 }
