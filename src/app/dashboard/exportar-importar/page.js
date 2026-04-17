@@ -191,6 +191,11 @@ function Importar() {
           api.get("/stock/ubicaciones/"),
         ]);
         oficina = ubicaciones.find(u => u.nombre?.toLowerCase() === "oficina" || u.tipo === "oficina");
+        if (!oficina) {
+          setMsg("Error: no se encontró la ubicación 'Oficina' en la base de datos. Creala desde Configuración > Ubicaciones de Stock con tipo 'oficina'.");
+          setLoading(false);
+          return;
+        }
       }
 
       const reader = new FileReader();
@@ -236,7 +241,8 @@ function Importar() {
               const codigoFila = String(row["Código"] || row["Codigo"] || row["codigo"] || "").trim();
               const stockActual = parseInt(row["Stock actual"] || row["Stock Actual"] || row["stock actual"] || "0");
               const prod = productos.find(p => p.codigo?.toLowerCase() === codigoFila.toLowerCase());
-              if (!prod || !oficina || isNaN(stockActual) || stockActual <= 0) { errores++; continue; }
+              if (!prod) { errores++; continue; }
+              if (isNaN(stockActual) || stockActual <= 0) continue; // saltear sin error (stock 0 o negativo)
               await api.post("/stock/entradas/", {
                 producto_id: prod.id,
                 ubicacion_id: oficina.id,
