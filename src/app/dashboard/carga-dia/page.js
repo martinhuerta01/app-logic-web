@@ -123,7 +123,28 @@ export default function CargaDiaPage() {
             <select value={svcCliente} onChange={e => setSvcCliente(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
               <option value="">Seleccionar</option>
-              {clientes.map(c => <option key={c.id} value={c.empresa || c.nombre}>{c.empresa || c.nombre}</option>)}
+              {(() => {
+                // Agrupar por empresa
+                const grupos = {};
+                clientes.forEach(c => {
+                  const key = c.empresa || c.nombre || "";
+                  if (!grupos[key]) grupos[key] = [];
+                  grupos[key].push(c);
+                });
+                return Object.entries(grupos).map(([empresa, lista]) => {
+                  const label = (c) => c.base ? `${c.empresa || c.nombre} / ${c.base}` : (c.empresa || c.nombre);
+                  const val   = (c) => c.base ? `${c.empresa || c.nombre} / ${c.base}` : (c.empresa || c.nombre);
+                  if (lista.length === 1) {
+                    const c = lista[0];
+                    return <option key={c.id} value={val(c)}>{label(c)}</option>;
+                  }
+                  return (
+                    <optgroup key={empresa} label={empresa}>
+                      {lista.map(c => <option key={c.id} value={val(c)}>{label(c)}</option>)}
+                    </optgroup>
+                  );
+                });
+              })()}
             </select>
           </div>
 
