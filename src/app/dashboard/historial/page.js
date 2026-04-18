@@ -52,10 +52,14 @@ function ModalEditar({ servicio, equipos, onClose, onSave }) {
             <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
             <select value={form.dispositivo} onChange={e => setForm({ ...form, dispositivo: e.target.value })}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option>-</option>
               <option>GPS</option>
               <option>LECTORA</option>
               <option>GPS y LECTORA</option>
               <option>CAMARA</option>
+              <option>Tractor</option>
+              <option>Semi</option>
+              <option>Chasis</option>
             </select>
           </div>
           <div>
@@ -160,6 +164,13 @@ export default function HistorialPage() {
     return eq ? eq.nombre : "—";
   };
 
+  const dispDisplay = (s) => {
+    if (s.dispositivo && s.dispositivo !== "—") return s.dispositivo;
+    const cl = (s.cliente || "").toUpperCase();
+    if (cl.includes("SERENISIMA")) return "-";
+    return "—";
+  };
+
   const colorEstado = (estado) => ({
     REALIZADO:   "bg-green-100 text-green-800 border-green-300",
     PENDIENTE:   "bg-yellow-100 text-yellow-800 border-yellow-300",
@@ -193,7 +204,7 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs">{s.hora_programada?.slice(0,5) || "—"}</td>
               <td className="px-4 py-2.5 text-xs">{s.cliente}</td>
               <td className="px-4 py-2.5 text-xs">{s.tipo_servicio}</td>
-              <td className="px-4 py-2.5 text-xs">{s.dispositivo || "—"}</td>
+              <td className="px-4 py-2.5 text-xs">{dispDisplay(s)}</td>
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
                 <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value)}
@@ -243,7 +254,7 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs">{s.hora_programada?.slice(0,5) || "—"}</td>
               <td className="px-4 py-2.5 text-xs">{s.cliente}</td>
               <td className="px-4 py-2.5 text-xs">{s.tipo_servicio}</td>
-              <td className="px-4 py-2.5 text-xs">{s.dispositivo || "—"}</td>
+              <td className="px-4 py-2.5 text-xs">{dispDisplay(s)}</td>
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
                 <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value, true)}
