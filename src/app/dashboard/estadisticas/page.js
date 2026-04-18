@@ -87,15 +87,36 @@ function ServiciosResponsable() {
   const [anio, setAnio] = useState("2026");
   const [responsables, setResponsables] = useState([]);
   const [totalGeneral, setTotalGeneral] = useState(0);
+  const [equipos, setEquipos] = useState([]);
+
+  useEffect(() => {
+    api.get("/equipos/").then(setEquipos).catch(() => {});
+  }, []);
 
   const buscar = async () => {
     const params = {};
     if (mes) params.mes = mes;
     if (anio) params.anio = anio;
     try {
-      const data = await api.get("/estadisticas/servicios-responsable", params);
-      setResponsables(data.responsables || []);
-      setTotalGeneral(data.total_general || 0);
+      const [eq, int] = await Promise.all([
+        api.get("/servicios/", { ...params, tipo: "equipos" }),
+        api.get("/servicios/", { ...params, tipo: "interior" }),
+      ]);
+      const todos = [...(eq || []), ...(int || [])];
+      const mapa = {};
+      for (const s of todos) {
+        const resp = s.responsable
+          || equipos.find(e => e.id === s.equipo_id)?.nombre
+          || "Sin asignar";
+        if (!mapa[resp]) mapa[resp] = { responsable: resp, total: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
+        mapa[resp].total++;
+        if (s.tipo_servicio === "INSTALACION") mapa[resp].instalaciones++;
+        else if (s.tipo_servicio === "REVISION") mapa[resp].revisiones++;
+        else if (s.tipo_servicio === "DESINSTALACION") mapa[resp].desinstalaciones++;
+      }
+      const lista = Object.values(mapa).sort((a, b) => b.total - a.total);
+      setResponsables(lista);
+      setTotalGeneral(todos.length);
     } catch {}
   };
 
@@ -186,13 +207,34 @@ function ServiciosCliente() {
 
   const buscar = async () => {
     const params = {};
-    if (clienteFiltro) params.cliente = clienteFiltro;
     if (mes) params.mes = mes;
     if (anio) params.anio = anio;
     try {
-      const data = await api.get("/estadisticas/servicios-cliente", params);
-      setResumen(data.resumen || null);
-      setClientes(data.clientes || []);
+      const [eq, int] = await Promise.all([
+        api.get("/servicios/", { ...params, tipo: "equipos" }),
+        api.get("/servicios/", { ...params, tipo: "interior" }),
+      ]);
+      const todos = [...(eq || []), ...(int || [])];
+      const filtrados = clienteFiltro
+        ? todos.filter(s => s.cliente?.toLowerCase().includes(clienteFiltro.toLowerCase()))
+        : todos;
+      const mapa = {};
+      for (const s of filtrados) {
+        const cl = s.cliente || "Sin cliente";
+        if (!mapa[cl]) mapa[cl] = { cliente: cl, total: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
+        mapa[cl].total++;
+        if (s.tipo_servicio === "INSTALACION") mapa[cl].instalaciones++;
+        else if (s.tipo_servicio === "REVISION") mapa[cl].revisiones++;
+        else if (s.tipo_servicio === "DESINSTALACION") mapa[cl].desinstalaciones++;
+      }
+      const lista = Object.values(mapa).sort((a, b) => b.total - a.total);
+      setClientes(lista);
+      setResumen({
+        total: filtrados.length,
+        instalaciones: filtrados.filter(s => s.tipo_servicio === "INSTALACION").length,
+        revisiones: filtrados.filter(s => s.tipo_servicio === "REVISION").length,
+        desinstalaciones: filtrados.filter(s => s.tipo_servicio === "DESINSTALACION").length,
+      });
     } catch {}
   };
 
@@ -309,9 +351,14 @@ function ServiciosCliente() {
 function ReporteCruzado() {
   const [mes, setMes] = useState("");
   const [anio, setAnio] = useState("2026");
-  const [subTab, setSubTab] = useState("productividad"); // productividad | cliente-responsable
+  const [subTab, setSubTab] = useState("productividad");
   const [tecnicos, setTecnicos] = useState([]);
   const [cruces, setCruces] = useState([]);
+  const [equipos, setEquipos] = useState([]);
+
+  useEffect(() => {
+    api.get("/equipos/").then(setEquipos).catch(() => {});
+  }, []);
 
   const calcular = async () => {
     const params = {};
@@ -322,8 +369,23 @@ function ReporteCruzado() {
         const data = await api.get("/estadisticas/reporte-cruzado", params);
         setTecnicos(data.tecnicos || []);
       } else {
-        const data = await api.get("/estadisticas/cliente-vs-responsable", params);
-        setCruces(data.datos || []);
+        const [eq, int] = await Promise.all([
+          api.get("/servicios/", { ...params, tipo: "equipos" }),
+          api.get("/servicios/", { ...params, tipo: "interior" }),
+        ]);
+        const todos = [...(eq || []), ...(int || [])];
+        const mapa = {};
+        for (const s of todos) {
+          const resp = s.responsable
+            || equipos.find(e => e.id === s.equipo_id)?.nombre
+            || "Sin asignar";
+          const cl = s.cliente || "Sin cliente";
+          const key = `${cl}|${resp}`;
+          if (!mapa[key]) mapa[key] = { cliente: cl, responsable: resp, total: 0, INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
+          mapa[key].total++;
+          if (s.tipo_servicio) mapa[key][s.tipo_servicio] = (mapa[key][s.tipo_servicio] || 0) + 1;
+        }
+        setCruces(Object.values(mapa).sort((a, b) => b.total - a.total));
       }
     } catch {}
   };
