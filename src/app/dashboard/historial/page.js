@@ -11,6 +11,7 @@ function ModalEditar({ servicio, equipos, onClose, onSave }) {
     dispositivo: servicio.dispositivo || "GPS",
     patente: servicio.patente || "",
     observaciones: servicio.observaciones || "",
+    estado: servicio.estado || "PENDIENTE",
   });
 
   const guardar = async () => {
@@ -63,10 +64,22 @@ function ModalEditar({ servicio, equipos, onClose, onSave }) {
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
-          <input type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
+            <input type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Estado</label>
+            <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option>PENDIENTE</option>
+              <option>CONFIRMADO</option>
+              <option>REALIZADO</option>
+              <option>SUSPENDIDO</option>
+            </select>
+          </div>
         </div>
         <div className="flex gap-3 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
@@ -147,6 +160,13 @@ export default function HistorialPage() {
     return eq ? eq.nombre : "—";
   };
 
+  const colorEstado = (estado) => ({
+    REALIZADO:   "bg-green-100 text-green-800 border-green-300",
+    PENDIENTE:   "bg-yellow-100 text-yellow-800 border-yellow-300",
+    CONFIRMADO:  "bg-white text-slate-700 border-slate-300",
+    SUSPENDIDO:  "bg-red-100 text-red-800 border-red-300",
+  }[estado] || "bg-white text-slate-700 border-slate-300");
+
   const TablaEquipos = () => (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
       <table className="w-full text-sm">
@@ -177,10 +197,11 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
                 <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-1 text-xs">
+                  className={`border rounded px-2 py-1 text-xs font-medium ${colorEstado(s.estado)}`}>
                   <option>PENDIENTE</option>
                   <option>CONFIRMADO</option>
                   <option>REALIZADO</option>
+                  <option>SUSPENDIDO</option>
                 </select>
               </td>
               <td className="px-4 py-2.5 flex gap-2">
@@ -226,10 +247,11 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
                 <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value, true)}
-                  className="border border-slate-300 rounded px-2 py-1 text-xs">
+                  className={`border rounded px-2 py-1 text-xs font-medium ${colorEstado(s.estado)}`}>
                   <option>PENDIENTE</option>
                   <option>CONFIRMADO</option>
                   <option>REALIZADO</option>
+                  <option>SUSPENDIDO</option>
                 </select>
               </td>
               <td className="px-4 py-2.5 flex gap-2">
