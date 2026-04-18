@@ -6,6 +6,47 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 const COLORES = ["#1e3a8a", "#0f766e", "#b45309", "#7c3aed", "#dc2626", "#059669", "#d97706", "#4f46e5"];
 
+function calcHoras(inicio, fin) {
+  if (!inicio || !fin) return null;
+  const parse = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+  const diff = parse(fin) - parse(inicio);
+  return diff > 0 ? +(diff / 60).toFixed(2) : null;
+}
+
+function fechaMatch(fecha, mes, anio) {
+  if (!fecha) return false;
+  const [y, m] = fecha.split("-");
+  if (anio && y !== String(anio)) return false;
+  if (mes && m !== String(mes).padStart(2, "0")) return false;
+  return true;
+}
+
+// Normaliza para agrupar (case-insensitive, sin espacios extra)
+const normKey = s => (s || "Sin cliente").trim().toLowerCase();
+// Muestra la primera letra de cada palabra en mayúscula
+const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
+
+const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcular" }) => (
+  <div className="flex items-end gap-3">
+    <div>
+      <label className="block text-xs text-slate-500 mb-1">Mes</label>
+      <select value={mes} onChange={e => setMes(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+        <option value="">Todos</option>
+        {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+      </select>
+    </div>
+    <div>
+      <label className="block text-xs text-slate-500 mb-1">Año</label>
+      <select value={anio} onChange={e => setAnio(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+        <option>2025</option><option>2026</option><option>2027</option>
+      </select>
+    </div>
+    <button onClick={onCalcular} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
+      {label}
+    </button>
+  </div>
+);
+
 // ─── HORAS TRABAJADAS ─────────────────────────────────────────────
 
 function HorasTrabajadas() {
@@ -14,55 +55,52 @@ function HorasTrabajadas() {
   const [tecnicos, setTecnicos] = useState([]);
 
   const calcular = async () => {
-    const params = {};
-    if (mes) params.mes = mes;
-    if (anio) params.anio = anio;
     try {
-      const data = await api.get("/estadisticas/horas", params);
-      setTecnicos(data.tecnicos || []);
+      const [movs, eqs] = await Promise.all([
+        api.get("/movimientos-camioneta/"),
+        api.get("/equipos/"),
+      ]);
+      const filtrados = movs.filter(m => fechaMatch(m.fecha, mes, anio));
+      const mapa = {};
+      for (const m of filtrados) {
+        const eq = eqs.find(e => String(e.id) === String(m.equipo_id)) || m.equipos;
+        const nombre = eq?.nombre || "—";
+        if (!mapa[nombre]) mapa[nombre] = { nombre, dias: 0, horas: 0 };
+        mapa[nombre].dias++;
+        const h = calcHoras(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5));
+        if (h) mapa[nombre].horas += h;
+      }
+      setTecnicos(Object.values(mapa).map(t => ({
+        nombre: t.nombre,
+        equipo: t.nombre,
+        dias_presentes: t.dias,
+        horas_trabajadas: +t.horas.toFixed(1),
+        horas_base: t.dias * 8,
+        balance: +(t.horas - t.dias * 8).toFixed(1),
+      })));
     } catch {}
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-3">
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Mes</label>
-          <select value={mes} onChange={e => setMes(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Mes actual</option>
-            {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Año</label>
-          <select value={anio} onChange={e => setAnio(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option>2025</option><option>2026</option><option>2027</option>
-          </select>
-        </div>
-        <button onClick={calcular} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
-          Calcular
-        </button>
-      </div>
-
+      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular} />
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-              <th className="text-left px-4 py-3">Técnico</th>
               <th className="text-left px-4 py-3">Equipo</th>
               <th className="text-left px-4 py-3">Días presentes</th>
               <th className="text-left px-4 py-3">Horas trabajadas</th>
-              <th className="text-left px-4 py-3">Horas base</th>
+              <th className="text-left px-4 py-3">Horas base (8h/día)</th>
               <th className="text-left px-4 py-3">Balance</th>
             </tr>
           </thead>
           <tbody>
             {tecnicos.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-4 text-slate-400 text-xs">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</td></tr>
+              <tr><td colSpan={5} className="px-4 py-4 text-slate-400 text-xs">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</td></tr>
             ) : tecnicos.map((t, i) => (
               <tr key={i} className="border-b border-slate-100">
                 <td className="px-4 py-3 font-medium">{t.nombre}</td>
-                <td className="px-4 py-3">{t.equipo || "—"}</td>
                 <td className="px-4 py-3">{t.dias_presentes}</td>
                 <td className="px-4 py-3">{t.horas_trabajadas}h</td>
                 <td className="px-4 py-3 text-slate-400">{t.horas_base}h</td>
@@ -89,9 +127,7 @@ function ServiciosResponsable() {
   const [totalGeneral, setTotalGeneral] = useState(0);
   const [equipos, setEquipos] = useState([]);
 
-  useEffect(() => {
-    api.get("/equipos/").then(setEquipos).catch(() => {});
-  }, []);
+  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => {}); }, []);
 
   const buscar = async () => {
     const params = {};
@@ -105,49 +141,27 @@ function ServiciosResponsable() {
       const todos = [...(eq || []), ...(int || [])];
       const mapa = {};
       for (const s of todos) {
-        const resp = s.responsable
-          || equipos.find(e => e.id === s.equipo_id)?.nombre
-          || "Sin asignar";
+        const resp = s.responsable || equipos.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
         if (!mapa[resp]) mapa[resp] = { responsable: resp, total: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
         mapa[resp].total++;
         if (s.tipo_servicio === "INSTALACION") mapa[resp].instalaciones++;
         else if (s.tipo_servicio === "REVISION") mapa[resp].revisiones++;
         else if (s.tipo_servicio === "DESINSTALACION") mapa[resp].desinstalaciones++;
       }
-      const lista = Object.values(mapa).sort((a, b) => b.total - a.total);
-      setResponsables(lista);
+      setResponsables(Object.values(mapa).sort((a, b) => b.total - a.total));
       setTotalGeneral(todos.length);
     } catch {}
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-end gap-3">
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Mes</label>
-          <select value={mes} onChange={e => setMes(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Mes actual</option>
-            {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Año</label>
-          <select value={anio} onChange={e => setAnio(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option>2025</option><option>2026</option><option>2027</option>
-          </select>
-        </div>
-        <button onClick={buscar} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
-          Buscar
-        </button>
-      </div>
-
+      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={buscar} label="Buscar" />
       {totalGeneral > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 inline-block">
-          <span className="text-xs text-slate-500">Total servicios realizados: </span>
+          <span className="text-xs text-slate-500">Total servicios: </span>
           <span className="text-xl font-bold text-blue-700">{totalGeneral}</span>
         </div>
       )}
-
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -174,7 +188,6 @@ function ServiciosResponsable() {
           </tbody>
         </table>
       </div>
-
       {responsables.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios por Responsable</h3>
@@ -218,16 +231,22 @@ function ServiciosCliente() {
       const filtrados = clienteFiltro
         ? todos.filter(s => s.cliente?.toLowerCase().includes(clienteFiltro.toLowerCase()))
         : todos;
+
+      // Agrupar case-insensitive
       const mapa = {};
+      const display = {};
       for (const s of filtrados) {
-        const cl = s.cliente || "Sin cliente";
-        if (!mapa[cl]) mapa[cl] = { cliente: cl, total: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
-        mapa[cl].total++;
-        if (s.tipo_servicio === "INSTALACION") mapa[cl].instalaciones++;
-        else if (s.tipo_servicio === "REVISION") mapa[cl].revisiones++;
-        else if (s.tipo_servicio === "DESINSTALACION") mapa[cl].desinstalaciones++;
+        const key = normKey(s.cliente);
+        if (!display[key]) display[key] = titleCase((s.cliente || "Sin cliente").trim());
+        if (!mapa[key]) mapa[key] = { total: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
+        mapa[key].total++;
+        if (s.tipo_servicio === "INSTALACION") mapa[key].instalaciones++;
+        else if (s.tipo_servicio === "REVISION") mapa[key].revisiones++;
+        else if (s.tipo_servicio === "DESINSTALACION") mapa[key].desinstalaciones++;
       }
-      const lista = Object.values(mapa).sort((a, b) => b.total - a.total);
+      const lista = Object.entries(mapa)
+        .map(([key, v]) => ({ cliente: display[key], ...v }))
+        .sort((a, b) => b.total - a.total);
       setClientes(lista);
       setResumen({
         total: filtrados.length,
@@ -250,7 +269,7 @@ function ServiciosCliente() {
         <div>
           <label className="block text-xs text-slate-500 mb-1">Mes</label>
           <select value={mes} onChange={e => setMes(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Mes actual</option>
+            <option value="">Todos</option>
             {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
           </select>
         </div>
@@ -354,11 +373,10 @@ function ReporteCruzado() {
   const [subTab, setSubTab] = useState("productividad");
   const [tecnicos, setTecnicos] = useState([]);
   const [cruces, setCruces] = useState([]);
+  const [horasGR, setHorasGR] = useState([]);
   const [equipos, setEquipos] = useState([]);
 
-  useEffect(() => {
-    api.get("/equipos/").then(setEquipos).catch(() => {});
-  }, []);
+  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => {}); }, []);
 
   const calcular = async () => {
     const params = {};
@@ -366,36 +384,93 @@ function ReporteCruzado() {
     if (anio) params.anio = anio;
     try {
       if (subTab === "productividad") {
-        const data = await api.get("/estadisticas/reporte-cruzado", params);
-        setTecnicos(data.tecnicos || []);
-      } else {
+        const [movs, eqs, svcsEq, svcsInt] = await Promise.all([
+          api.get("/movimientos-camioneta/"),
+          api.get("/equipos/"),
+          api.get("/servicios/", { ...params, tipo: "equipos" }),
+          api.get("/servicios/", { ...params, tipo: "interior" }),
+        ]);
+        const filtMovs = movs.filter(m => fechaMatch(m.fecha, mes, anio));
+        const todosSvcs = [...(svcsEq || []), ...(svcsInt || [])];
+
+        const horasPorEq = {};
+        for (const m of filtMovs) {
+          const eq = eqs.find(e => String(e.id) === String(m.equipo_id)) || m.equipos;
+          const nombre = eq?.nombre || "—";
+          if (!horasPorEq[nombre]) horasPorEq[nombre] = { dias: 0, horas: 0 };
+          horasPorEq[nombre].dias++;
+          const h = calcHoras(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5));
+          if (h) horasPorEq[nombre].horas += h;
+        }
+
+        const svcPorResp = {};
+        for (const s of todosSvcs) {
+          const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
+          svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
+        }
+
+        const lista = Object.keys(horasPorEq).map(nombre => {
+          const h = horasPorEq[nombre];
+          const svcs = svcPorResp[nombre] || 0;
+          return {
+            nombre,
+            dias_presentes: h.dias,
+            horas_trabajadas: +h.horas.toFixed(1),
+            horas_base: h.dias * 8,
+            balance: +(h.horas - h.dias * 8).toFixed(1),
+            servicios_realizados: svcs,
+            servicios_por_dia: h.dias > 0 ? +(svcs / h.dias).toFixed(1) : 0,
+          };
+        });
+        setTecnicos(lista);
+
+      } else if (subTab === "cliente-responsable") {
         const [eq, int] = await Promise.all([
           api.get("/servicios/", { ...params, tipo: "equipos" }),
           api.get("/servicios/", { ...params, tipo: "interior" }),
         ]);
         const todos = [...(eq || []), ...(int || [])];
         const mapa = {};
+        const displayCl = {};
         for (const s of todos) {
-          const resp = s.responsable
-            || equipos.find(e => e.id === s.equipo_id)?.nombre
-            || "Sin asignar";
-          const cl = s.cliente || "Sin cliente";
-          const key = `${cl}|${resp}`;
-          if (!mapa[key]) mapa[key] = { cliente: cl, responsable: resp, total: 0, INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
+          const resp = s.responsable || equipos.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
+          const clKey = normKey(s.cliente);
+          if (!displayCl[clKey]) displayCl[clKey] = titleCase((s.cliente || "Sin cliente").trim());
+          const key = `${clKey}|${resp}`;
+          if (!mapa[key]) mapa[key] = { clienteKey: clKey, responsable: resp, total: 0, INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
           mapa[key].total++;
           if (s.tipo_servicio) mapa[key][s.tipo_servicio] = (mapa[key][s.tipo_servicio] || 0) + 1;
         }
-        setCruces(Object.values(mapa).sort((a, b) => b.total - a.total));
+        setCruces(Object.values(mapa)
+          .map(c => ({ ...c, cliente: displayCl[c.clienteKey] }))
+          .sort((a, b) => b.total - a.total));
+
+      } else if (subTab === "horas-gr") {
+        const eqs = await api.get("/equipos/");
+        const eq2 = eqs.find(e => e.nombre === "Equipo 2");
+        if (!eq2) { setHorasGR([]); return; }
+        const movs = await api.get("/movimientos-camioneta/", { equipo_id: eq2.id });
+        const filtrados = movs.filter(m => fechaMatch(m.fecha, mes, anio));
+        const filas = filtrados.map(m => ({
+          fecha: m.fecha,
+          horas_trabajadas: calcHoras(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5)),
+          horas_gr: calcHoras(m.llegada_gr_lch?.slice(0, 5), m.salida_gr_lch?.slice(0, 5)),
+        })).filter(f => f.horas_trabajadas !== null);
+        setHorasGR(filas);
       }
     } catch {}
   };
 
+  const totalHT = horasGR.reduce((a, f) => a + (f.horas_trabajadas || 0), 0);
+  const totalGR = horasGR.reduce((a, f) => a + (f.horas_gr || 0), 0);
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 mb-2">
+      <div className="flex gap-2 mb-2 flex-wrap">
         {[
           { key: "productividad", label: "Productividad" },
           { key: "cliente-responsable", label: "Cliente vs Responsable" },
+          { key: "horas-gr", label: "Equipo 2 vs Horas GR/LCH" },
         ].map(t => (
           <button key={t.key} onClick={() => setSubTab(t.key)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
@@ -406,80 +481,64 @@ function ReporteCruzado() {
         ))}
       </div>
 
-      <div className="flex items-end gap-3">
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Mes</label>
-          <select value={mes} onChange={e => setMes(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option value="">Mes actual</option>
-            {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-slate-500 mb-1">Año</label>
-          <select value={anio} onChange={e => setAnio(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
-            <option>2025</option><option>2026</option><option>2027</option>
-          </select>
-        </div>
-        <button onClick={calcular} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
-          Calcular
-        </button>
-      </div>
+      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular} />
 
+      {/* Productividad */}
       {subTab === "productividad" && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-                <th className="text-left px-4 py-3">Técnico</th>
-                <th className="text-left px-4 py-3">Equipo</th>
-                <th className="text-left px-4 py-3">Días</th>
-                <th className="text-left px-4 py-3">Servicios</th>
-                <th className="text-left px-4 py-3">Svc/día</th>
-                <th className="text-left px-4 py-3">Horas</th>
-                <th className="text-left px-4 py-3">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tecnicos.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-4 text-slate-400 text-xs">Sin datos</td></tr>
-              ) : tecnicos.map((t, i) => (
-                <tr key={i} className="border-b border-slate-100">
-                  <td className="px-4 py-3 font-medium">{t.nombre}</td>
-                  <td className="px-4 py-3">{t.equipo || "—"}</td>
-                  <td className="px-4 py-3">{t.dias_presentes}</td>
-                  <td className="px-4 py-3 font-semibold text-blue-700">{t.servicios_realizados}</td>
-                  <td className="px-4 py-3">{t.servicios_por_dia}</td>
-                  <td className="px-4 py-3">{t.horas_trabajadas}h</td>
-                  <td className="px-4 py-3">
-                    <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {t.balance >= 0 ? "+" : ""}{t.balance}h
-                    </span>
-                  </td>
+        <>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
+                  <th className="text-left px-4 py-3">Equipo</th>
+                  <th className="text-left px-4 py-3">Días</th>
+                  <th className="text-left px-4 py-3">Servicios</th>
+                  <th className="text-left px-4 py-3">Svc/día</th>
+                  <th className="text-left px-4 py-3">Horas</th>
+                  <th className="text-left px-4 py-3">Balance</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {tecnicos.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-4 text-slate-400 text-xs">Sin datos</td></tr>
+                ) : tecnicos.map((t, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className="px-4 py-3 font-medium">{t.nombre}</td>
+                    <td className="px-4 py-3">{t.dias_presentes}</td>
+                    <td className="px-4 py-3 font-semibold text-blue-700">{t.servicios_realizados}</td>
+                    <td className="px-4 py-3">{t.servicios_por_dia}</td>
+                    <td className="px-4 py-3">{t.horas_trabajadas}h</td>
+                    <td className="px-4 py-3">
+                      <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        {t.balance >= 0 ? "+" : ""}{t.balance}h
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {tecnicos.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios vs Horas por Equipo</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={tecnicos}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="servicios_realizados" name="Servicios" fill="#1e3a8a" />
+                  <Bar yAxisId="right" dataKey="horas_trabajadas" name="Horas" fill="#059669" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
       )}
 
-      {subTab === "productividad" && tecnicos.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-          <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios vs Horas por Técnico</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={tecnicos}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="nombre" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Legend />
-              <Bar yAxisId="left" dataKey="servicios_realizados" name="Servicios" fill="#1e3a8a" />
-              <Bar yAxisId="right" dataKey="horas_trabajadas" name="Horas" fill="#059669" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
+      {/* Cliente vs Responsable */}
       {subTab === "cliente-responsable" && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
           <table className="w-full text-sm">
@@ -509,6 +568,71 @@ function ReporteCruzado() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Horas GR/LCH */}
+      {subTab === "horas-gr" && (
+        <>
+          {horasGR.length > 0 && (
+            <div className="flex gap-4 flex-wrap">
+              {[
+                { label: "Días con registro", value: horasGR.length, color: "text-blue-700" },
+                { label: "Horas trabajadas total", value: `${totalHT.toFixed(1)}h`, color: "text-teal-700" },
+                { label: "Horas en GR/LCH total", value: `${totalGR.toFixed(1)}h`, color: "text-amber-700" },
+                { label: "% tiempo en GR/LCH", value: totalHT > 0 ? `${((totalGR / totalHT) * 100).toFixed(0)}%` : "—", color: "text-violet-700" },
+              ].map(card => (
+                <div key={card.label} className="bg-white border border-slate-200 rounded-xl px-5 py-4 text-center">
+                  <p className="text-xs text-slate-500">{card.label}</p>
+                  <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
+                  <th className="text-left px-4 py-3">Fecha</th>
+                  <th className="text-left px-4 py-3">Horas trabajadas</th>
+                  <th className="text-left px-4 py-3">Horas en GR/LCH</th>
+                  <th className="text-left px-4 py-3">% tiempo en GR/LCH</th>
+                </tr>
+              </thead>
+              <tbody>
+                {horasGR.length === 0 ? (
+                  <tr><td colSpan={4} className="px-4 py-4 text-slate-400 text-xs">Sin datos — cargá movimientos de Equipo 2 con Llegada/Salida GR/LCH</td></tr>
+                ) : horasGR.map((f, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className="px-4 py-3 text-xs">{f.fecha}</td>
+                    <td className="px-4 py-3 text-xs">{f.horas_trabajadas !== null ? `${f.horas_trabajadas}h` : "—"}</td>
+                    <td className="px-4 py-3 text-xs text-amber-700">{f.horas_gr !== null ? `${f.horas_gr}h` : "—"}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {f.horas_trabajadas && f.horas_gr
+                        ? `${((f.horas_gr / f.horas_trabajadas) * 100).toFixed(0)}%`
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {horasGR.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+              <h3 className="text-sm font-semibold text-slate-600 mb-3">Horas trabajadas vs Horas en GR/LCH</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={horasGR}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="horas_trabajadas" name="Horas trabajadas" fill="#1e3a8a" />
+                  <Bar dataKey="horas_gr" name="Horas GR/LCH" fill="#d97706" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
