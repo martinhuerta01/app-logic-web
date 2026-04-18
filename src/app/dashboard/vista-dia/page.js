@@ -116,17 +116,22 @@ export default function VistaDiaPage() {
           const mov = getMovimiento(eq.id);
           return (
             <div key={eq.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-              <h2 className="text-base font-bold text-blue-700 mb-1">{eq.nombre}
-                <span className="ml-2 text-xs font-normal text-slate-400">{eq.patente}</span>
+              <h2 className="text-base font-bold text-blue-700 mb-1">
+                {eq.nombre}
+                {vista === "interna" && (
+                  <span className="ml-2 text-xs font-normal text-slate-400">{eq.patente}</span>
+                )}
               </h2>
-              {mov ? (
-                <p className="text-xs text-slate-500 mb-3">
-                  Salida: <strong>{mov.hora_salida?.slice(0,5) || "—"}</strong>
-                  {" "}— Llegada: <strong>{mov.hora_llegada?.slice(0,5) || "—"}</strong>
-                  {vista === "interna" && mov.punto_inicio && <> | {mov.punto_inicio} → {mov.punto_fin || "—"}</>}
-                </p>
-              ) : (
-                <p className="text-xs text-slate-400 mb-3">Sin movimiento cargado</p>
+              {vista === "interna" && (
+                mov ? (
+                  <p className="text-xs text-slate-500 mb-3">
+                    Salida: <strong>{mov.hora_salida?.slice(0,5) || "—"}</strong>
+                    {" "}— Llegada: <strong>{mov.hora_llegada?.slice(0,5) || "—"}</strong>
+                    {mov.punto_inicio && <> | {mov.punto_inicio} → {mov.punto_fin || "—"}</>}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400 mb-3">Sin movimiento cargado</p>
+                )
               )}
               <TablaServicios items={svcEquipo(eq.id)} />
             </div>
