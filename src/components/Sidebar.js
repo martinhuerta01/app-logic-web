@@ -19,7 +19,8 @@ const MODULOS_BASE = [
     nombre: "Personal",
     icon: "👷",
     subs: [
-      { href: "/dashboard/personal/horario-tecnico", label: "Horario Técnico" },
+        { href: "/dashboard/personal/horario-tecnico", label: "Horario Técnico" },
+      { href: "/dashboard/personal/historial-camioneta", label: "Historial" },
     ],
   },
   {
