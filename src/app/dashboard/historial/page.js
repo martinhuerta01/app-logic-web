@@ -125,7 +125,13 @@ export default function HistorialPage() {
           return d === parseInt(filtroDia, 10);
         });
       };
-      setSvcEquipos(porDia(eq));
+      const ordenar = (lista) =>
+        porDia(lista).sort((a, b) => {
+          const ra = (a.responsable || "").toLowerCase();
+          const rb = (b.responsable || "").toLowerCase();
+          return ra.localeCompare(rb);
+        });
+      setSvcEquipos(ordenar(eq));
       setSvcInterior(porDia(int));
     } catch {}
   };
