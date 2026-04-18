@@ -19,7 +19,9 @@ export default function HorarioTecnicoPage() {
   const { user } = useAuth();
   const [equipos, setEquipos] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
-  const [filtroFecha, setFiltroFecha] = useState("");
+  const [filtroDia, setFiltroDia] = useState("");
+  const [filtroMes, setFiltroMes] = useState("");
+  const [filtroAnio, setFiltroAnio] = useState("");
   const [filtroEquipo, setFiltroEquipo] = useState("");
   const [mostrarTabla, setMostrarTabla] = useState(false);
   const [form, setForm] = useState(FORM_VACIO);
@@ -48,19 +50,27 @@ export default function HorarioTecnicoPage() {
       await api.post("/movimientos-camioneta/", { ...form, cargado_por: user, tecnicos: [] });
       setMsg("✓ Movimiento guardado");
       setForm({ ...FORM_VACIO, fecha: form.fecha });
-      if (mostrarTabla) cargarMovimientos(filtroFecha, filtroEquipo);
+      if (mostrarTabla) {
+        const fecha = filtroDia && filtroMes && filtroAnio
+          ? `${filtroAnio}-${filtroMes.padStart(2,"0")}-${filtroDia.padStart(2,"0")}` : "";
+        cargarMovimientos(fecha, filtroEquipo);
+      }
     } catch (err) {
       setMsg("Error: " + err.message);
     }
   };
 
   const buscar = () => {
+    const fecha = filtroDia && filtroMes && filtroAnio
+      ? `${filtroAnio}-${filtroMes.padStart(2,"0")}-${filtroDia.padStart(2,"0")}` : "";
     setMostrarTabla(true);
-    cargarMovimientos(filtroFecha, filtroEquipo);
+    cargarMovimientos(fecha, filtroEquipo);
   };
 
   const limpiar = () => {
-    setFiltroFecha("");
+    setFiltroDia("");
+    setFiltroMes("");
+    setFiltroAnio("");
     setFiltroEquipo("");
     setMostrarTabla(false);
     setMovimientos([]);
@@ -169,9 +179,34 @@ export default function HorarioTecnicoPage() {
       <div className="space-y-3">
         <div className="flex items-end gap-3 flex-wrap">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Filtrar por fecha</label>
-            <input type="date" value={filtroFecha} onChange={e => setFiltroFecha(e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            <label className="block text-xs text-slate-500 mb-1">Día</label>
+            <select value={filtroDia} onChange={e => setFiltroDia(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-20">
+              <option value="">--</option>
+              {Array.from({length: 31}, (_, i) => i + 1).map(d => (
+                <option key={d} value={String(d)}>{String(d).padStart(2,"0")}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Mes</label>
+            <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-32">
+              <option value="">--</option>
+              {["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"].map((m, i) => (
+                <option key={i+1} value={String(i+1)}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Año</label>
+            <select value={filtroAnio} onChange={e => setFiltroAnio(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-24">
+              <option value="">--</option>
+              {[2024, 2025, 2026, 2027].map(y => (
+                <option key={y} value={String(y)}>{y}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Filtrar por equipo</label>
