@@ -254,6 +254,8 @@ function OficinaEntradas() {
   });
   const [msg, setMsg] = useState("");
   const [historial, setHistorial] = useState([]);
+  const [editandoMov, setEditandoMov] = useState(null);
+  const [editFormMov, setEditFormMov] = useState({});
 
   useEffect(() => {
     cargarDatos();
@@ -275,9 +277,9 @@ function OficinaEntradas() {
         const entradas = movs.filter(
           (m) =>
             (m.ubicacion_destino_id === ofic.id || m.destino_id === ofic.id) &&
-            (m.tipo === "entrada" || m.tipo === "compra")
+            (m.tipo?.toUpperCase() === "ENTRADA" || m.tipo?.toUpperCase() === "COMPRA")
         );
-        setHistorial(entradas.slice(0, 20));
+        setHistorial(entradas);
       }
     } catch {}
   };
@@ -300,6 +302,30 @@ function OficinaEntradas() {
       });
       setMsg("Entrada registrada correctamente");
       setForm({ ...form, codigo: "", cantidad: "" });
+      cargarDatos();
+    } catch (err) {
+      setMsg("Error: " + err.message);
+    }
+  };
+
+  const eliminarMov = async (m) => {
+    if (!window.confirm("¿Eliminar este movimiento? Se ajustará el stock automáticamente.")) return;
+    try {
+      await api.delete(`/stock/movimientos/${m.id}/`);
+      setMsg("Movimiento eliminado");
+      cargarDatos();
+    } catch (err) {
+      setMsg("Error: " + err.message);
+    }
+  };
+
+  const guardarEditMov = async (m) => {
+    const cant = parseInt(editFormMov.cantidad);
+    if (isNaN(cant) || cant < 1) { setMsg("Error: cantidad inválida"); return; }
+    try {
+      await api.patch(`/stock/movimientos/${m.id}/`, { cantidad: cant, fecha: editFormMov.fecha });
+      setEditandoMov(null);
+      setMsg("Movimiento actualizado");
       cargarDatos();
     } catch (err) {
       setMsg("Error: " + err.message);
@@ -370,11 +396,7 @@ function OficinaEntradas() {
             Registrar entrada
           </button>
           {msg && (
-            <span
-              className={`text-sm ${
-                msg.startsWith("Error") ? "text-red-600" : "text-green-600"
-              }`}
-            >
+            <span className={`text-sm ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
               {msg}
             </span>
           )}
@@ -382,9 +404,9 @@ function OficinaEntradas() {
       </form>
 
       {historial.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto max-w-2xl">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
           <h3 className="font-semibold text-slate-700 px-4 pt-4 pb-2">
-            Últimas entradas
+            Historial de entradas
           </h3>
           <table className="w-full text-sm">
             <thead>
@@ -393,21 +415,68 @@ function OficinaEntradas() {
                 <th className="text-left px-4 py-2">Insumo</th>
                 <th className="text-right px-4 py-2">Cantidad</th>
                 <th className="text-left px-4 py-2">Fecha</th>
+                <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {historial.map((m, i) => {
+              {historial.map((m) => {
                 const prod = productos.find((p) => p.id === m.producto_id);
+                const editando = editandoMov === m.id;
                 return (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="px-4 py-2 font-mono text-xs">
-                      {prod?.codigo || "—"}
-                    </td>
+                  <tr key={m.id} className={`border-b border-slate-100 ${editando ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                    <td className="px-4 py-2 font-mono text-xs">{prod?.codigo || "—"}</td>
                     <td className="px-4 py-2">{prod?.descripcion || "—"}</td>
-                    <td className="px-4 py-2 text-right text-green-600 font-medium">
-                      +{m.cantidad}
-                    </td>
-                    <td className="px-4 py-2">{m.fecha || "—"}</td>
+                    {editando ? (
+                      <>
+                        <td className="px-2 py-1.5 text-right">
+                          <input
+                            type="number" min="1"
+                            value={editFormMov.cantidad}
+                            onChange={(e) => setEditFormMov(f => ({ ...f, cantidad: e.target.value }))}
+                            className="w-20 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none"
+                            autoFocus
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="date"
+                            value={editFormMov.fecha}
+                            onChange={(e) => setEditFormMov(f => ({ ...f, fecha: e.target.value }))}
+                            className="border-2 border-blue-400 rounded px-2 py-1 text-sm focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
+                          <button onClick={() => guardarEditMov(m)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
+                            Guardar
+                          </button>
+                          <button onClick={() => setEditandoMov(null)}
+                            className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
+                            Cancelar
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-green-600 font-medium">+{m.cantidad}</td>
+                        <td className="px-4 py-2">{m.fecha || "—"}</td>
+                        <td className="px-3 py-2 flex items-center gap-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => { setEditandoMov(m.id); setEditFormMov({ cantidad: String(m.cantidad), fecha: m.fecha || "" }); }}
+                            className="text-slate-400 hover:text-blue-600 transition" title="Editar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
+                            </svg>
+                          </button>
+                          <button onClick={() => eliminarMov(m)}
+                            className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+                            </svg>
+                          </button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
@@ -453,6 +522,8 @@ function OficinaSalidas() {
   });
   const [msg, setMsg] = useState("");
   const [historial, setHistorial] = useState([]);
+  const [editandoMov, setEditandoMov] = useState(null);
+  const [editFormMov, setEditFormMov] = useState({});
 
   useEffect(() => {
     cargarDatos();
@@ -475,11 +546,35 @@ function OficinaSalidas() {
         const salidas = movs.filter(
           (m) =>
             (m.ubicacion_origen_id === ofic.id || m.origen_id === ofic.id) &&
-            (m.tipo === "transferencia" || m.tipo === "salida")
+            (m.tipo?.toUpperCase() === "TRANSFERENCIA" || m.tipo?.toUpperCase() === "SALIDA")
         );
-        setHistorial(salidas.slice(0, 20));
+        setHistorial(salidas);
       }
     } catch {}
+  };
+
+  const eliminarMov = async (m) => {
+    if (!window.confirm("¿Eliminar este movimiento? Se ajustará el stock automáticamente.")) return;
+    try {
+      await api.delete(`/stock/movimientos/${m.id}/`);
+      setMsg("Movimiento eliminado");
+      cargarDatos();
+    } catch (err) {
+      setMsg("Error: " + err.message);
+    }
+  };
+
+  const guardarEditMov = async (m) => {
+    const cant = parseInt(editFormMov.cantidad);
+    if (isNaN(cant) || cant < 1) { setMsg("Error: cantidad inválida"); return; }
+    try {
+      await api.patch(`/stock/movimientos/${m.id}/`, { cantidad: cant, fecha: editFormMov.fecha });
+      setEditandoMov(null);
+      setMsg("Movimiento actualizado");
+      cargarDatos();
+    } catch (err) {
+      setMsg("Error: " + err.message);
+    }
   };
 
   const prodSeleccionado = productos.find((p) => p.codigo === form.codigo);
@@ -613,9 +708,9 @@ function OficinaSalidas() {
       </form>
 
       {historial.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto max-w-3xl">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
           <h3 className="font-semibold text-slate-700 px-4 pt-4 pb-2">
-            Últimas salidas
+            Historial de salidas
           </h3>
           <table className="w-full text-sm">
             <thead>
@@ -625,31 +720,79 @@ function OficinaSalidas() {
                 <th className="text-left px-4 py-2">Insumo</th>
                 <th className="text-right px-4 py-2">Cantidad</th>
                 <th className="text-left px-4 py-2">Fecha</th>
+                <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {historial.map((m, i) => {
+              {historial.map((m) => {
                 const prod = productos.find((p) => p.id === m.producto_id);
-                const dest = ubicaciones.find(
-                  (u) => u.id === (m.ubicacion_destino_id || m.destino_id)
-                );
+                const dest = ubicaciones.find((u) => u.id === (m.ubicacion_destino_id || m.destino_id));
+                const editando = editandoMov === m.id;
                 return (
-                  <tr key={i} className="border-b border-slate-100">
+                  <tr key={m.id} className={`border-b border-slate-100 ${editando ? "bg-blue-50" : "hover:bg-slate-50"}`}>
                     <td className="px-4 py-2">{dest?.nombre || "—"}</td>
-                    <td className="px-4 py-2 font-mono text-xs">
-                      {prod?.codigo || "—"}
-                    </td>
+                    <td className="px-4 py-2 font-mono text-xs">{prod?.codigo || "—"}</td>
                     <td className="px-4 py-2">{prod?.descripcion || "—"}</td>
-                    <td className="px-4 py-2 text-right text-red-600 font-medium">
-                      -{m.cantidad}
-                    </td>
-                    <td className="px-4 py-2">{m.fecha || "—"}</td>
+                    {editando ? (
+                      <>
+                        <td className="px-2 py-1.5 text-right">
+                          <input
+                            type="number" min="1"
+                            value={editFormMov.cantidad}
+                            onChange={(e) => setEditFormMov(f => ({ ...f, cantidad: e.target.value }))}
+                            className="w-20 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none"
+                            autoFocus
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="date"
+                            value={editFormMov.fecha}
+                            onChange={(e) => setEditFormMov(f => ({ ...f, fecha: e.target.value }))}
+                            className="border-2 border-blue-400 rounded px-2 py-1 text-sm focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
+                          <button onClick={() => guardarEditMov(m)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
+                            Guardar
+                          </button>
+                          <button onClick={() => setEditandoMov(null)}
+                            className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
+                            Cancelar
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-right text-red-600 font-medium">-{m.cantidad}</td>
+                        <td className="px-4 py-2">{m.fecha || "—"}</td>
+                        <td className="px-3 py-2 flex items-center gap-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => { setEditandoMov(m.id); setEditFormMov({ cantidad: String(m.cantidad), fecha: m.fecha || "" }); }}
+                            className="text-slate-400 hover:text-blue-600 transition" title="Editar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
+                            </svg>
+                          </button>
+                          <button onClick={() => eliminarMov(m)}
+                            className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+                            </svg>
+                          </button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+      {msg && (
+        <p className={`text-sm font-medium ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
       )}
     </div>
   );
