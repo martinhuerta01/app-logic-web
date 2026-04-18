@@ -76,6 +76,8 @@ export default function TecnicosTalleresPage() {
   const [editando, setEditando] = useState(null);
   const [verSubs, setVerSubs] = useState(null);
   const [form, setForm] = useState({ nombre: "", celular: "", direccion: "", localidad: "", email: "" });
+  const [textoBusqueda, setTextoBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => { cargar(); }, []);
 
@@ -113,6 +115,13 @@ export default function TecnicosTalleresPage() {
     cargar();
   };
 
+  const q = busqueda.toLowerCase();
+  const contactosFiltrados = q
+    ? contactos.filter(c =>
+        [c.nombre, c.celular, c.localidad, c.email, c.direccion].some(v => v?.toLowerCase().includes(q))
+      )
+    : contactos;
+
   return (
     <div className="space-y-6">
       {verSubs && <SubresponsablesModal contacto={verSubs} onClose={() => setVerSubs(null)} />}
@@ -123,6 +132,28 @@ export default function TecnicosTalleresPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
           {adding ? "Cancelar" : "+ Agregar"}
         </button>
+      </div>
+
+      {/* Barra de búsqueda */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Buscar por nombre, localidad, celular..."
+          value={textoBusqueda}
+          onChange={e => setTextoBusqueda(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && setBusqueda(textoBusqueda)}
+          className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
+        <button onClick={() => setBusqueda(textoBusqueda)}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          Buscar
+        </button>
+        {busqueda && (
+          <button onClick={() => { setBusqueda(""); setTextoBusqueda(""); }}
+            className="text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm border border-slate-300 transition">
+            Limpiar
+          </button>
+        )}
       </div>
 
       {adding && (
@@ -174,7 +205,9 @@ export default function TecnicosTalleresPage() {
             </tr>
           </thead>
           <tbody>
-            {contactos.map(c => (
+            {contactosFiltrados.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400 text-xs">Sin resultados</td></tr>
+            ) : contactosFiltrados.map(c => (
               <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-2.5 text-xs font-medium">{c.nombre}</td>
                 <td className="px-4 py-2.5 text-xs">{c.celular || "—"}</td>
