@@ -29,10 +29,12 @@ export default function CargaDiaPage() {
       setSvcTipo("-");
       setSvcDispositivo("-");
       setSvcEstado("-");
+      setSvcCliente("-");
     } else {
       setSvcTipo("INSTALACION");
       setSvcDispositivo("GPS");
       setSvcEstado("PENDIENTE");
+      setSvcCliente("");
     }
   };
 
@@ -135,8 +137,10 @@ export default function CargaDiaPage() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Cliente</label>
             <select value={svcCliente} onChange={e => setSvcCliente(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
+              disabled={feriado}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50" required>
               <option value="">Seleccionar</option>
+              <option value="-">-</option>
               {(() => {
                 // Agrupar por empresa
                 const grupos = {};
