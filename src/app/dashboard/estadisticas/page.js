@@ -26,13 +26,15 @@ const normKey = s => (s || "Sin cliente").trim().toLowerCase();
 // Muestra la primera letra de cada palabra en mayúscula
 const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
 
+const MESES_NOMBRES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
 const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcular" }) => (
   <div className="flex items-end gap-3">
     <div>
       <label className="block text-xs text-slate-500 mb-1">Mes</label>
       <select value={mes} onChange={e => setMes(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
         <option value="">Todos</option>
-        {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{i+1}</option>)}
+        {MESES_NOMBRES.map((nombre, i) => <option key={i+1} value={i+1}>{nombre}</option>)}
       </select>
     </div>
     <div>
@@ -49,10 +51,70 @@ const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcu
 
 // ─── HORAS TRABAJADAS ─────────────────────────────────────────────
 
+function TablaEquipoHoras({ nombre, filas }) {
+  const totalHoras = +filas.reduce((a, f) => a + (f.horas ?? 0), 0).toFixed(1);
+  const totalBase = filas.length * 8;
+  const totalBalance = +(totalHoras - totalBase).toFixed(1);
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-slate-600 mb-2 uppercase tracking-wide">{nombre}</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
+              <th className="text-left px-4 py-3">Día</th>
+              <th className="text-left px-4 py-3">Hora salida</th>
+              <th className="text-left px-4 py-3">Hora llegada</th>
+              <th className="text-left px-4 py-3">Horas trabajadas</th>
+              <th className="text-left px-4 py-3">Horas base (8h)</th>
+              <th className="text-left px-4 py-3">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.length === 0 ? (
+              <tr><td colSpan={6} className="px-4 py-4 text-slate-400 text-xs">Sin movimientos registrados</td></tr>
+            ) : (
+              <>
+                {filas.map((f, i) => (
+                  <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-2.5 text-xs font-medium">{f.dia}</td>
+                    <td className="px-4 py-2.5 text-xs">{f.hora_salida || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{f.hora_llegada || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{f.horas !== null ? `${f.horas}h` : "—"}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400">8h</td>
+                    <td className="px-4 py-2.5 text-xs">
+                      {f.balance !== null
+                        ? <span className={`font-semibold ${f.balance >= 0 ? "text-green-600" : "text-red-600"}`}>{f.balance >= 0 ? "+" : ""}{f.balance}h</span>
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-xs">
+                  <td className="px-4 py-3 text-slate-700">TOTAL ({filas.length} días)</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-blue-700">{totalHoras}h</td>
+                  <td className="px-4 py-3 text-slate-500">{totalBase}h</td>
+                  <td className="px-4 py-3">
+                    <span className={`font-bold ${totalBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {totalBalance >= 0 ? "+" : ""}{totalBalance}h
+                    </span>
+                  </td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function HorasTrabajadas() {
   const [mes, setMes] = useState("");
   const [anio, setAnio] = useState("2026");
-  const [tecnicos, setTecnicos] = useState([]);
+  const [porEquipo, setPorEquipo] = useState({});
 
   const calcular = async () => {
     try {
@@ -61,59 +123,41 @@ function HorasTrabajadas() {
         api.get("/equipos/"),
       ]);
       const filtrados = movs.filter(m => fechaMatch(m.fecha, mes, anio));
-      const mapa = {};
+      const agrupado = {};
+      for (const eq of eqs) agrupado[eq.nombre] = [];
+
       for (const m of filtrados) {
         const eq = eqs.find(e => String(e.id) === String(m.equipo_id)) || m.equipos;
         const nombre = eq?.nombre || "—";
-        if (!mapa[nombre]) mapa[nombre] = { nombre, dias: 0, horas: 0 };
-        mapa[nombre].dias++;
+        if (!agrupado[nombre]) agrupado[nombre] = [];
         const h = calcHoras(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5));
-        if (h) mapa[nombre].horas += h;
+        agrupado[nombre].push({
+          fecha: m.fecha,
+          dia: m.fecha,
+          hora_salida: m.hora_salida?.slice(0, 5) || null,
+          hora_llegada: m.hora_llegada?.slice(0, 5) || null,
+          horas: h !== null ? +h.toFixed(1) : null,
+          balance: h !== null ? +(h - 8).toFixed(1) : null,
+        });
       }
-      setTecnicos(Object.values(mapa).map(t => ({
-        nombre: t.nombre,
-        equipo: t.nombre,
-        dias_presentes: t.dias,
-        horas_trabajadas: +t.horas.toFixed(1),
-        horas_base: t.dias * 8,
-        balance: +(t.horas - t.dias * 8).toFixed(1),
-      })));
+      for (const nombre of Object.keys(agrupado)) {
+        agrupado[nombre].sort((a, b) => a.fecha.localeCompare(b.fecha));
+      }
+      setPorEquipo(agrupado);
     } catch {}
   };
 
+  const equipos = Object.keys(porEquipo);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular} />
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-              <th className="text-left px-4 py-3">Equipo</th>
-              <th className="text-left px-4 py-3">Días presentes</th>
-              <th className="text-left px-4 py-3">Horas trabajadas</th>
-              <th className="text-left px-4 py-3">Horas base (8h/día)</th>
-              <th className="text-left px-4 py-3">Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tecnicos.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-4 text-slate-400 text-xs">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</td></tr>
-            ) : tecnicos.map((t, i) => (
-              <tr key={i} className="border-b border-slate-100">
-                <td className="px-4 py-3 font-medium">{t.nombre}</td>
-                <td className="px-4 py-3">{t.dias_presentes}</td>
-                <td className="px-4 py-3">{t.horas_trabajadas}h</td>
-                <td className="px-4 py-3 text-slate-400">{t.horas_base}h</td>
-                <td className="px-4 py-3">
-                  <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {t.balance >= 0 ? "+" : ""}{t.balance}h
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {equipos.length === 0
+        ? <p className="text-slate-400 text-sm">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</p>
+        : equipos.map(nombre => (
+            <TablaEquipoHoras key={nombre} nombre={nombre} filas={porEquipo[nombre]} />
+          ))
+      }
     </div>
   );
 }
