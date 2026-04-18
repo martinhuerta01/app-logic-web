@@ -21,6 +21,20 @@ export default function CargaDiaPage() {
   const [svcEstado, setSvcEstado] = useState("PENDIENTE");
   const [svcObs, setSvcObs] = useState("");
   const [svcMsg, setSvcMsg] = useState("");
+  const [feriado, setFeriado] = useState(false);
+
+  const toggleFeriado = (checked) => {
+    setFeriado(checked);
+    if (checked) {
+      setSvcTipo("-");
+      setSvcDispositivo("-");
+      setSvcEstado("-");
+    } else {
+      setSvcTipo("INSTALACION");
+      setSvcDispositivo("GPS");
+      setSvcEstado("PENDIENTE");
+    }
+  };
 
   const esInterior = interior.some(t => t.nombre === svcResponsable);
 
@@ -151,7 +165,9 @@ export default function CargaDiaPage() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Tipo</label>
             <select value={svcTipo} onChange={e => setSvcTipo(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              disabled={feriado}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50">
+              <option value="-">-</option>
               <option>INSTALACION</option>
               <option>REVISION</option>
               <option>DESINSTALACION</option>
@@ -161,7 +177,8 @@ export default function CargaDiaPage() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
             <select value={svcDispositivo} onChange={e => setSvcDispositivo(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              disabled={feriado}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50">
               <option>-</option>
               <option>GPS</option>
               <option>LECTORA</option>
@@ -182,10 +199,13 @@ export default function CargaDiaPage() {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Estado</label>
             <select value={svcEstado} onChange={e => setSvcEstado(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              disabled={feriado}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50">
+              <option value="-">-</option>
               <option>PENDIENTE</option>
               <option>CONFIRMADO</option>
               <option>REALIZADO</option>
+              <option>SUSPENDIDO</option>
             </select>
           </div>
         </div>
@@ -196,11 +216,22 @@ export default function CargaDiaPage() {
             className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <button type="submit"
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
             Guardar servicio
           </button>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={feriado}
+              onChange={e => toggleFeriado(e.target.checked)}
+              className="w-4 h-4 accent-orange-500 cursor-pointer"
+            />
+            <span className={`text-sm font-semibold ${feriado ? "text-orange-600" : "text-slate-500"}`}>
+              FERIADO
+            </span>
+          </label>
           {svcMsg && (
             <span className={`text-sm font-medium ${svcMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
               {svcMsg}
