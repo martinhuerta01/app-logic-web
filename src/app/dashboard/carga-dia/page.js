@@ -141,10 +141,14 @@ export default function CargaDiaPage() {
             <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
             <select value={svcDispositivo} onChange={e => setSvcDispositivo(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option>-</option>
               <option>GPS</option>
               <option>LECTORA</option>
               <option>GPS y LECTORA</option>
               <option>CAMARA</option>
+              <option>Tractor</option>
+              <option>Semi</option>
+              <option>Chasis</option>
             </select>
           </div>
 
