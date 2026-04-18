@@ -7,6 +7,8 @@ export default function ClientesPage() {
   const [adding, setAdding] = useState(false);
   const [editando, setEditando] = useState(null);
   const [form, setForm] = useState({ empresa: "", base: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" });
+  const [textoBusqueda, setTextoBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => { cargar(); }, []);
 
@@ -44,6 +46,13 @@ export default function ClientesPage() {
     cargar();
   };
 
+  const q = busqueda.toLowerCase();
+  const clientesFiltrados = q
+    ? clientes.filter(c =>
+        [c.empresa, c.nombre, c.base, c.celular, c.localidad, c.email].some(v => v?.toLowerCase().includes(q))
+      )
+    : clientes;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -52,6 +61,28 @@ export default function ClientesPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
           {adding ? "Cancelar" : "+ Agregar"}
         </button>
+      </div>
+
+      {/* Barra de búsqueda */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Buscar por empresa, responsable, localidad..."
+          value={textoBusqueda}
+          onChange={e => setTextoBusqueda(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && setBusqueda(textoBusqueda)}
+          className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
+        <button onClick={() => setBusqueda(textoBusqueda)}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          Buscar
+        </button>
+        {busqueda && (
+          <button onClick={() => { setBusqueda(""); setTextoBusqueda(""); }}
+            className="text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm border border-slate-300 transition">
+            Limpiar
+          </button>
+        )}
       </div>
 
       {adding && (
@@ -116,7 +147,9 @@ export default function ClientesPage() {
             </tr>
           </thead>
           <tbody>
-            {clientes.map(c => (
+            {clientesFiltrados.length === 0 ? (
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400 text-xs">Sin resultados</td></tr>
+            ) : clientesFiltrados.map(c => (
               <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-2.5 text-xs font-medium">{c.empresa || c.nombre}</td>
                 <td className="px-4 py-2.5 text-xs">{c.base || "—"}</td>
@@ -132,6 +165,7 @@ export default function ClientesPage() {
               </tr>
             ))}
           </tbody>
+
         </table>
       </div>
     </div>
