@@ -38,7 +38,9 @@ export default function HorarioTecnicoPage() {
     if (fecha) params.fecha = fecha;
     if (equipoId) params.equipo_id = equipoId;
     try {
-      const data = await api.get("/movimientos-camioneta/", params);
+      let data = await api.get("/movimientos-camioneta/", params);
+      // filtro cliente por fecha exacta (la API puede devolver más registros)
+      if (fecha) data = data.filter(m => m.fecha === fecha);
       setMovimientos(data);
     } catch {}
   };
