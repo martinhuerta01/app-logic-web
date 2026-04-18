@@ -208,8 +208,12 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs">{s.fecha}</td>
               <td className="px-4 py-2.5 text-xs font-medium">{s.responsable || equipoNombre(s.equipo_id)}</td>
               <td className="px-4 py-2.5 text-xs">{s.hora_programada?.slice(0,5) || "—"}</td>
-              <td className="px-4 py-2.5 text-xs">{s.cliente}</td>
-              <td className="px-4 py-2.5 text-xs">{s.tipo_servicio}</td>
+              <td className="px-4 py-2.5 text-xs">
+                {s.tipo_servicio === "-"
+                  ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300">FERIADO</span>
+                  : s.cliente}
+              </td>
+              <td className="px-4 py-2.5 text-xs">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
               <td className="px-4 py-2.5 text-xs">{dispDisplay(s)}</td>
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
@@ -258,8 +262,12 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs font-medium">{s.responsable || "—"}</td>
               <td className="px-4 py-2.5 text-xs">{s.localidad || "—"}</td>
               <td className="px-4 py-2.5 text-xs">{s.hora_programada?.slice(0,5) || "—"}</td>
-              <td className="px-4 py-2.5 text-xs">{s.cliente}</td>
-              <td className="px-4 py-2.5 text-xs">{s.tipo_servicio}</td>
+              <td className="px-4 py-2.5 text-xs">
+                {s.tipo_servicio === "-"
+                  ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300">FERIADO</span>
+                  : s.cliente}
+              </td>
+              <td className="px-4 py-2.5 text-xs">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
               <td className="px-4 py-2.5 text-xs">{dispDisplay(s)}</td>
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">

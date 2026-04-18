@@ -62,8 +62,12 @@ export default function VistaDiaPage() {
         ) : items.map(s => (
           <tr key={s.id} className="border-b border-slate-100">
             <td className="py-2">{s.hora_programada?.slice(0,5) || "—"}</td>
-            <td className="py-2">{s.cliente}</td>
-            <td className="py-2 text-xs font-medium text-blue-700">{s.tipo_servicio}</td>
+            <td className="py-2">
+              {s.tipo_servicio === "-"
+                ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300">FERIADO</span>
+                : s.cliente}
+            </td>
+            <td className="py-2 text-xs font-medium text-blue-700">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
             <td className="py-2">{s.dispositivo || "—"}</td>
             <td className="py-2 font-mono text-xs">{s.patente}</td>
             <td className="py-2">
