@@ -55,6 +55,15 @@ export default function ClientesPage() {
       )
     : clientes;
 
+  // Agrupar por empresa
+  const grupos = {};
+  clientesFiltrados.forEach(c => {
+    const key = c.empresa || c.nombre || "Sin empresa";
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(c);
+  });
+  const gruposOrdenados = Object.entries(grupos).sort(([a], [b]) => a.localeCompare(b, "es"));
+
   return (
     <div className="space-y-6">
       {msg && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{msg}</div>}
@@ -139,7 +148,6 @@ export default function ClientesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-              <th className="text-left px-4 py-3">Empresa</th>
               <th className="text-left px-4 py-3">Base</th>
               <th className="text-left px-4 py-3">Responsable</th>
               <th className="text-left px-4 py-3">Celular</th>
@@ -150,25 +158,35 @@ export default function ClientesPage() {
             </tr>
           </thead>
           <tbody>
-            {clientesFiltrados.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400 text-xs">Sin resultados</td></tr>
-            ) : clientesFiltrados.map(c => (
-              <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-2.5 text-xs font-medium">{c.empresa || c.nombre}</td>
-                <td className="px-4 py-2.5 text-xs">{c.base || "—"}</td>
-                <td className="px-4 py-2.5 text-xs">{c.nombre || "—"}</td>
-                <td className="px-4 py-2.5 text-xs">{c.celular || "—"}</td>
-                <td className="px-4 py-2.5 text-xs">{c.direccion || "—"}</td>
-                <td className="px-4 py-2.5 text-xs">{c.localidad || "—"}</td>
-                <td className="px-4 py-2.5 text-xs">{c.email || "—"}</td>
-                <td className="px-4 py-2.5 flex gap-2">
-                  <button onClick={() => editar(c)} className="text-blue-600 hover:underline text-xs">Editar</button>
-                  <button onClick={() => eliminar(c.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
-                </td>
-              </tr>
+            {gruposOrdenados.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400 text-xs">Sin resultados</td></tr>
+            ) : gruposOrdenados.map(([empresa, lista]) => (
+              <>
+                <tr key={`grupo-${empresa}`} className="bg-blue-50 border-b border-blue-100">
+                  <td colSpan={7} className="px-4 py-2 text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                    {empresa}
+                    <span className="ml-2 font-normal text-blue-400 normal-case tracking-normal">
+                      {lista.length === 1 ? "1 contacto" : `${lista.length} contactos`}
+                    </span>
+                  </td>
+                </tr>
+                {lista.map(c => (
+                  <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-2.5 text-xs">{c.base || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{c.nombre || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{c.celular || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{c.direccion || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{c.localidad || "—"}</td>
+                    <td className="px-4 py-2.5 text-xs">{c.email || "—"}</td>
+                    <td className="px-4 py-2.5 flex gap-2">
+                      <button onClick={() => editar(c)} className="text-blue-600 hover:underline text-xs">Editar</button>
+                      <button onClick={() => eliminar(c.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+              </>
             ))}
           </tbody>
-
         </table>
       </div>
     </div>
