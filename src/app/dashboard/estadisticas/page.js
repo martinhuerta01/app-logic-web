@@ -13,6 +13,17 @@ function calcHoras(inicio, fin) {
   return diff > 0 ? +(diff / 60).toFixed(2) : null;
 }
 
+function fmtHM(h, signed = false) {
+  if (h === null || h === undefined || isNaN(h)) return "—";
+  const neg = h < 0;
+  const abs = Math.abs(h);
+  const hh = Math.floor(abs);
+  const mm = Math.round((abs - hh) * 60);
+  const str = `${hh}:${String(mm).padStart(2, "0")}`;
+  if (signed) return (neg ? "-" : "+") + str;
+  return str;
+}
+
 function fechaMatch(fecha, mes, anio) {
   if (!fecha) return false;
   const [y, m] = fecha.split("-");
@@ -87,11 +98,11 @@ function TablaEquipoHoras({ nombre, filas }) {
                     <td className="px-4 py-2.5 text-xs font-medium">{f.dia}</td>
                     <td className="px-4 py-2.5 text-xs">{f.hora_salida || "—"}</td>
                     <td className="px-4 py-2.5 text-xs">{f.hora_llegada || "—"}</td>
-                    <td className="px-4 py-2.5 text-xs">{f.horas !== null ? `${f.horas}h` : "—"}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">8h</td>
+                    <td className="px-4 py-2.5 text-xs">{fmtHM(f.horas)}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400">8:00</td>
                     <td className="px-4 py-2.5 text-xs">
                       {f.balance !== null
-                        ? <span className={`font-semibold ${f.balance >= 0 ? "text-green-600" : "text-red-600"}`}>{f.balance >= 0 ? "+" : ""}{f.balance}h</span>
+                        ? <span className={`font-semibold ${f.balance >= 0 ? "text-green-600" : "text-red-600"}`}>{fmtHM(f.balance, true)}</span>
                         : "—"}
                     </td>
                   </tr>
@@ -100,11 +111,11 @@ function TablaEquipoHoras({ nombre, filas }) {
                   <td className="px-4 py-3 text-slate-700">TOTAL ({filas.length} días)</td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3"></td>
-                  <td className="px-4 py-3 text-blue-700">{totalHoras}h</td>
-                  <td className="px-4 py-3 text-slate-500">{totalBase}h</td>
+                  <td className="px-4 py-3 text-blue-700">{fmtHM(totalHoras)}</td>
+                  <td className="px-4 py-3 text-slate-500">8:00 × {filas.length}</td>
                   <td className="px-4 py-3">
                     <span className={`font-bold ${totalBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {totalBalance >= 0 ? "+" : ""}{totalBalance}h
+                      {fmtHM(totalBalance, true)}
                     </span>
                   </td>
                 </tr>
@@ -569,10 +580,10 @@ function ReporteCruzado() {
                     <td className="px-4 py-3">{t.dias_presentes}</td>
                     <td className="px-4 py-3 font-semibold text-blue-700">{t.servicios_realizados}</td>
                     <td className="px-4 py-3">{t.servicios_por_dia}</td>
-                    <td className="px-4 py-3">{t.horas_trabajadas}h</td>
+                    <td className="px-4 py-3">{fmtHM(t.horas_trabajadas)}</td>
                     <td className="px-4 py-3">
                       <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {t.balance >= 0 ? "+" : ""}{t.balance}h
+                        {fmtHM(t.balance, true)}
                       </span>
                     </td>
                   </tr>
@@ -639,8 +650,8 @@ function ReporteCruzado() {
             <div className="flex gap-4 flex-wrap">
               {[
                 { label: "Días con registro", value: horasGR.length, color: "text-blue-700" },
-                { label: "Horas trabajadas total", value: `${totalHT.toFixed(1)}h`, color: "text-teal-700" },
-                { label: "Horas en GR/LCH total", value: `${totalGR.toFixed(1)}h`, color: "text-amber-700" },
+                { label: "Horas trabajadas total", value: fmtHM(totalHT), color: "text-teal-700" },
+                { label: "Horas en GR/LCH total", value: fmtHM(totalGR), color: "text-amber-700" },
                 { label: "% tiempo en GR/LCH", value: totalHT > 0 ? `${((totalGR / totalHT) * 100).toFixed(0)}%` : "—", color: "text-violet-700" },
               ].map(card => (
                 <div key={card.label} className="bg-white border border-slate-200 rounded-xl px-5 py-4 text-center">
@@ -666,8 +677,8 @@ function ReporteCruzado() {
                 ) : horasGR.map((f, i) => (
                   <tr key={i} className="border-b border-slate-100">
                     <td className="px-4 py-3 text-xs">{f.fecha}</td>
-                    <td className="px-4 py-3 text-xs">{f.horas_trabajadas !== null ? `${f.horas_trabajadas}h` : "—"}</td>
-                    <td className="px-4 py-3 text-xs text-amber-700">{f.horas_gr !== null ? `${f.horas_gr}h` : "—"}</td>
+                    <td className="px-4 py-3 text-xs">{fmtHM(f.horas_trabajadas)}</td>
+                    <td className="px-4 py-3 text-xs text-amber-700">{fmtHM(f.horas_gr)}</td>
                     <td className="px-4 py-3 text-xs">
                       {f.horas_trabajadas && f.horas_gr
                         ? `${((f.horas_gr / f.horas_trabajadas) * 100).toFixed(0)}%`
