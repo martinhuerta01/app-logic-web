@@ -121,8 +121,10 @@ function HorasTrabajadas() {
   const [mes, setMes] = useState("");
   const [anio, setAnio] = useState("2026");
   const [porEquipo, setPorEquipo] = useState({});
+  const [error, setError] = useState("");
 
   const calcular = async () => {
+    setError("");
     try {
       const [movs, eqs] = await Promise.all([
         api.get("/movimientos-camioneta/"),
@@ -150,13 +152,14 @@ function HorasTrabajadas() {
         agrupado[nombre].sort((a, b) => a.fecha.localeCompare(b.fecha));
       }
       setPorEquipo(agrupado);
-    } catch {}
+    } catch { setError("Error al calcular horas. Verificá la conexión con el servidor."); }
   };
 
   const equipos = Object.keys(porEquipo);
 
   return (
     <div className="space-y-6">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
       <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular} />
       {equipos.length === 0
         ? <p className="text-slate-400 text-sm">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</p>
@@ -176,10 +179,12 @@ function ServiciosResponsable() {
   const [responsables, setResponsables] = useState([]);
   const [totalGeneral, setTotalGeneral] = useState(0);
   const [equipos, setEquipos] = useState([]);
+  const [error, setError] = useState("");
 
-  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => {}); }, []);
+  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => setError("No se pudieron cargar los equipos.")); }, []);
 
   const buscar = async () => {
+    setError("");
     const params = {};
     if (mes) params.mes = mes;
     if (anio) params.anio = anio;
@@ -200,11 +205,12 @@ function ServiciosResponsable() {
       }
       setResponsables(Object.values(mapa).sort((a, b) => b.total - a.total));
       setTotalGeneral(todos.length);
-    } catch {}
+    } catch { setError("Error al buscar servicios. Verificá la conexión con el servidor."); }
   };
 
   return (
     <div className="space-y-4">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
       <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={buscar} label="Buscar" />
       {totalGeneral > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 inline-block">
@@ -267,8 +273,10 @@ function ServiciosCliente() {
   const [clienteFiltro, setClienteFiltro] = useState("");
   const [resumen, setResumen] = useState(null);
   const [clientes, setClientes] = useState([]);
+  const [error, setError] = useState("");
 
   const buscar = async () => {
+    setError("");
     const params = {};
     if (mes) params.mes = mes;
     if (anio) params.anio = anio;
@@ -304,11 +312,12 @@ function ServiciosCliente() {
         revisiones: filtrados.filter(s => s.tipo_servicio === "REVISION").length,
         desinstalaciones: filtrados.filter(s => s.tipo_servicio === "DESINSTALACION").length,
       });
-    } catch {}
+    } catch { setError("Error al buscar servicios. Verificá la conexión con el servidor."); }
   };
 
   return (
     <div className="space-y-4">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
       <div className="flex items-end gap-3 flex-wrap">
         <div>
           <label className="block text-xs text-slate-500 mb-1">Cliente (buscar)</label>
@@ -425,10 +434,12 @@ function ReporteCruzado() {
   const [cruces, setCruces] = useState([]);
   const [horasGR, setHorasGR] = useState([]);
   const [equipos, setEquipos] = useState([]);
+  const [error, setError] = useState("");
 
-  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => {}); }, []);
+  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => setError("No se pudieron cargar los equipos.")); }, []);
 
   const calcular = async () => {
+    setError("");
     const params = {};
     if (mes) params.mes = mes;
     if (anio) params.anio = anio;
@@ -508,7 +519,7 @@ function ReporteCruzado() {
         })).filter(f => f.horas_trabajadas !== null);
         setHorasGR(filas);
       }
-    } catch {}
+    } catch { setError("Error al calcular el reporte. Verificá la conexión con el servidor."); }
   };
 
   const totalHT = horasGR.reduce((a, f) => a + (f.horas_trabajadas || 0), 0);
@@ -516,6 +527,7 @@ function ReporteCruzado() {
 
   return (
     <div className="space-y-4">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
       <div className="flex gap-2 mb-2 flex-wrap">
         {[
           { key: "productividad", label: "Productividad" },

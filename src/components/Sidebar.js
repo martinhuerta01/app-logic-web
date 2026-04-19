@@ -111,7 +111,7 @@ export default function Sidebar() {
   useEffect(() => {
     api.get("/stock/ubicaciones/")
       .then((ubics) => setStockGrupos(buildStockGrupos(ubics)))
-      .catch(() => {});
+      .catch((err) => console.warn("No se pudieron cargar las ubicaciones de stock:", err));
   }, []);
 
   const MODULOS = MODULOS_BASE.map((mod) =>

@@ -8,12 +8,14 @@ export default function VistaDiaPage() {
   const [servicios, setServicios] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [vista, setVista] = useState("interna");
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get("/equipos/").then(setEquipos).catch(() => {});
+    api.get("/equipos/").then(setEquipos).catch(() => setError("No se pudieron cargar los equipos."));
   }, []);
 
   const buscar = async () => {
+    setError("");
     try {
       const [svcs, movs] = await Promise.all([
         api.get("/servicios/", { fecha }),
@@ -21,14 +23,14 @@ export default function VistaDiaPage() {
       ]);
       setServicios(svcs);
       setMovimientos(movs);
-    } catch {}
+    } catch { setError("Error al buscar servicios. Verificá la conexión con el servidor."); }
   };
 
   const cambiarEstado = async (svcId, nuevoEstado) => {
     try {
       await api.put(`/servicios/${svcId}`, { estado: nuevoEstado });
       setServicios(prev => prev.map(s => s.id === svcId ? { ...s, estado: nuevoEstado } : s));
-    } catch {}
+    } catch { setError("No se pudo actualizar el estado."); }
   };
 
   const getMovimiento = (equipoId) => movimientos.find(m => m.equipo_id === equipoId);
@@ -88,6 +90,7 @@ export default function VistaDiaPage() {
 
   return (
     <div className="space-y-6">
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Vista del Día</h1>
         <div className="flex gap-2">

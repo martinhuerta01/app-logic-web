@@ -15,12 +15,16 @@ export default function HistorialCamionetaPage() {
   const [filtroEquipo, setFiltroEquipo] = useState("");
   const [editando, setEditando] = useState(null);
   const [msgEdit, setMsgEdit] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api.get("/equipos/").then(eqs => {
       setEquipos(eqs);
       cargarMovimientos("", "");
-    }).catch(() => { cargarMovimientos("", ""); });
+    }).catch(() => {
+      setError("No se pudieron cargar los equipos.");
+      cargarMovimientos("", "");
+    });
   }, []);
 
   const cargarMovimientos = async (fecha, equipoId) => {
@@ -31,7 +35,7 @@ export default function HistorialCamionetaPage() {
       let data = await api.get("/movimientos-camioneta/", params);
       if (fecha) data = data.filter(m => m.fecha === fecha);
       setMovimientos(data);
-    } catch {}
+    } catch { setError("Error al cargar movimientos. Verificá la conexión con el servidor."); }
   };
 
   const buscar = () => {
@@ -87,6 +91,7 @@ export default function HistorialCamionetaPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Historial Camioneta</h1>
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
 
       {/* Filtros */}
       <div className="flex items-end gap-3 flex-wrap">

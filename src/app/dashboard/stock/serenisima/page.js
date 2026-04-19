@@ -57,24 +57,27 @@ export default function SerenisimaPage() {
   );
 
   const resumen = mapeo.map((m) => {
-    const prodIds = m.producto_ids || [];
+    const prodIds = (m.producto_ids || []).map(String);
 
     const entradas = movimientos
       .filter(
         (mov) =>
-          prodIds.includes(mov.producto_id) &&
+          prodIds.includes(String(mov.producto_id)) &&
           cdUbic &&
-          (mov.ubicacion_destino_id === cdUbic.id || mov.destino_id === cdUbic.id) &&
-          oficina &&
-          (mov.ubicacion_origen_id === oficina.id || mov.origen_id === oficina.id)
+          (mov.ubicacion_destino_id === cdUbic.id || mov.destino_id === cdUbic.id)
       )
       .reduce((sum, mov) => sum + (mov.cantidad || 0), 0);
 
-    const actual = stockActual
-      .filter((s) => prodIds.includes(s.producto_id))
-      .reduce((sum, s) => sum + (s.cantidad || 0), 0);
+    const salidas = movimientos
+      .filter(
+        (mov) =>
+          prodIds.includes(String(mov.producto_id)) &&
+          cdUbic &&
+          (mov.ubicacion_origen_id === cdUbic.id || mov.origen_id === cdUbic.id)
+      )
+      .reduce((sum, mov) => sum + (mov.cantidad || 0), 0);
 
-    const salidas = entradas - actual > 0 ? entradas - actual : 0;
+    const actual = entradas - salidas;
 
     return {
       codigo: m.codigo_serenisima,

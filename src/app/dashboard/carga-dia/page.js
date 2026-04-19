@@ -22,6 +22,7 @@ export default function CargaDiaPage() {
   const [svcObs, setSvcObs] = useState("");
   const [svcMsg, setSvcMsg] = useState("");
   const [feriado, setFeriado] = useState(false);
+  const [errorCarga, setErrorCarga] = useState("");
 
   const toggleFeriado = (checked) => {
     setFeriado(checked);
@@ -55,7 +56,7 @@ export default function CargaDiaPage() {
         ...int.map(t => t.nombre),
       ];
       setResponsables(lista);
-    }).catch(() => {});
+    }).catch(() => setErrorCarga("No se pudieron cargar los datos iniciales. Verificá la conexión con el servidor."));
   }, []);
 
   const guardarServicio = async (e) => {
@@ -90,6 +91,7 @@ export default function CargaDiaPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Carga del Día</h1>
+      {errorCarga && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>}
 
       <form onSubmit={guardarServicio} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
         <h2 className="text-base font-semibold text-slate-700 border-b border-slate-100 pb-2">Nuevo Servicio</h2>

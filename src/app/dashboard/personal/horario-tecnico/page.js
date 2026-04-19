@@ -22,9 +22,10 @@ export default function HorarioTecnicoPage() {
   const [equipos, setEquipos] = useState([]);
   const [form, setForm] = useState(FORM_VACIO);
   const [msg, setMsg] = useState("");
+  const [errorCarga, setErrorCarga] = useState("");
 
   useEffect(() => {
-    api.get("/equipos/").then(setEquipos).catch(() => {});
+    api.get("/equipos/").then(setEquipos).catch(() => setErrorCarga("No se pudieron cargar los equipos."));
   }, []);
 
   const equipoSeleccionado = equipos.find(e => String(e.id) === String(form.equipo_id));
@@ -50,6 +51,7 @@ export default function HorarioTecnicoPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Horario Técnico</h1>
+      {errorCarga && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>}
 
       <form onSubmit={guardar} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
         <h2 className="text-base font-semibold text-slate-700 border-b border-slate-100 pb-2">Cargar movimiento camioneta</h2>

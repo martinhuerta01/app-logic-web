@@ -13,7 +13,7 @@ function SubresponsablesModal({ contacto, onClose }) {
     try {
       const data = await api.get(`/directorio/${contacto.id}/subresponsables`);
       setSubs(data);
-    } catch {}
+    } catch { setMsg("Error al cargar contactos."); }
   };
 
   const agregar = async (e) => {
@@ -78,6 +78,7 @@ export default function TecnicosTalleresPage() {
   const [form, setForm] = useState({ nombre: "", celular: "", direccion: "", localidad: "", email: "" });
   const [textoBusqueda, setTextoBusqueda] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [errorCarga, setErrorCarga] = useState("");
 
   useEffect(() => { cargar(); }, []);
 
@@ -85,11 +86,12 @@ export default function TecnicosTalleresPage() {
     try {
       const data = await api.get("/directorio/interior");
       setContactos(data);
-    } catch {}
+    } catch { setErrorCarga("No se pudieron cargar los técnicos / talleres."); }
   };
 
   const guardar = async (e) => {
     e.preventDefault();
+    setErrorCarga("");
     try {
       if (editando) {
         await api.put(`/directorio/${editando}`, { ...form, tipo: "interior" });
@@ -100,7 +102,7 @@ export default function TecnicosTalleresPage() {
       setForm({ nombre: "", celular: "", direccion: "", localidad: "", email: "" });
       setAdding(false);
       cargar();
-    } catch {}
+    } catch { setErrorCarga("Error al guardar."); }
   };
 
   const editar = (c) => {
@@ -125,6 +127,7 @@ export default function TecnicosTalleresPage() {
   return (
     <div className="space-y-6">
       {verSubs && <SubresponsablesModal contacto={verSubs} onClose={() => setVerSubs(null)} />}
+      {errorCarga && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>}
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Técnicos / Talleres</h1>

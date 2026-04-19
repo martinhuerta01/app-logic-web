@@ -103,12 +103,14 @@ export default function HistorialPage() {
   const [filtroDia, setFiltroDia] = useState("");
   const [filtroAnio, setFiltroAnio] = useState("2026");
   const [editando, setEditando] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get("/equipos/").then(setEquipos).catch(() => {});
+    api.get("/equipos/").then(setEquipos).catch(() => setError("No se pudieron cargar los equipos."));
   }, []);
 
   const buscar = async () => {
+    setError("");
     const params = {};
     if (filtroEstado) params.estado = filtroEstado;
     if (filtroMes) params.mes = filtroMes;
@@ -133,7 +135,7 @@ export default function HistorialPage() {
         });
       setSvcEquipos(ordenar(eq));
       setSvcInterior(porDia(int));
-    } catch {}
+    } catch { setError("Error al buscar servicios. Verificá la conexión con el servidor."); }
   };
 
   const cambiarEstado = async (id, estado, esInterior = false) => {
@@ -144,7 +146,7 @@ export default function HistorialPage() {
       } else {
         setSvcEquipos(prev => prev.map(s => s.id === id ? { ...s, estado } : s));
       }
-    } catch {}
+    } catch { setError("No se pudo actualizar el estado."); }
   };
 
   const eliminar = async (id, esInterior = false) => {
@@ -156,7 +158,7 @@ export default function HistorialPage() {
       } else {
         setSvcEquipos(prev => prev.filter(s => s.id !== id));
       }
-    } catch {}
+    } catch { setError("No se pudo eliminar el servicio."); }
   };
 
   const guardarEdicion = async (id, form) => {
@@ -293,6 +295,7 @@ export default function HistorialPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Historial de Servicios</h1>
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
 
       {/* Filtros */}
       <div className="flex items-end gap-3 flex-wrap">

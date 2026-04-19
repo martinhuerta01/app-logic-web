@@ -265,8 +265,9 @@ function MapeoSerenisima({ productos }) {
   const [mapeos, setMapeos] = useState([]);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [errorMapeo, setErrorMapeo] = useState("");
 
-  const cargar = () => api.get("/stock/mapeo-serenisima/").then(setMapeos).catch(() => {});
+  const cargar = () => api.get("/stock/mapeo-serenisima/").then(setMapeos).catch(() => setErrorMapeo("No se pudo cargar el mapeo de Serenísima."));
   useEffect(() => { cargar(); }, []);
 
   const eliminar = async (id) => {
@@ -278,8 +279,8 @@ function MapeoSerenisima({ productos }) {
   const getNombresProductos = (ids) => {
     if (!ids || !ids.length) return "—";
     return ids.map(id => {
-      const p = productos.find(pr => pr.id === id);
-      return p ? `${p.codigo} - ${p.descripcion}` : id;
+      const p = productos.find(pr => String(pr.id) === String(id));
+      return p ? `${p.codigo} - ${p.descripcion}` : String(id);
     }).join(", ");
   };
 
@@ -296,6 +297,7 @@ function MapeoSerenisima({ productos }) {
         </button>
       </div>
 
+      {errorMapeo && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorMapeo}</div>}
       {adding && <FormMapeo productos={productos} onDone={() => { setAdding(false); cargar(); }} />}
 
       <table className="w-full text-sm">
@@ -384,8 +386,8 @@ function FormMapeo({ productos, item, onDone, onCancel }) {
               <div className="text-xs font-semibold text-slate-500 mb-1">{cat}</div>
               <div className="flex flex-wrap gap-1">
                 {prods.map(p => (
-                  <label key={p.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs cursor-pointer border ${selectedIds.includes(p.id) ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-600"}`}>
-                    <input type="checkbox" checked={selectedIds.includes(p.id)} onChange={() => toggleProducto(p.id)} className="hidden" />
+                  <label key={p.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs cursor-pointer border ${selectedIds.map(String).includes(String(p.id)) ? "bg-blue-100 border-blue-400 text-blue-700" : "bg-white border-slate-200 text-slate-600"}`}>
+                    <input type="checkbox" checked={selectedIds.map(String).includes(String(p.id))} onChange={() => toggleProducto(p.id)} className="hidden" />
                     {p.codigo}
                   </label>
                 ))}
@@ -395,7 +397,7 @@ function FormMapeo({ productos, item, onDone, onCancel }) {
         </div>
         {selectedIds.length > 0 && (
           <div className="text-xs text-slate-500 mt-1">
-            Seleccionados: {selectedIds.map(id => productos.find(p => p.id === id)?.codigo).filter(Boolean).join(", ")}
+            Seleccionados: {selectedIds.map(id => productos.find(p => String(p.id) === String(id))?.codigo).filter(Boolean).join(", ")}
           </div>
         )}
       </div>
@@ -413,10 +415,11 @@ export default function ConfiguracionPage() {
   const [equipos, setEquipos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
   const [productos, setProductos] = useState([]);
+  const [errorCarga, setErrorCarga] = useState("");
 
-  const cargarEquipos = () => api.get("/equipos/").then(setEquipos).catch(() => {});
-  const cargarUbicaciones = () => api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
-  const cargarProductos = () => api.get("/stock/productos/").then(setProductos).catch(() => {});
+  const cargarEquipos = () => api.get("/equipos/").then(setEquipos).catch(() => setErrorCarga("No se pudieron cargar los equipos."));
+  const cargarUbicaciones = () => api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => setErrorCarga("No se pudieron cargar las ubicaciones."));
+  const cargarProductos = () => api.get("/stock/productos/").then(setProductos).catch(() => setErrorCarga("No se pudieron cargar los productos."));
 
   useEffect(() => {
     cargarEquipos();
@@ -446,6 +449,7 @@ export default function ConfiguracionPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Configuración</h1>
       <p className="text-sm text-slate-500">Administrá equipos, ubicaciones de stock y productos.</p>
+      {errorCarga && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>}
 
       <CrudSection
         titulo="Equipos"

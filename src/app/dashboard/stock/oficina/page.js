@@ -52,20 +52,20 @@ function OficinaActual() {
     const entradas = movimientos
       .filter(
         (m) =>
-          m.producto_id === prod.id &&
+          String(m.producto_id) === String(prod.id) &&
           oficina &&
           (m.ubicacion_destino_id === oficina.id || m.destino_id === oficina.id) &&
-          (m.tipo === "entrada" || m.tipo === "compra")
+          (m.tipo?.toLowerCase() === "entrada" || m.tipo?.toLowerCase() === "compra")
       )
       .reduce((sum, m) => sum + (m.cantidad || 0), 0);
 
     const salidas = movimientos
       .filter(
         (m) =>
-          m.producto_id === prod.id &&
+          String(m.producto_id) === String(prod.id) &&
           oficina &&
           (m.ubicacion_origen_id === oficina.id || m.origen_id === oficina.id) &&
-          (m.tipo === "transferencia" || m.tipo === "salida")
+          (m.tipo?.toLowerCase() === "transferencia" || m.tipo?.toLowerCase() === "salida")
       )
       .reduce((sum, m) => sum + (m.cantidad || 0), 0);
 
@@ -281,7 +281,7 @@ function OficinaEntradas() {
         );
         setHistorial(entradas);
       }
-    } catch {}
+    } catch { setMsg("Error al cargar datos. Verificá la conexión con el servidor."); }
   };
 
   const prodSeleccionado = productos.find((p) => p.codigo === form.codigo);
@@ -550,7 +550,7 @@ function OficinaSalidas() {
         );
         setHistorial(salidas);
       }
-    } catch {}
+    } catch { setMsg("Error al cargar datos. Verificá la conexión con el servidor."); }
   };
 
   const eliminarMov = async (m) => {

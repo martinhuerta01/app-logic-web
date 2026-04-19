@@ -9,6 +9,7 @@ export default function ProveedoresPage() {
   const [form, setForm] = useState({ producto: "", empresa: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" });
   const [textoBusqueda, setTextoBusqueda] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => { cargar(); }, []);
 
@@ -16,11 +17,12 @@ export default function ProveedoresPage() {
     try {
       const data = await api.get("/directorio/", { tipo: "proveedor" });
       setProveedores(data);
-    } catch {}
+    } catch { setMsg("No se pudieron cargar los proveedores."); }
   };
 
   const guardar = async (e) => {
     e.preventDefault();
+    setMsg("");
     try {
       const payload = { ...form, tipo: "proveedor", nombre: form.empresa || form.nombre };
       if (editando) {
@@ -32,7 +34,7 @@ export default function ProveedoresPage() {
       setForm({ producto: "", empresa: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" });
       setAdding(false);
       cargar();
-    } catch {}
+    } catch { setMsg("Error al guardar el proveedor."); }
   };
 
   const editar = (p) => {
@@ -56,6 +58,7 @@ export default function ProveedoresPage() {
 
   return (
     <div className="space-y-6">
+      {msg && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{msg}</div>}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Proveedores</h1>
         <button onClick={() => { setAdding(!adding); setEditando(null); setForm({ producto: "", empresa: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" }); }}

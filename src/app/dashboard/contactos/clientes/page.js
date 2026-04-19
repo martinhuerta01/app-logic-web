@@ -9,6 +9,7 @@ export default function ClientesPage() {
   const [form, setForm] = useState({ empresa: "", base: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" });
   const [textoBusqueda, setTextoBusqueda] = useState("");
   const [busqueda, setBusqueda] = useState("");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => { cargar(); }, []);
 
@@ -16,11 +17,12 @@ export default function ClientesPage() {
     try {
       const data = await api.get("/directorio/", { tipo: "cliente" });
       setClientes(data);
-    } catch {}
+    } catch { setMsg("No se pudieron cargar los clientes."); }
   };
 
   const guardar = async (e) => {
     e.preventDefault();
+    setMsg("");
     try {
       if (editando) {
         await api.put(`/directorio/${editando}`, { ...form, tipo: "cliente" });
@@ -31,7 +33,7 @@ export default function ClientesPage() {
       setForm({ empresa: "", base: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" });
       setAdding(false);
       cargar();
-    } catch {}
+    } catch { setMsg("Error al guardar el cliente."); }
   };
 
   const editar = (c) => {
@@ -55,6 +57,7 @@ export default function ClientesPage() {
 
   return (
     <div className="space-y-6">
+      {msg && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{msg}</div>}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
         <button onClick={() => { setAdding(!adding); setEditando(null); setForm({ empresa: "", base: "", nombre: "", celular: "", direccion: "", localidad: "", email: "" }); }}

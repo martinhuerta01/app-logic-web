@@ -186,9 +186,8 @@ function Importar() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [ubicacionDestino, setUbicacionDestino] = useState("");
 
-  // Carga ubicaciones para los tipos de stock
   useEffect(() => {
-    api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {});
+    api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => setMsg("No se pudieron cargar las ubicaciones de stock."));
   }, []);
 
   const handleTipo = (e) => {
