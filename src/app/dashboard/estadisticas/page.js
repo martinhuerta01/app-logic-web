@@ -21,8 +21,14 @@ function fechaMatch(fecha, mes, anio) {
   return true;
 }
 
-// Normaliza para agrupar (case-insensitive, sin espacios extra)
-const normKey = s => (s || "Sin cliente").trim().toLowerCase();
+// Normaliza para agrupar: case-insensitive, sin acentos, sin separador " / ", sin espacios extra
+const normKey = s => (s || "Sin cliente")
+  .trim()
+  .toLowerCase()
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/\s*\/\s*/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
 // Muestra la primera letra de cada palabra en mayúscula
 const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
 
