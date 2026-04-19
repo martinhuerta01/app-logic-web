@@ -340,7 +340,9 @@ function MapeoSerenisima({ productos }) {
 function FormMapeo({ productos, item, onDone, onCancel }) {
   const [codigo, setCodigo] = useState(item?.codigo_serenisima || "");
   const [descripcion, setDescripcion] = useState(item?.descripcion || "");
-  const [selectedIds, setSelectedIds] = useState(item?.producto_ids || []);
+  const [selectedIds, setSelectedIds] = useState(
+    (item?.producto_ids || []).filter(id => productos.some(p => String(p.id) === String(id)))
+  );
 
   const toggleProducto = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
