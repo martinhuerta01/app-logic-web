@@ -2,7 +2,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata = {
-  title: "App Logic",
+  title: "Depto. Operaciones",
   description: "Gestión de servicios y logística",
 };
 
