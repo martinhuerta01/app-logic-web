@@ -456,14 +456,24 @@ function ReporteCruzado() {
     if (anio) params.anio = anio;
     try {
       if (subTab === "productividad") {
-        const [movs, eqs, svcsEq, svcsInt] = await Promise.all([
+        const prevMesNum = mes ? (parseInt(mes) === 1 ? 12 : parseInt(mes) - 1) : null;
+        const prevAnioStr = mes && parseInt(mes) === 1 ? String(parseInt(anio) - 1) : anio;
+        const prevParams = prevMesNum ? { mes: String(prevMesNum), anio: prevAnioStr } : null;
+
+        const fetches = [
           api.get("/movimientos-camioneta/"),
           api.get("/equipos/"),
           api.get("/servicios/", { ...params, tipo: "equipos" }),
           api.get("/servicios/", { ...params, tipo: "interior" }),
-        ]);
+          ...(prevParams ? [
+            api.get("/servicios/", { ...prevParams, tipo: "equipos" }),
+            api.get("/servicios/", { ...prevParams, tipo: "interior" }),
+          ] : []),
+        ];
+        const [movs, eqs, svcsEq, svcsInt, prevEq, prevInt] = await Promise.all(fetches);
         const filtMovs = movs.filter(m => fechaMatch(m.fecha, mes, anio));
         const todosSvcs = [...(svcsEq || []), ...(svcsInt || [])];
+        const prevSvcs = prevParams ? [...(prevEq || []), ...(prevInt || [])] : [];
 
         const horasPorEq = {};
         for (const m of filtMovs) {
@@ -481,17 +491,29 @@ function ReporteCruzado() {
           svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
         }
 
+        const prevSvcPorResp = {};
+        for (const s of prevSvcs) {
+          const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
+          prevSvcPorResp[resp] = (prevSvcPorResp[resp] || 0) + 1;
+        }
+
         const lista = Object.keys(horasPorEq).map(nombre => {
           const h = horasPorEq[nombre];
           const svcs = svcPorResp[nombre] || 0;
+          const svcsAnt = prevSvcPorResp[nombre] ?? null;
+          const vsPct = svcsAnt !== null && svcsAnt > 0 ? +((svcs - svcsAnt) / svcsAnt * 100).toFixed(0) : null;
           return {
             nombre,
             dias_presentes: h.dias,
-            horas_trabajadas: +h.horas.toFixed(1),
+            horas_trabajadas: +h.horas.toFixed(2),
             horas_base: h.dias * 8,
-            balance: +(h.horas - h.dias * 8).toFixed(1),
+            balance: +(h.horas - h.dias * 8).toFixed(2),
             servicios_realizados: svcs,
             servicios_por_dia: h.dias > 0 ? +(svcs / h.dias).toFixed(1) : 0,
+            svcs_por_hora: h.horas > 0 ? +(svcs / h.horas).toFixed(2) : 0,
+            horas_por_dia: h.dias > 0 ? +(h.horas / h.dias).toFixed(2) : 0,
+            svcs_anterior: svcsAnt,
+            vs_anterior_pct: vsPct,
           };
         });
         setTecnicos(lista);
@@ -559,38 +581,112 @@ function ReporteCruzado() {
       {/* Productividad */}
       {subTab === "productividad" && (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-                  <th className="text-left px-4 py-3">Equipo</th>
-                  <th className="text-left px-4 py-3">Días</th>
-                  <th className="text-left px-4 py-3">Servicios</th>
-                  <th className="text-left px-4 py-3">Svc/día</th>
-                  <th className="text-left px-4 py-3">Horas</th>
-                  <th className="text-left px-4 py-3">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tecnicos.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-4 text-slate-400 text-xs">Sin datos</td></tr>
-                ) : tecnicos.map((t, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="px-4 py-3 font-medium">{t.nombre}</td>
-                    <td className="px-4 py-3">{t.dias_presentes}</td>
-                    <td className="px-4 py-3 font-semibold text-blue-700">{t.servicios_realizados}</td>
-                    <td className="px-4 py-3">{t.servicios_por_dia}</td>
-                    <td className="px-4 py-3">{fmtHM(t.horas_trabajadas)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {fmtHM(t.balance, true)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {(() => {
+            const MESES_SHORT = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+            const prevMesNum = mes ? (parseInt(mes) === 1 ? 12 : parseInt(mes) - 1) : null;
+            const prevLabel = prevMesNum ? MESES_SHORT[prevMesNum - 1] : "Mes ant.";
+
+            // Promedios para colores
+            const avgSvcXHora = tecnicos.length > 0
+              ? tecnicos.reduce((s, t) => s + t.svcs_por_hora, 0) / tecnicos.length : 0;
+
+            // Totales
+            const totDias = tecnicos.reduce((s, t) => s + t.dias_presentes, 0);
+            const totSvcs = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
+            const totHoras = tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0);
+            const totBalance = tecnicos.reduce((s, t) => s + t.balance, 0);
+            const totSvcsAnt = tecnicos.every(t => t.svcs_anterior !== null)
+              ? tecnicos.reduce((s, t) => s + (t.svcs_anterior || 0), 0) : null;
+            const totVsPct = totSvcsAnt !== null && totSvcsAnt > 0
+              ? +((totSvcs - totSvcsAnt) / totSvcsAnt * 100).toFixed(0) : null;
+
+            return (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
+                      <th className="text-left px-4 py-3">Equipo</th>
+                      <th className="text-left px-4 py-3">Días</th>
+                      <th className="text-left px-4 py-3">Servicios</th>
+                      <th className="text-left px-4 py-3">Svc/día</th>
+                      <th className="text-left px-4 py-3 text-purple-700 font-semibold">Svc/hora ★</th>
+                      <th className="text-left px-4 py-3">Horas</th>
+                      <th className="text-left px-4 py-3 text-purple-700 font-semibold">Hs/día ★</th>
+                      <th className="text-left px-4 py-3">Balance</th>
+                      <th className="text-left px-4 py-3 text-purple-700 font-semibold">vs {prevLabel} ★</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tecnicos.length === 0 ? (
+                      <tr><td colSpan={9} className="px-4 py-4 text-slate-400 text-xs">Sin datos. Seleccioná un período y hacé clic en Calcular.</td></tr>
+                    ) : tecnicos.map((t, i) => {
+                      const svcXHoraColor = t.svcs_por_hora >= avgSvcXHora ? "text-green-700 font-semibold" : "text-red-600 font-semibold";
+                      const hsPorDiaColor = t.horas_por_dia < 7 ? "text-orange-600 font-medium" : t.horas_por_dia >= 8 ? "text-green-600 font-medium" : "text-slate-700";
+                      return (
+                        <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-3 font-medium">{t.nombre}</td>
+                          <td className="px-4 py-3">{t.dias_presentes}</td>
+                          <td className="px-4 py-3 font-semibold text-blue-700">{t.servicios_realizados}</td>
+                          <td className="px-4 py-3">{t.servicios_por_dia}</td>
+                          <td className="px-4 py-3"><span className={svcXHoraColor}>{t.svcs_por_hora}</span></td>
+                          <td className="px-4 py-3">{fmtHM(t.horas_trabajadas)}</td>
+                          <td className="px-4 py-3"><span className={hsPorDiaColor}>{fmtHM(t.horas_por_dia)}</span></td>
+                          <td className="px-4 py-3">
+                            <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                              {fmtHM(t.balance, true)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {t.vs_anterior_pct !== null ? (
+                              <>
+                                <span className={`font-medium ${t.vs_anterior_pct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                                  {t.vs_anterior_pct >= 0 ? "↑" : "↓"} {t.vs_anterior_pct >= 0 ? "+" : ""}{t.vs_anterior_pct}%
+                                </span>
+                                <span className="text-xs text-slate-400 block">{t.svcs_anterior} svcs en {prevLabel}</span>
+                              </>
+                            ) : <span className="text-slate-400 text-xs">—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {tecnicos.length > 0 && (
+                      <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-xs">
+                        <td className="px-4 py-3 text-slate-700 uppercase tracking-wide">TOTAL</td>
+                        <td className="px-4 py-3 text-slate-700">{totDias}</td>
+                        <td className="px-4 py-3 text-blue-700 text-sm">{totSvcs}</td>
+                        <td className="px-4 py-3 text-slate-600">{totDias > 0 ? +(totSvcs / totDias).toFixed(1) : "—"}</td>
+                        <td className="px-4 py-3 text-slate-600">{totHoras > 0 ? +(totSvcs / totHoras).toFixed(2) : "—"}</td>
+                        <td className="px-4 py-3 text-blue-700">{fmtHM(totHoras)}</td>
+                        <td className="px-4 py-3 text-slate-600">{totDias > 0 ? fmtHM(totHoras / totDias) : "—"}</td>
+                        <td className="px-4 py-3"><span className={totBalance >= 0 ? "text-green-600" : "text-red-600"}>{fmtHM(totBalance, true)}</span></td>
+                        <td className="px-4 py-3">
+                          {totVsPct !== null ? (
+                            <>
+                              <span className={`font-medium ${totVsPct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                                {totVsPct >= 0 ? "↑" : "↓"} {totVsPct >= 0 ? "+" : ""}{totVsPct}%
+                              </span>
+                              <span className="text-slate-400 font-normal block">{totSvcsAnt} svcs en {prevLabel}</span>
+                            </>
+                          ) : <span className="text-slate-400">—</span>}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+          {/* Leyenda */}
+          {tecnicos.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <div className="flex flex-wrap gap-4 text-xs text-slate-600">
+                <span><span className="font-semibold text-green-700">Verde (Svc/hora)</span> — por encima del promedio del período</span>
+                <span><span className="font-semibold text-red-600">Rojo (Svc/hora)</span> — por debajo del promedio</span>
+                <span><span className="font-semibold text-orange-600">Naranja (Hs/día)</span> — jornada promedio menor a 7h</span>
+                <span><span className="font-semibold text-green-600">Verde (Hs/día)</span> — jornada completa (≥ 8h)</span>
+              </div>
+            </div>
+          )}
           {tecnicos.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
               <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios vs Horas por Equipo</h3>
