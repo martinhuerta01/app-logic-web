@@ -2,99 +2,6 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
-function ModalEditar({ servicio, equipos, onClose, onSave }) {
-  const [form, setForm] = useState({
-    fecha: servicio.fecha || "",
-    hora_programada: servicio.hora_programada?.slice(0, 5) || "",
-    cliente: servicio.cliente || "",
-    tipo_servicio: servicio.tipo_servicio || "INSTALACION",
-    dispositivo: servicio.dispositivo || "GPS",
-    patente: servicio.patente || "",
-    observaciones: servicio.observaciones || "",
-    estado: servicio.estado || "-",
-  });
-
-  const guardar = async () => {
-    await onSave(servicio.id, form);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4 shadow-xl">
-        <h3 className="text-lg font-semibold text-slate-700">Editar Servicio</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Fecha</label>
-            <input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Hora</label>
-            <input type="time" value={form.hora_programada} onChange={e => setForm({ ...form, hora_programada: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Cliente</label>
-            <input type="text" value={form.cliente} onChange={e => setForm({ ...form, cliente: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Tipo</label>
-            <select value={form.tipo_servicio} onChange={e => setForm({ ...form, tipo_servicio: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option>INSTALACION</option>
-              <option>REVISION</option>
-              <option>DESINSTALACION</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
-            <select value={form.dispositivo} onChange={e => setForm({ ...form, dispositivo: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option>-</option>
-              <option>GPS</option>
-              <option>LECTORA</option>
-              <option>GPS y LECTORA</option>
-              <option>CAMARA</option>
-              <option>Tractor</option>
-              <option>Semi</option>
-              <option>Chasis</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Patente</label>
-            <input type="text" value={form.patente} onChange={e => setForm({ ...form, patente: e.target.value.toUpperCase() })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
-            <input type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Estado</label>
-            <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="-">-</option>
-              <option>PENDIENTE</option>
-              <option>CONFIRMADO</option>
-              <option>REALIZADO</option>
-              <option>SUSPENDIDO</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-          <button onClick={guardar} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">Guardar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function HistorialPage() {
   const [equipos, setEquipos] = useState([]);
   const [svcEquipos, setSvcEquipos] = useState([]);
@@ -103,7 +10,6 @@ export default function HistorialPage() {
   const [filtroMes, setFiltroMes] = useState("");
   const [filtroDia, setFiltroDia] = useState("");
   const [filtroAnio, setFiltroAnio] = useState("2026");
-  const [editando, setEditando] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -150,24 +56,6 @@ export default function HistorialPage() {
     } catch { setError("No se pudo actualizar el estado."); }
   };
 
-  const eliminar = async (id, esInterior = false) => {
-    if (!confirm("¿Eliminar este servicio?")) return;
-    try {
-      await api.delete(`/servicios/${id}`);
-      if (esInterior) {
-        setSvcInterior(prev => prev.filter(s => s.id !== id));
-      } else {
-        setSvcEquipos(prev => prev.filter(s => s.id !== id));
-      }
-    } catch { setError("No se pudo eliminar el servicio."); }
-  };
-
-  const guardarEdicion = async (id, form) => {
-    await api.put(`/servicios/${id}`, form);
-    setSvcEquipos(prev => prev.map(s => s.id === id ? { ...s, ...form } : s));
-    setSvcInterior(prev => prev.map(s => s.id === id ? { ...s, ...form } : s));
-  };
-
   const equipoNombre = (eqId) => {
     const eq = equipos.find(e => e.id === eqId);
     return eq ? eq.nombre : "—";
@@ -200,7 +88,7 @@ export default function HistorialPage() {
             <th className="text-left px-4 py-3">Dispositivo</th>
             <th className="text-left px-4 py-3">Patente</th>
             <th className="text-left px-4 py-3">Estado</th>
-            <th className="text-left px-4 py-3">Acciones</th>
+            <th className="text-left px-4 py-3">Observaciones</th>
           </tr>
         </thead>
         <tbody>
@@ -229,10 +117,7 @@ export default function HistorialPage() {
                   <option>SUSPENDIDO</option>
                 </select>
               </td>
-              <td className="px-4 py-2.5 flex gap-2">
-                <button onClick={() => setEditando(s)} className="text-blue-600 hover:underline text-xs">Editar</button>
-                <button onClick={() => eliminar(s.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
-              </td>
+              <td className="px-4 py-2.5 text-xs text-slate-600">{s.observaciones || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -254,7 +139,7 @@ export default function HistorialPage() {
             <th className="text-left px-4 py-3">Dispositivo</th>
             <th className="text-left px-4 py-3">Patente</th>
             <th className="text-left px-4 py-3">Estado</th>
-            <th className="text-left px-4 py-3">Acciones</th>
+            <th className="text-left px-4 py-3">Observaciones</th>
           </tr>
         </thead>
         <tbody>
@@ -284,10 +169,7 @@ export default function HistorialPage() {
                   <option>SUSPENDIDO</option>
                 </select>
               </td>
-              <td className="px-4 py-2.5 flex gap-2">
-                <button onClick={() => setEditando(s)} className="text-blue-600 hover:underline text-xs">Editar</button>
-                <button onClick={() => eliminar(s.id, true)} className="text-red-500 hover:underline text-xs">Eliminar</button>
-              </td>
+              <td className="px-4 py-2.5 text-xs text-slate-600">{s.observaciones || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -341,15 +223,6 @@ export default function HistorialPage() {
           Buscar
         </button>
       </div>
-
-      {editando && (
-        <ModalEditar
-          servicio={editando}
-          equipos={equipos}
-          onClose={() => setEditando(null)}
-          onSave={guardarEdicion}
-        />
-      )}
 
       {/* Tabla Equipos */}
       <div>

@@ -2,12 +2,107 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
+function ModalEditar({ servicio, onClose, onSave }) {
+  const [form, setForm] = useState({
+    fecha: servicio.fecha || "",
+    hora_programada: servicio.hora_programada?.slice(0, 5) || "",
+    cliente: servicio.cliente || "",
+    tipo_servicio: servicio.tipo_servicio || "INSTALACION",
+    dispositivo: servicio.dispositivo || "GPS",
+    patente: servicio.patente || "",
+    observaciones: servicio.observaciones || "",
+    estado: servicio.estado || "-",
+  });
+
+  const guardar = async () => {
+    await onSave(servicio.id, form);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4 shadow-xl">
+        <h3 className="text-lg font-semibold text-slate-700">Editar Servicio</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Fecha</label>
+            <input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Hora</label>
+            <input type="time" value={form.hora_programada} onChange={e => setForm({ ...form, hora_programada: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Cliente</label>
+            <input type="text" value={form.cliente} onChange={e => setForm({ ...form, cliente: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Tipo</label>
+            <select value={form.tipo_servicio} onChange={e => setForm({ ...form, tipo_servicio: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="-">-</option>
+              <option>INSTALACION</option>
+              <option>REVISION</option>
+              <option>DESINSTALACION</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
+            <select value={form.dispositivo} onChange={e => setForm({ ...form, dispositivo: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="-">-</option>
+              <option>GPS</option>
+              <option>LECTORA</option>
+              <option>GPS y LECTORA</option>
+              <option>CAMARA</option>
+              <option>Tractor</option>
+              <option>Semi</option>
+              <option>Chasis</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Patente</label>
+            <input type="text" value={form.patente} onChange={e => setForm({ ...form, patente: e.target.value.toUpperCase() })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
+            <input type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Estado</label>
+            <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="-">-</option>
+              <option>PENDIENTE</option>
+              <option>CONFIRMADO</option>
+              <option>REALIZADO</option>
+              <option>SUSPENDIDO</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
+          <button onClick={guardar} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">Guardar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function VistaDiaPage() {
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [equipos, setEquipos] = useState([]);
   const [servicios, setServicios] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [vista, setVista] = useState("interna");
+  const [editando, setEditando] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -33,6 +128,19 @@ export default function VistaDiaPage() {
     } catch { setError("No se pudo actualizar el estado."); }
   };
 
+  const eliminar = async (svcId) => {
+    if (!confirm("¿Eliminar este servicio?")) return;
+    try {
+      await api.delete(`/servicios/${svcId}`);
+      setServicios(prev => prev.filter(s => s.id !== svcId));
+    } catch { setError("No se pudo eliminar el servicio."); }
+  };
+
+  const guardarEdicion = async (id, form) => {
+    await api.put(`/servicios/${id}`, form);
+    setServicios(prev => prev.map(s => s.id === id ? { ...s, ...form } : s));
+  };
+
   const getMovimiento = (equipoId) => movimientos.find(m => m.equipo_id === equipoId);
   const svcEquipo = (eqId) => servicios.filter(s => s.equipo_id === eqId);
   const svcInterior = servicios.filter(s => !s.equipo_id);
@@ -56,11 +164,12 @@ export default function VistaDiaPage() {
           <th className="text-left py-2">Dispositivo</th>
           <th className="text-left py-2">Patente</th>
           <th className="text-left py-2">Estado</th>
+          {vista === "interna" && <th className="py-2"></th>}
         </tr>
       </thead>
       <tbody>
         {items.length === 0 ? (
-          <tr><td colSpan={6} className="text-slate-400 py-3 text-xs">Sin servicios</td></tr>
+          <tr><td colSpan={vista === "interna" ? 7 : 6} className="text-slate-400 py-3 text-xs">Sin servicios</td></tr>
         ) : items.map(s => (
           <tr key={s.id} className="border-b border-slate-100">
             <td className="py-2">{s.hora_programada?.slice(0,5) || "—"}</td>
@@ -83,6 +192,12 @@ export default function VistaDiaPage() {
                 </select>
               ) : estadoBadge(s.estado)}
             </td>
+            {vista === "interna" && (
+              <td className="py-2 text-right whitespace-nowrap">
+                <button onClick={() => setEditando(s)} className="text-blue-600 hover:underline text-xs mr-3">Editar</button>
+                <button onClick={() => eliminar(s.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
+              </td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -91,6 +206,13 @@ export default function VistaDiaPage() {
 
   return (
     <div className="space-y-6">
+      {editando && (
+        <ModalEditar
+          servicio={editando}
+          onClose={() => setEditando(null)}
+          onSave={guardarEdicion}
+        />
+      )}
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Vista del Día</h1>
@@ -124,12 +246,14 @@ export default function VistaDiaPage() {
           const mov = getMovimiento(eq.id);
           return (
             <div key={eq.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-              <h2 className="text-base font-bold text-blue-700 mb-1">
-                {eq.nombre}
-                {vista === "interna" && (
-                  <span className="ml-2 text-xs font-normal text-slate-400">{eq.patente}</span>
-                )}
-              </h2>
+              <div className="flex items-start justify-between mb-1">
+                <h2 className="text-base font-bold text-blue-700">
+                  {eq.nombre}
+                  {vista === "interna" && (
+                    <span className="ml-2 text-xs font-normal text-slate-400">{eq.patente}</span>
+                  )}
+                </h2>
+              </div>
               {vista === "interna" && (
                 mov ? (
                   <p className="text-xs text-slate-500 mb-3">
