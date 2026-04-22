@@ -22,7 +22,6 @@ const IconTrash = () => (
 export default function HistorialCamionetaPage() {
   const [equipos,     setEquipos]     = useState([]);
   const [movimientos, setMovimientos] = useState([]);
-  const [filtroDia,   setFiltroDia]   = useState("");
   const [filtroMes,   setFiltroMes]   = useState("");
   const [filtroAnio,  setFiltroAnio]  = useState("");
   const [filtroEquipo,setFiltroEquipo]= useState("");
@@ -33,33 +32,37 @@ export default function HistorialCamionetaPage() {
   useEffect(() => {
     api.get("/equipos/").then(eqs => {
       setEquipos(eqs);
-      cargarMovimientos("", "");
+      fetchMovimientos("", "");
     }).catch(() => {
       setError("No se pudieron cargar los equipos.");
-      cargarMovimientos("", "");
+      fetchMovimientos("", "");
     });
   }, []);
 
-  const cargarMovimientos = async (fecha, equipoId) => {
+  const fetchMovimientos = async (equipoId, mes, anio) => {
     const params = {};
-    if (fecha)    params.fecha     = fecha;
     if (equipoId) params.equipo_id = equipoId;
     try {
       let data = await api.get("/movimientos-camioneta/", params);
-      if (fecha) data = data.filter(m => m.fecha === fecha);
+      // Filtro por mes y año en el cliente
+      if (mes || anio) {
+        data = data.filter(m => {
+          if (!m.fecha) return false;
+          const [y, mo] = m.fecha.split("-");
+          if (anio && y !== anio) return false;
+          if (mes  && parseInt(mo) !== parseInt(mes)) return false;
+          return true;
+        });
+      }
       setMovimientos(data);
     } catch { setError("Error al cargar movimientos. Verificá la conexión con el servidor."); }
   };
 
-  const buscar = () => {
-    const fecha = filtroDia && filtroMes && filtroAnio
-      ? `${filtroAnio}-${filtroMes.padStart(2,"0")}-${filtroDia.padStart(2,"0")}` : "";
-    cargarMovimientos(fecha, filtroEquipo);
-  };
+  const buscar = () => fetchMovimientos(filtroEquipo, filtroMes, filtroAnio);
 
   const limpiar = () => {
-    setFiltroDia(""); setFiltroMes(""); setFiltroAnio(""); setFiltroEquipo("");
-    cargarMovimientos("", "");
+    setFiltroMes(""); setFiltroAnio(""); setFiltroEquipo("");
+    fetchMovimientos("", "", "");
   };
 
   const eliminar = async (id) => {
@@ -162,20 +165,10 @@ export default function HistorialCamionetaPage() {
       {/* Filtros */}
       <div className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Día</label>
-          <select value={filtroDia} onChange={e => setFiltroDia(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-20">
-            <option value="">--</option>
-            {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-              <option key={d} value={String(d)}>{String(d).padStart(2,"0")}</option>
-            ))}
-          </select>
-        </div>
-        <div>
           <label className="block text-xs text-slate-500 mb-1">Mes</label>
           <select value={filtroMes} onChange={e => setFiltroMes(e.target.value)}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-32">
-            <option value="">--</option>
+            <option value="">Todos</option>
             {MESES.map((m, i) => <option key={i+1} value={String(i+1)}>{m}</option>)}
           </select>
         </div>
@@ -183,7 +176,7 @@ export default function HistorialCamionetaPage() {
           <label className="block text-xs text-slate-500 mb-1">Año</label>
           <select value={filtroAnio} onChange={e => setFiltroAnio(e.target.value)}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-24">
-            <option value="">--</option>
+            <option value="">Todos</option>
             {[2024, 2025, 2026, 2027].map(y => <option key={y} value={String(y)}>{y}</option>)}
           </select>
         </div>
