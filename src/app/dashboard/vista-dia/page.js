@@ -74,8 +74,9 @@ export default function VistaDiaPage() {
             <td className="py-2 font-mono text-xs">{s.patente}</td>
             <td className="py-2">
               {vista === "interna" ? (
-                <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value)}
+                <select value={s.estado || "-"} onChange={e => cambiarEstado(s.id, e.target.value)}
                   className="border border-slate-300 rounded px-2 py-1 text-xs">
+                  <option value="-">-</option>
                   <option>PENDIENTE</option>
                   <option>CONFIRMADO</option>
                   <option>REALIZADO</option>

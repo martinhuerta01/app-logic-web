@@ -11,7 +11,7 @@ function ModalEditar({ servicio, equipos, onClose, onSave }) {
     dispositivo: servicio.dispositivo || "GPS",
     patente: servicio.patente || "",
     observaciones: servicio.observaciones || "",
-    estado: servicio.estado || "PENDIENTE",
+    estado: servicio.estado || "-",
   });
 
   const guardar = async () => {
@@ -78,6 +78,7 @@ function ModalEditar({ servicio, equipos, onClose, onSave }) {
             <label className="block text-xs text-slate-500 mb-1">Estado</label>
             <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="-">-</option>
               <option>PENDIENTE</option>
               <option>CONFIRMADO</option>
               <option>REALIZADO</option>
@@ -219,8 +220,9 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs">{dispDisplay(s)}</td>
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
-                <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value)}
+                <select value={s.estado || "-"} onChange={e => cambiarEstado(s.id, e.target.value)}
                   className={`border rounded px-2 py-1 text-xs font-medium ${colorEstado(s.estado)}`}>
+                  <option value="-">-</option>
                   <option>PENDIENTE</option>
                   <option>CONFIRMADO</option>
                   <option>REALIZADO</option>
@@ -273,8 +275,9 @@ export default function HistorialPage() {
               <td className="px-4 py-2.5 text-xs">{dispDisplay(s)}</td>
               <td className="px-4 py-2.5 text-xs font-mono">{s.patente}</td>
               <td className="px-4 py-2.5">
-                <select value={s.estado} onChange={e => cambiarEstado(s.id, e.target.value, true)}
+                <select value={s.estado || "-"} onChange={e => cambiarEstado(s.id, e.target.value, true)}
                   className={`border rounded px-2 py-1 text-xs font-medium ${colorEstado(s.estado)}`}>
+                  <option value="-">-</option>
                   <option>PENDIENTE</option>
                   <option>CONFIRMADO</option>
                   <option>REALIZADO</option>
