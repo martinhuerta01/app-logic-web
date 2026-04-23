@@ -137,10 +137,10 @@ export default function Sidebar() {
 
   return (
     <aside className="w-60 min-h-screen bg-slate-800 text-slate-300 flex flex-col shrink-0">
-      <div className="px-5 py-5 border-b border-slate-700">
+      <Link href="/dashboard" className="block px-5 py-5 border-b border-slate-700 hover:bg-slate-700/40 transition">
         <h1 className="text-lg font-bold text-white">Depto. Operaciones</h1>
         <p className="text-xs text-slate-400 mt-0.5">Bienvenido, {user}</p>
-      </div>
+      </Link>
 
       <nav className="flex-1 py-3 overflow-y-auto">
         {MODULOS.map((mod) => (
