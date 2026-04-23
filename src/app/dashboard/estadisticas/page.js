@@ -527,12 +527,14 @@ function ReporteCruzado() {
 
         const svcPorResp = {};
         for (const s of todosSvcs) {
+          if (s.estado !== "REALIZADO") continue;
           const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
           svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
         }
 
         const prevSvcPorResp = {};
         for (const s of prevSvcs) {
+          if (s.estado !== "REALIZADO") continue;
           const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
           prevSvcPorResp[resp] = (prevSvcPorResp[resp] || 0) + 1;
         }
