@@ -208,8 +208,9 @@ function ServiciosResponsable() {
       const mapa = {};
       for (const s of todos) {
         const resp = s.responsable || equipos.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
-        if (!mapa[resp]) mapa[resp] = { responsable: resp, total: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
+        if (!mapa[resp]) mapa[resp] = { responsable: resp, total: 0, realizados: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
         mapa[resp].total++;
+        if (s.estado === "REALIZADO") mapa[resp].realizados++;
         if (s.tipo_servicio === "INSTALACION") mapa[resp].instalaciones++;
         else if (s.tipo_servicio === "REVISION") mapa[resp].revisiones++;
         else if (s.tipo_servicio === "DESINSTALACION") mapa[resp].desinstalaciones++;
@@ -235,6 +236,8 @@ function ServiciosResponsable() {
             <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
               <th className="text-left px-4 py-3">Responsable</th>
               <th className="text-left px-4 py-3">Total</th>
+              <th className="text-left px-4 py-3">Total Realizados</th>
+              <th className="text-left px-4 py-3">Diferencia</th>
               <th className="text-left px-4 py-3">Instalaciones</th>
               <th className="text-left px-4 py-3">Revisiones</th>
               <th className="text-left px-4 py-3">Desinstalaciones</th>
@@ -242,16 +245,51 @@ function ServiciosResponsable() {
           </thead>
           <tbody>
             {responsables.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-4 text-slate-400 text-xs">Sin datos</td></tr>
-            ) : responsables.map((r, i) => (
-              <tr key={i} className="border-b border-slate-100">
-                <td className="px-4 py-3 font-medium">{r.responsable}</td>
-                <td className="px-4 py-3 font-bold text-blue-700">{r.total}</td>
-                <td className="px-4 py-3 text-teal-700">{r.instalaciones}</td>
-                <td className="px-4 py-3 text-amber-700">{r.revisiones}</td>
-                <td className="px-4 py-3 text-violet-700">{r.desinstalaciones}</td>
-              </tr>
-            ))}
+              <tr><td colSpan={7} className="px-4 py-4 text-slate-400 text-xs">Sin datos</td></tr>
+            ) : (
+              <>
+                {responsables.map((r, i) => {
+                  const diferencia = r.total - r.realizados;
+                  return (
+                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium">{r.responsable}</td>
+                      <td className="px-4 py-3 font-bold text-blue-700">{r.total}</td>
+                      <td className="px-4 py-3 font-semibold text-green-700">{r.realizados}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        <span className={diferencia === 0 ? "text-slate-400" : "text-orange-600"}>
+                          {diferencia}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-teal-700">{r.instalaciones}</td>
+                      <td className="px-4 py-3 text-amber-700">{r.revisiones}</td>
+                      <td className="px-4 py-3 text-violet-700">{r.desinstalaciones}</td>
+                    </tr>
+                  );
+                })}
+                {/* Fila TOTAL */}
+                {(() => {
+                  const totTotal      = responsables.reduce((s, r) => s + r.total, 0);
+                  const totRealizados = responsables.reduce((s, r) => s + r.realizados, 0);
+                  const totDif        = totTotal - totRealizados;
+                  const totInst       = responsables.reduce((s, r) => s + r.instalaciones, 0);
+                  const totRev        = responsables.reduce((s, r) => s + r.revisiones, 0);
+                  const totDesinst    = responsables.reduce((s, r) => s + r.desinstalaciones, 0);
+                  return (
+                    <tr className="border-t-2 border-slate-300 bg-slate-50 text-xs font-semibold">
+                      <td className="px-4 py-3 text-slate-700 uppercase tracking-wide">TOTAL</td>
+                      <td className="px-4 py-3 text-blue-700 text-sm">{totTotal}</td>
+                      <td className="px-4 py-3 text-green-700 text-sm">{totRealizados}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={totDif === 0 ? "text-slate-400" : "text-orange-600"}>{totDif}</span>
+                      </td>
+                      <td className="px-4 py-3 text-teal-700">{totInst}</td>
+                      <td className="px-4 py-3 text-amber-700">{totRev}</td>
+                      <td className="px-4 py-3 text-violet-700">{totDesinst}</td>
+                    </tr>
+                  );
+                })()}
+              </>
+            )}
           </tbody>
         </table>
       </div>
