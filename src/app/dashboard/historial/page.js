@@ -120,15 +120,18 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
   const hoy = new Date().toISOString().split("T")[0];
 
   // Agrupar servicios por fecha
+  const ESTADOS_ABIERTOS = new Set(["PENDIENTE", "CONFIRMADO"]);
   const porFecha = {};
   svcEquipos.forEach(s => {
-    if (!porFecha[s.fecha]) porFecha[s.fecha] = { equipos: {}, interior: 0 };
+    if (!porFecha[s.fecha]) porFecha[s.fecha] = { equipos: {}, interior: 0, sinCerrar: 0 };
     const nombre = equipos.find(e => String(e.id) === String(s.equipo_id))?.nombre || s.responsable || "?";
     porFecha[s.fecha].equipos[nombre] = (porFecha[s.fecha].equipos[nombre] || 0) + 1;
+    if (ESTADOS_ABIERTOS.has(s.estado)) porFecha[s.fecha].sinCerrar++;
   });
   svcInterior.forEach(s => {
-    if (!porFecha[s.fecha]) porFecha[s.fecha] = { equipos: {}, interior: 0 };
+    if (!porFecha[s.fecha]) porFecha[s.fecha] = { equipos: {}, interior: 0, sinCerrar: 0 };
     porFecha[s.fecha].interior++;
+    if (ESTADOS_ABIERTOS.has(s.estado)) porFecha[s.fecha].sinCerrar++;
   });
 
   // Celdas: nulls de relleno + días 1..N
@@ -177,9 +180,16 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
                 hasSvcs ? "cursor-pointer hover:bg-slate-50 transition" : "",
                 isHoy ? "ring-2 ring-inset ring-blue-400" : "",
               ].join(" ")}>
-              <div className={`text-xs font-bold mb-1.5 ${isHoy ? "text-blue-600" : hasSvcs ? "text-slate-700" : "text-slate-300"}`}>
-                {dia}
-                {isHoy && <span className="ml-1 text-[10px] text-blue-400 font-normal">hoy</span>}
+              <div className="flex items-start justify-between mb-1.5">
+                <span className={`text-xs font-bold ${isHoy ? "text-blue-600" : hasSvcs ? "text-slate-700" : "text-slate-300"}`}>
+                  {dia}
+                  {isHoy && <span className="ml-1 text-[10px] text-blue-400 font-normal">hoy</span>}
+                </span>
+                {data?.sinCerrar > 0 && (
+                  <span className="flex items-center gap-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    ⚠ {data.sinCerrar}
+                  </span>
+                )}
               </div>
               {hasSvcs && (
                 <div className="space-y-0.5">
@@ -218,6 +228,9 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
         </span>
         <span className="flex items-center gap-1.5 text-xs text-slate-500">
           <span className="w-3 h-3 rounded border border-slate-200 bg-slate-50" /> Sin servicios
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">⚠ N</span> Pendientes / Confirmados
         </span>
       </div>
     </div>
