@@ -210,10 +210,12 @@ function ServiciosResponsable() {
         const resp = s.responsable || equipos.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
         if (!mapa[resp]) mapa[resp] = { responsable: resp, total: 0, realizados: 0, instalaciones: 0, revisiones: 0, desinstalaciones: 0 };
         mapa[resp].total++;
-        if (s.estado === "REALIZADO") mapa[resp].realizados++;
-        if (s.tipo_servicio === "INSTALACION") mapa[resp].instalaciones++;
-        else if (s.tipo_servicio === "REVISION") mapa[resp].revisiones++;
-        else if (s.tipo_servicio === "DESINSTALACION") mapa[resp].desinstalaciones++;
+        if (s.estado === "REALIZADO") {
+          mapa[resp].realizados++;
+          if (s.tipo_servicio === "INSTALACION") mapa[resp].instalaciones++;
+          else if (s.tipo_servicio === "REVISION") mapa[resp].revisiones++;
+          else if (s.tipo_servicio === "DESINSTALACION") mapa[resp].desinstalaciones++;
+        }
       }
       setResponsables(Object.values(mapa).sort((a, b) => b.total - a.total));
       setTotalGeneral(todos.length);
