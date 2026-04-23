@@ -5,62 +5,88 @@ import { fetchOpciones, persistOpciones } from "@/lib/opciones";
 
 // ─── COMPONENTE GENÉRICO DE TABLA CRUD ────────────────────────────
 
-function CrudSection({ titulo, items, columnas, onAdd, onDelete, onEdit, FormComponent, EditFormComponent }) {
-  const [adding, setAdding] = useState(false);
+const IconChevron = ({ open }) => (
+  <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
+function CrudSection({ titulo, subtitulo, items, columnas, onAdd, onDelete, onEdit, FormComponent, EditFormComponent }) {
+  const [abierto,   setAbierto]   = useState(false);
+  const [adding,    setAdding]    = useState(false);
   const [editingId, setEditingId] = useState(null);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-slate-700">{titulo}</h2>
-        <button onClick={() => { setAdding(!adding); setEditingId(null); }}
-          className="text-sm text-blue-600 hover:underline">
-          {adding ? "Cancelar" : "+ Agregar"}
-        </button>
-      </div>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* ── Header clickeable ── */}
+      <button type="button"
+        onClick={() => { setAbierto(v => !v); if (!abierto) { setAdding(false); setEditingId(null); } }}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition">
+        <div className="text-left">
+          <h2 className="text-base font-semibold text-slate-700">{titulo}</h2>
+          {subtitulo && <p className="text-xs text-slate-400 mt-0.5">{subtitulo}</p>}
+          {!abierto && items.length > 0 && (
+            <p className="text-xs text-slate-400 mt-0.5">{items.length} registro{items.length !== 1 ? "s" : ""}</p>
+          )}
+        </div>
+        <IconChevron open={abierto} />
+      </button>
 
-      {adding && <FormComponent onDone={() => { setAdding(false); onAdd(); }} />}
+      {/* ── Contenido colapsable ── */}
+      {abierto && (
+        <div className="border-t border-slate-100 p-5 space-y-3">
+          <div className="flex justify-end">
+            <button onClick={() => { setAdding(!adding); setEditingId(null); }}
+              className="text-sm text-blue-600 hover:underline">
+              {adding ? "Cancelar" : "+ Agregar"}
+            </button>
+          </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 text-slate-500 text-xs">
-            {columnas.map(c => <th key={c.key} className="text-left py-2 px-2">{c.label}</th>)}
-            <th className="text-left py-2 px-2 w-32">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
-            <tr><td colSpan={columnas.length + 1} className="py-3 text-slate-400 text-xs px-2">Sin registros</td></tr>
-          ) : items.map(item => (
-            editingId === item.id ? (
-              <tr key={item.id} className="border-b border-slate-100 bg-blue-50">
-                <td colSpan={columnas.length + 1} className="py-2 px-2">
-                  {EditFormComponent && (
-                    <EditFormComponent
-                      item={item}
-                      onDone={() => { setEditingId(null); onEdit(); }}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  )}
-                </td>
+          {adding && <FormComponent onDone={() => { setAdding(false); onAdd(); }} />}
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-500 text-xs">
+                {columnas.map(c => <th key={c.key} className="text-left py-2 px-2">{c.label}</th>)}
+                <th className="text-left py-2 px-2 w-32">Acciones</th>
               </tr>
-            ) : (
-              <tr key={item.id} className="border-b border-slate-100">
-                {columnas.map(c => (
-                  <td key={c.key} className="py-2 px-2 text-xs">{c.render ? c.render(item) : (item[c.key] || "—")}</td>
-                ))}
-                <td className="py-2 px-2 space-x-2">
-                  {EditFormComponent && (
-                    <button onClick={() => { setEditingId(item.id); setAdding(false); }}
-                      className="text-blue-500 hover:underline text-xs">Editar</button>
-                  )}
-                  <button onClick={() => onDelete(item.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
-                </td>
-              </tr>
-            )
-          ))}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {items.length === 0 ? (
+                <tr><td colSpan={columnas.length + 1} className="py-3 text-slate-400 text-xs px-2">Sin registros</td></tr>
+              ) : items.map(item => (
+                editingId === item.id ? (
+                  <tr key={item.id} className="border-b border-slate-100 bg-blue-50">
+                    <td colSpan={columnas.length + 1} className="py-2 px-2">
+                      {EditFormComponent && (
+                        <EditFormComponent
+                          item={item}
+                          onDone={() => { setEditingId(null); onEdit(); }}
+                          onCancel={() => setEditingId(null)}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={item.id} className="border-b border-slate-100">
+                    {columnas.map(c => (
+                      <td key={c.key} className="py-2 px-2 text-xs">{c.render ? c.render(item) : (item[c.key] || "—")}</td>
+                    ))}
+                    <td className="py-2 px-2 space-x-2">
+                      {EditFormComponent && (
+                        <button onClick={() => { setEditingId(item.id); setAdding(false); }}
+                          className="text-blue-500 hover:underline text-xs">Editar</button>
+                      )}
+                      <button onClick={() => onDelete(item.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
+                    </td>
+                  </tr>
+                )
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -263,8 +289,9 @@ function EditFormProducto({ item, onDone, onCancel }) {
 // ─── MAPEO SERENÍSIMA ─────────────────────────────────────────────
 
 function MapeoSerenisima({ productos }) {
-  const [mapeos, setMapeos] = useState([]);
-  const [adding, setAdding] = useState(false);
+  const [abierto,   setAbierto]   = useState(false);
+  const [mapeos,    setMapeos]    = useState([]);
+  const [adding,    setAdding]    = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [errorMapeo, setErrorMapeo] = useState("");
 
@@ -286,12 +313,20 @@ function MapeoSerenisima({ productos }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <button type="button"
+        onClick={() => { setAbierto(v => !v); if (!abierto) { setAdding(false); setEditingId(null); } }}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition">
+        <div className="text-left">
           <h2 className="text-base font-semibold text-slate-700">Mapeo Códigos La Serenísima</h2>
           <p className="text-xs text-slate-400 mt-0.5">Relaciona tus productos internos con los códigos de La Serenísima (1-9)</p>
         </div>
+        <IconChevron open={abierto} />
+      </button>
+
+      {abierto && (
+      <div className="border-t border-slate-100 p-5 space-y-3">
+      <div className="flex justify-end">
         <button onClick={() => { setAdding(!adding); setEditingId(null); }}
           className="text-sm text-blue-600 hover:underline">
           {adding ? "Cancelar" : "+ Agregar"}
@@ -334,6 +369,8 @@ function MapeoSerenisima({ productos }) {
           ))}
         </tbody>
       </table>
+      </div>
+      )}
     </div>
   );
 }
@@ -415,6 +452,7 @@ function FormMapeo({ productos, item, onDone, onCancel }) {
 // ─── OPCIONES DE CARGA ────────────────────────────────────────────
 
 function OpcionesCarga() {
+  const [abierto,  setAbierto]  = useState(false);
   const [opciones, setOpciones] = useState({ tipos: [], dispositivos: [], estados: [] });
   const [nuevos,   setNuevos]   = useState({ tipos: "", dispositivos: "", estados: "" });
   const [msg,      setMsg]      = useState("");
@@ -449,48 +487,54 @@ function OpcionesCarga() {
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <button type="button" onClick={() => setAbierto(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition">
+        <div className="text-left">
           <h2 className="text-base font-semibold text-slate-700">Opciones de Carga de Servicios</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Personalizá las opciones disponibles en el formulario de Carga del Día
-          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Personalizá las opciones disponibles en el formulario de Carga del Día</p>
         </div>
-        {msg && <span className="text-green-600 text-sm font-medium">{msg}</span>}
-      </div>
+        <div className="flex items-center gap-3">
+          {msg && <span className="text-green-600 text-sm font-medium">{msg}</span>}
+          <IconChevron open={abierto} />
+        </div>
+      </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {SECCIONES.map(({ campo, titulo, placeholder }) => (
-          <div key={campo}>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{titulo}</h3>
-            <div className="space-y-1 mb-2">
-              {opciones[campo].length === 0 && (
-                <p className="text-xs text-slate-400 italic px-2">Sin opciones</p>
-              )}
-              {opciones[campo].map(v => (
-                <div key={v} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-3 py-1.5">
-                  <span className="text-xs font-medium text-slate-700">{v}</span>
-                  <button type="button" onClick={() => eliminar(campo, v)}
-                    className="text-red-400 hover:text-red-600 text-xs leading-none ml-2 transition">✕</button>
+      {abierto && (
+        <div className="border-t border-slate-100 p-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {SECCIONES.map(({ campo, titulo, placeholder }) => (
+              <div key={campo}>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{titulo}</h3>
+                <div className="space-y-1 mb-2">
+                  {opciones[campo].length === 0 && (
+                    <p className="text-xs text-slate-400 italic px-2">Sin opciones</p>
+                  )}
+                  {opciones[campo].map(v => (
+                    <div key={v} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded px-3 py-1.5">
+                      <span className="text-xs font-medium text-slate-700">{v}</span>
+                      <button type="button" onClick={() => eliminar(campo, v)}
+                        className="text-red-400 hover:text-red-600 text-xs leading-none ml-2 transition">✕</button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-1.5">
-              <input type="text"
-                value={nuevos[campo]}
-                onChange={e => setNuevos(prev => ({ ...prev, [campo]: e.target.value.toUpperCase() }))}
-                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), agregar(campo))}
-                placeholder={placeholder}
-                className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs" />
-              <button type="button" onClick={() => agregar(campo)}
-                className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded text-xs font-medium transition">
-                +
-              </button>
-            </div>
+                <div className="flex gap-1.5">
+                  <input type="text"
+                    value={nuevos[campo]}
+                    onChange={e => setNuevos(prev => ({ ...prev, [campo]: e.target.value.toUpperCase() }))}
+                    onKeyDown={e => e.key === "Enter" && (e.preventDefault(), agregar(campo))}
+                    placeholder={placeholder}
+                    className="flex-1 border border-slate-300 rounded px-2 py-1.5 text-xs" />
+                  <button type="button" onClick={() => agregar(campo)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-2.5 py-1.5 rounded text-xs font-medium transition">
+                    +
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
