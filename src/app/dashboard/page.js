@@ -171,7 +171,7 @@ export default function DashboardPage() {
   const accesos = [
     { label: "Carga del Día",  icon: <IconPencil />,  color: "bg-blue-600  hover:bg-blue-700",   href: "/dashboard/carga-dia"  },
     { label: "Vista del Día",  icon: <IconEye />,     color: "bg-teal-600  hover:bg-teal-700",   href: "/dashboard/vista-dia"  },
-    { label: "Historial",      icon: <IconHistory />, color: "bg-violet-600 hover:bg-violet-700", href: "/dashboard/historial"  },
+    { label: "Cargar Horarios", icon: <IconHistory />, color: "bg-violet-600 hover:bg-violet-700", href: "/dashboard/personal/horario-tecnico" },
     { label: "Estadísticas",   icon: <IconChart />,   color: "bg-slate-700 hover:bg-slate-800",  href: "/dashboard/estadisticas?tab=responsable" },
   ];
 
