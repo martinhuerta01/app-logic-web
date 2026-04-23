@@ -15,8 +15,8 @@ function ModalDia({ fecha, svcEquipos, svcInterior, equipos, onClose }) {
   const titulo = `${DIAS_N[dateObj.getDay()]} ${diaN} de ${MESES_NOMBRES[mesN - 1]}`;
 
   const EQ_COLORS = [
-    { header: "bg-blue-700 text-white" },
-    { header: "bg-teal-700 text-white" },
+    { header: "bg-blue-600 text-white" },
+    { header: "bg-orange-500 text-white" },
   ];
   const ESTADO_COLOR = {
     REALIZADO:  "bg-green-100 text-green-700",
@@ -33,7 +33,7 @@ function ModalDia({ fecha, svcEquipos, svcInterior, equipos, onClose }) {
   const interiorGrupo = {
     nombre: "Interior",
     svcs: todosDia.filter(s => !s.equipo_id),
-    colorHeader: "bg-violet-700 text-white",
+    colorHeader: "bg-violet-600 text-white",
   };
 
   const FilasSvc = ({ svcs }) => (
@@ -136,9 +136,10 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
   while (cells.length % 7 !== 0) cells.push(null);
 
   const EQ_BADGE = [
-    "bg-blue-100 text-blue-700",
-    "bg-teal-100 text-teal-700",
+    "bg-blue-600 text-white",
+    "bg-orange-500 text-white",
   ];
+  const INT_BADGE = "bg-violet-600 text-white";
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -159,7 +160,7 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
 
       <div className="grid grid-cols-7 divide-x divide-y divide-slate-100">
         {cells.map((dia, idx) => {
-          if (!dia) return <div key={idx} className="min-h-[88px] bg-slate-50/70" />;
+          if (!dia) return <div key={idx} className="min-h-[96px] bg-slate-50/70" />;
 
           const isWeekend = idx % 7 >= 5;
           const fechaStr = `${anioNum}-${String(mesNum).padStart(2,"0")}-${String(dia).padStart(2,"0")}`;
@@ -171,9 +172,9 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
             <div key={idx}
               onClick={() => hasSvcs && onDayClick(fechaStr)}
               className={[
-                "min-h-[88px] p-1.5 select-none",
+                "min-h-[96px] p-1.5 select-none",
                 isWeekend ? "bg-slate-50/70" : "",
-                hasSvcs ? "cursor-pointer hover:bg-blue-50 transition" : "",
+                hasSvcs ? "cursor-pointer hover:bg-slate-50 transition" : "",
                 isHoy ? "ring-2 ring-inset ring-blue-400" : "",
               ].join(" ")}>
               <div className={`text-xs font-bold mb-1.5 ${isHoy ? "text-blue-600" : hasSvcs ? "text-slate-700" : "text-slate-300"}`}>
@@ -187,14 +188,14 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
                     if (!count) return null;
                     return (
                       <div key={eq.id}
-                        className={`text-xs rounded px-1.5 py-0.5 font-medium ${EQ_BADGE[eqIdx] || "bg-slate-100 text-slate-700"}`}>
-                        {eq.nombre.replace("Equipo ", "Eq ")}: <strong>{count}</strong>
+                        className={`text-xs rounded px-1.5 py-0.5 font-medium ${EQ_BADGE[eqIdx] || "bg-slate-500 text-white"}`}>
+                        {eq.nombre}: <strong>{count}</strong>
                       </div>
                     );
                   })}
                   {data.interior > 0 && (
-                    <div className="text-xs bg-violet-100 text-violet-700 rounded px-1.5 py-0.5 font-medium">
-                      Int: <strong>{data.interior}</strong>
+                    <div className={`text-xs rounded px-1.5 py-0.5 font-medium ${INT_BADGE}`}>
+                      Interior: <strong>{data.interior}</strong>
                     </div>
                   )}
                 </div>
@@ -208,12 +209,12 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
       <div className="border-t border-slate-100 px-4 py-2.5 flex gap-4 flex-wrap">
         {equipos.map((eq, idx) => (
           <span key={eq.id} className="flex items-center gap-1.5 text-xs text-slate-500">
-            <span className={`w-3 h-3 rounded ${(EQ_BADGE[idx] || "bg-slate-200").split(" ")[0]}`} />
+            <span className={`w-3 h-3 rounded ${(EQ_BADGE[idx] || "bg-slate-500").split(" ")[0]}`} />
             {eq.nombre}
           </span>
         ))}
         <span className="flex items-center gap-1.5 text-xs text-slate-500">
-          <span className="w-3 h-3 rounded bg-violet-100" /> Interior
+          <span className="w-3 h-3 rounded bg-violet-600" /> Interior
         </span>
         <span className="flex items-center gap-1.5 text-xs text-slate-500">
           <span className="w-3 h-3 rounded border border-slate-200 bg-slate-50" /> Sin servicios
