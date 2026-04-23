@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { getOpciones } from "@/lib/opciones";
+import { fetchOpciones } from "@/lib/opciones";
 
 const IconTrash = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,9 +45,10 @@ export default function CargaDiaPage() {
   const esInterior = interior.some(t => t.nombre === svcResponsable);
 
   useEffect(() => {
-    const opts = getOpciones();
-    setOpciones(opts);
-    setFilas([filaVacia(opts)]);
+    fetchOpciones().then(opts => {
+      setOpciones(opts);
+      setFilas([filaVacia(opts)]);
+    });
 
     Promise.all([
       api.get("/equipos/"),

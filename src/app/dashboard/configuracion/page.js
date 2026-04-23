@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { getOpciones, saveOpciones } from "@/lib/opciones";
+import { fetchOpciones, persistOpciones } from "@/lib/opciones";
 
 // ─── COMPONENTE GENÉRICO DE TABLA CRUD ────────────────────────────
 
@@ -419,10 +419,12 @@ function OpcionesCarga() {
   const [nuevos,   setNuevos]   = useState({ tipos: "", dispositivos: "", estados: "" });
   const [msg,      setMsg]      = useState("");
 
-  useEffect(() => { setOpciones(getOpciones()); }, []);
+  useEffect(() => {
+    fetchOpciones().then(setOpciones);
+  }, []);
 
-  const save = (nuevas) => {
-    saveOpciones(nuevas);
+  const save = async (nuevas) => {
+    await persistOpciones(nuevas);
     setOpciones(nuevas);
     setMsg("✓ Guardado");
     setTimeout(() => setMsg(""), 2000);
