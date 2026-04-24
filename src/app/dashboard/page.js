@@ -138,41 +138,37 @@ export default function DashboardPage() {
       label: "Servicios hoy",
       value: totalHoy,
       icon: <IconCalendar />,
-      color: "bg-blue-50 text-blue-600",
-      ring: "ring-blue-200",
+      gradient: "bg-gradient-to-br from-indigo-500 to-violet-600",
       sub: hoy.split("-").reverse().join("/"),
     },
     {
       label: `Servicios ${MESES[mesNum - 1]}`,
       value: totalMes,
       icon: <IconClipboard />,
-      color: "bg-violet-50 text-violet-600",
-      ring: "ring-violet-200",
+      gradient: "bg-gradient-to-br from-sky-400 to-indigo-500",
       sub: `${anioNum}`,
     },
     {
       label: "Realizados",
       value: realizadosMes,
       icon: <IconCheck />,
-      color: "bg-green-50 text-green-600",
-      ring: "ring-green-200",
+      gradient: "bg-gradient-to-br from-emerald-400 to-teal-600",
       sub: totalMes > 0 ? `${pctRealizados}% del mes` : "—",
     },
     {
       label: "Sin cerrar",
       value: sinCerrar,
       icon: <IconClock />,
-      color: sinCerrar > 0 ? "bg-amber-50 text-amber-600" : "bg-slate-50 text-slate-400",
-      ring: sinCerrar > 0 ? "ring-amber-200" : "ring-slate-100",
+      gradient: sinCerrar > 0 ? "bg-gradient-to-br from-amber-400 to-orange-500" : "bg-gradient-to-br from-slate-400 to-slate-600",
       sub: "Pendientes + Confirmados",
     },
   ];
 
   const accesos = [
-    { label: "Carga del Día",  icon: <IconPencil />,  color: "bg-blue-600  hover:bg-blue-700",   href: "/dashboard/carga-dia"  },
-    { label: "Vista del Día",  icon: <IconEye />,     color: "bg-teal-600  hover:bg-teal-700",   href: "/dashboard/vista-dia"  },
-    { label: "Cargar Horarios", icon: <IconHistory />, color: "bg-violet-600 hover:bg-violet-700", href: "/dashboard/personal/horario-tecnico" },
-    { label: "Estadísticas",   icon: <IconChart />,   color: "bg-slate-700 hover:bg-slate-800",  href: "/dashboard/estadisticas?tab=responsable" },
+    { label: "Carga del Día",   icon: <IconPencil />,  gradient: "bg-gradient-to-br from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700", href: "/dashboard/carga-dia"  },
+    { label: "Vista del Día",   icon: <IconEye />,     gradient: "bg-gradient-to-br from-sky-400 to-indigo-500 hover:from-sky-500 hover:to-indigo-600",        href: "/dashboard/vista-dia"  },
+    { label: "Cargar Horarios", icon: <IconHistory />, gradient: "bg-gradient-to-br from-violet-500 to-purple-700 hover:from-violet-600 hover:to-purple-800",  href: "/dashboard/personal/horario-tecnico" },
+    { label: "Estadísticas",    icon: <IconChart />,   gradient: "bg-gradient-to-br from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900",       href: "/dashboard/estadisticas?tab=responsable" },
   ];
 
   return (
@@ -194,14 +190,14 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {kpis.map(k => (
               <div key={k.label}
-                className={`bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-start gap-4`}>
-                <div className={`p-2.5 rounded-xl ring-2 ${k.color} ${k.ring} shrink-0`}>
+                className={`${k.gradient} rounded-xl shadow-md p-5 flex items-start gap-4 text-white`}>
+                <div className="p-2.5 rounded-xl bg-white/20 shrink-0">
                   {k.icon}
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 leading-tight">{k.label}</p>
-                  <p className="text-3xl font-bold text-slate-800 leading-tight mt-0.5">{k.value}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{k.sub}</p>
+                  <p className="text-xs opacity-80 leading-tight">{k.label}</p>
+                  <p className="text-3xl font-bold leading-tight mt-0.5">{k.value}</p>
+                  <p className="text-xs opacity-70 mt-0.5">{k.sub}</p>
                 </div>
               </div>
             ))}
@@ -227,7 +223,7 @@ export default function DashboardPage() {
                       formatter={(v) => [`${v} servicio${v !== 1 ? "s" : ""}`, ""]}
                       labelFormatter={(l) => `Día ${l}`}
                     />
-                    <Bar dataKey="servicios" fill="#3b82f6" radius={[3,3,0,0]} />
+                    <Bar dataKey="servicios" fill="#6366f1" radius={[3,3,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -279,7 +275,7 @@ export default function DashboardPage() {
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-slate-700">Últimos servicios del mes</h2>
                 <button onClick={() => router.push("/dashboard/historial")}
-                  className="text-xs text-blue-600 hover:underline">Ver historial →</button>
+                  className="text-xs text-indigo-600 hover:underline">Ver historial →</button>
               </div>
               <table className="w-full text-xs">
                 <thead>
@@ -321,7 +317,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-3">
                 {accesos.map(a => (
                   <button key={a.label} onClick={() => router.push(a.href)}
-                    className={`${a.color} text-white rounded-xl p-4 flex flex-col items-center gap-2 transition shadow-sm`}>
+                    className={`${a.gradient} text-white rounded-xl p-4 flex flex-col items-center gap-2 transition shadow-md`}>
                     {a.icon}
                     <span className="text-xs font-semibold text-center leading-tight">{a.label}</span>
                   </button>
