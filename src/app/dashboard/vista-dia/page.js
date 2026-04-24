@@ -154,34 +154,48 @@ export default function VistaDiaPage() {
     return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[estado] || "bg-slate-100 text-slate-600"}`}>{estado}</span>;
   };
 
+  const IconPencil = () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  );
+  const IconTrash = () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  );
+
   const TablaServicios = ({ items }) => (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-slate-200 text-slate-500 text-xs">
-          <th className="text-left py-2">Hora</th>
-          <th className="text-left py-2">Cliente</th>
-          <th className="text-left py-2">Tipo</th>
-          <th className="text-left py-2">Dispositivo</th>
-          <th className="text-left py-2">Patente</th>
-          <th className="text-left py-2">Estado</th>
+          <th className="text-left py-2 pr-3">Hora</th>
+          <th className="text-left py-2 pr-3">Cliente</th>
+          <th className="text-left py-2 pr-3">Tipo</th>
+          <th className="text-left py-2 pr-3">Dispositivo</th>
+          <th className="text-left py-2 pr-3">Patente</th>
+          <th className="text-left py-2 pr-3">Estado</th>
+          <th className="text-left py-2 pr-3">Observaciones</th>
           {vista === "interna" && <th className="py-2"></th>}
         </tr>
       </thead>
       <tbody>
         {items.length === 0 ? (
-          <tr><td colSpan={vista === "interna" ? 7 : 6} className="text-slate-400 py-3 text-xs">Sin servicios</td></tr>
+          <tr><td colSpan={vista === "interna" ? 8 : 7} className="text-slate-400 py-3 text-xs">Sin servicios</td></tr>
         ) : items.map(s => (
           <tr key={s.id} className="border-b border-slate-100">
-            <td className="py-2">{s.hora_programada?.slice(0,5) || "—"}</td>
-            <td className="py-2">
+            <td className="py-2 pr-3">{s.hora_programada?.slice(0,5) || "—"}</td>
+            <td className="py-2 pr-3">
               {s.tipo_servicio === "-"
                 ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300">FERIADO</span>
                 : s.cliente}
             </td>
-            <td className="py-2 text-xs font-medium text-blue-700">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
-            <td className="py-2">{s.dispositivo || "—"}</td>
-            <td className="py-2 font-mono text-xs">{s.patente}</td>
-            <td className="py-2">
+            <td className="py-2 pr-3 text-xs font-medium text-blue-700">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
+            <td className="py-2 pr-3">{s.dispositivo || "—"}</td>
+            <td className="py-2 pr-3 font-mono text-xs">{s.patente || "—"}</td>
+            <td className="py-2 pr-3">
               {vista === "interna" ? (
                 <select value={s.estado || "-"} onChange={e => cambiarEstado(s.id, e.target.value)}
                   className="border border-slate-300 rounded px-2 py-1 text-xs">
@@ -192,10 +206,17 @@ export default function VistaDiaPage() {
                 </select>
               ) : estadoBadge(s.estado)}
             </td>
+            <td className="py-2 pr-3 text-xs text-slate-500 max-w-[180px] truncate">{s.observaciones || "—"}</td>
             {vista === "interna" && (
               <td className="py-2 text-right whitespace-nowrap">
-                <button onClick={() => setEditando(s)} className="text-blue-600 hover:underline text-xs mr-3">Editar</button>
-                <button onClick={() => eliminar(s.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
+                <button onClick={() => setEditando(s)}
+                  className="text-blue-500 hover:text-blue-700 transition p-1 rounded hover:bg-blue-50 mr-1">
+                  <IconPencil />
+                </button>
+                <button onClick={() => eliminar(s.id)}
+                  className="text-red-400 hover:text-red-600 transition p-1 rounded hover:bg-red-50">
+                  <IconTrash />
+                </button>
               </td>
             )}
           </tr>
@@ -241,7 +262,7 @@ export default function VistaDiaPage() {
       </div>
 
       {/* Equipos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="space-y-5">
         {equipos.map(eq => {
           const mov = getMovimiento(eq.id);
           return (
