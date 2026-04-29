@@ -7,47 +7,53 @@ import { api } from "@/lib/api";
 
 const MODULOS_BASE = [
   {
+    key: "servicios",
     nombre: "Servicios",
     icon: "📋",
     subs: [
-      { href: "/dashboard/carga-dia", label: "Carga del día" },
-      { href: "/dashboard/vista-dia", label: "Vista del día" },
-      { href: "/dashboard/historial", label: "Historial" },
+      { href: "/dashboard/carga-dia",  label: "Carga del día" },
+      { href: "/dashboard/vista-dia",  label: "Vista del día" },
+      { href: "/dashboard/historial",  label: "Historial" },
     ],
   },
   {
+    key: "personal",
     nombre: "Personal",
     icon: "👷",
     subs: [
-      { href: "/dashboard/personal/horario-tecnico", label: "Horario Técnico" },
+      { href: "/dashboard/personal/horario-tecnico",    label: "Horario Técnico" },
       { href: "/dashboard/personal/historial-camioneta", label: "Historial" },
     ],
   },
   {
+    key: "contactos",
     nombre: "Contactos",
     icon: "📒",
     subs: [
-      { href: "/dashboard/contactos/clientes", label: "Clientes" },
-      { href: "/dashboard/contactos/proveedores", label: "Proveedores" },
+      { href: "/dashboard/contactos/clientes",          label: "Clientes" },
+      { href: "/dashboard/contactos/proveedores",       label: "Proveedores" },
       { href: "/dashboard/contactos/tecnicos-talleres", label: "Técnicos / Talleres" },
     ],
   },
   {
+    key: "estadisticas",
     nombre: "Estadísticas",
     icon: "📊",
     subs: [
-      { href: "/dashboard/estadisticas?tab=horas", label: "Horas trabajadas" },
+      { href: "/dashboard/estadisticas?tab=horas",       label: "Horas trabajadas" },
       { href: "/dashboard/estadisticas?tab=responsable", label: "Servicios por Responsable" },
-      { href: "/dashboard/estadisticas?tab=clientes", label: "Servicios por Cliente" },
-      { href: "/dashboard/estadisticas?tab=cruzado", label: "Reporte cruzado" },
+      { href: "/dashboard/estadisticas?tab=clientes",    label: "Servicios por Cliente" },
+      { href: "/dashboard/estadisticas?tab=cruzado",     label: "Reporte cruzado" },
     ],
   },
   {
+    key: "stock",
     nombre: "Stock",
     icon: "📦",
     isDynamic: true,
   },
   {
+    key: "configuracion",
     nombre: "Configuración",
     icon: "⚙️",
     subs: [
@@ -55,6 +61,7 @@ const MODULOS_BASE = [
     ],
   },
   {
+    key: "exportar",
     nombre: "Exportar / Importar",
     icon: "📥",
     subs: [
@@ -62,6 +69,15 @@ const MODULOS_BASE = [
     ],
   },
 ];
+
+const MODULO_ADMIN = {
+  key: "admin",
+  nombre: "Administración",
+  icon: "🔐",
+  subs: [
+    { href: "/dashboard/admin/usuarios", label: "Usuarios" },
+  ],
+};
 
 function buildStockGrupos(ubicaciones) {
   const cds      = ubicaciones.filter(u => u.tipo === "cd");
@@ -88,7 +104,8 @@ function buildStockGrupos(ubicaciones) {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, rol, modulos, logout } = useAuth();
+
   const [stockGrupos, setStockGrupos] = useState([
     { nombre: "Oficina", subs: [
       { href: "/dashboard/stock/oficina?tab=actual",   label: "Actual"   },
@@ -105,10 +122,19 @@ export default function Sidebar() {
       .catch(err  => console.warn("No se pudieron cargar las ubicaciones de stock:", err));
   }, []);
 
-  const MODULOS = MODULOS_BASE.map(mod => mod.isDynamic ? { ...mod, grupos: stockGrupos } : mod);
+  // Filtrar módulos según permisos (null = acceso total)
+  const modulosVisibles = MODULOS_BASE
+    .map(mod => mod.isDynamic ? { ...mod, grupos: stockGrupos } : mod)
+    .filter(mod => !modulos || modulos.includes(mod.key));
+
+  // Admin ve todo + sección Administración
+  const todosModulos = rol === "admin"
+    ? [...modulosVisibles, MODULO_ADMIN]
+    : modulosVisibles;
 
   const [openModulo, setOpenModulo] = useState(() => {
     if (pathname.startsWith("/dashboard/stock")) return "Stock";
+    if (pathname.startsWith("/dashboard/admin")) return "Administración";
     for (const mod of MODULOS_BASE) {
       if (mod.subs?.some(s => pathname.startsWith(s.href.split("?")[0]))) return mod.nombre;
     }
@@ -135,7 +161,7 @@ export default function Sidebar() {
 
       {/* Navegación */}
       <nav className="flex-1 py-3 overflow-y-auto">
-        {MODULOS.map(mod => (
+        {todosModulos.map(mod => (
           <div key={mod.nombre}>
             <button
               onClick={() => setOpenModulo(openModulo === mod.nombre ? "" : mod.nombre)}

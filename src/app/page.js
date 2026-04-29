@@ -22,7 +22,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const data = await api.post("/auth/login", { usuario, password });
-      login(data.access_token, data.usuario);
+      login(data.access_token, data.usuario, data.rol, data.modulos);
     } catch {
       setError("Usuario o contraseña incorrectos");
     }
