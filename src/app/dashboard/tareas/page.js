@@ -22,10 +22,13 @@ const ESTADO_LABELS = {
   completada: "Completada",
 };
 
+const FREQ_LABELS = { diaria: "Diaria", semanal: "Semanal", mensual: "Mensual" };
+
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const DIAS_SEMANA = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 
 function diasVencimiento(fecha) {
+  if (!fecha) return 999;
   const hoy = new Date();
   hoy.setHours(0,0,0,0);
   const venc = new Date(fecha + "T00:00:00");
@@ -41,11 +44,20 @@ function ModalTarea({ tarea, onClose, onSave }) {
     prioridad: tarea?.prioridad || "media",
     estado: tarea?.estado || "pendiente",
     asignado_a: tarea?.asignado_a || "",
+    es_recurrente: tarea?.es_recurrente || false,
+    frecuencia: tarea?.frecuencia || "diaria",
   });
 
   const guardar = async () => {
     if (!form.titulo.trim()) return;
     const body = { ...form };
+    if (!form.es_recurrente) {
+      body.frecuencia = null;
+    }
+    if (form.es_recurrente) {
+      body.fecha_vencimiento = null;
+      body.estado = "pendiente";
+    }
     if (!tarea) body.cargado_por = user;
     await onSave(tarea?.id, body);
     onClose();
@@ -66,14 +78,35 @@ function ModalTarea({ tarea, onClose, onSave }) {
           <div>
             <label className="block text-xs text-slate-500 mb-1">Descripción</label>
             <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" rows={3} />
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" rows={2} />
           </div>
+
+          {/* Toggle recurrente */}
+          <div className="flex items-center gap-3 py-2 border-t border-b border-slate-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.es_recurrente}
+                onChange={e => setForm({ ...form, es_recurrente: e.target.checked })}
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+              <span className="text-sm font-medium text-slate-700">Tarea recurrente</span>
+            </label>
+            {form.es_recurrente && (
+              <select value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })}
+                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+                <option value="diaria">Diaria</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensual">Mensual</option>
+              </select>
+            )}
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Fecha vencimiento</label>
-              <input type="date" value={form.fecha_vencimiento} onChange={e => setForm({ ...form, fecha_vencimiento: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-            </div>
+            {!form.es_recurrente && (
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Fecha vencimiento</label>
+                <input type="date" value={form.fecha_vencimiento} onChange={e => setForm({ ...form, fecha_vencimiento: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            )}
             <div>
               <label className="block text-xs text-slate-500 mb-1">Prioridad</label>
               <select value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })}
@@ -83,15 +116,17 @@ function ModalTarea({ tarea, onClose, onSave }) {
                 <option value="baja">Baja</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs text-slate-500 mb-1">Estado</label>
-              <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <option value="pendiente">Pendiente</option>
-                <option value="en_progreso">En progreso</option>
-                <option value="completada">Completada</option>
-              </select>
-            </div>
+            {!form.es_recurrente && (
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Estado</label>
+                <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                  <option value="pendiente">Pendiente</option>
+                  <option value="en_progreso">En progreso</option>
+                  <option value="completada">Completada</option>
+                </select>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Asignado a</label>
@@ -108,16 +143,107 @@ function ModalTarea({ tarea, onClose, onSave }) {
   );
 }
 
+/* ── Sección de tareas recurrentes del día ── */
+function TareasRecurrentes({ tareas, completaciones, onToggle, onEdit, onDelete, fechaSeleccionada }) {
+  const hoy = fechaSeleccionada || new Date().toISOString().split("T")[0];
+  const ayer = (() => {
+    const d = new Date(hoy + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  })();
+
+  const recurrentes = tareas.filter(t => t.es_recurrente);
+  if (recurrentes.length === 0) return null;
+
+  const estaCompletada = (tareaId, fecha) =>
+    completaciones.some(c => c.tarea_id === tareaId && c.fecha === fecha);
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          Tareas del día
+          <span className="text-xs font-normal text-slate-400">{hoy.split("-").reverse().join("/")}</span>
+        </h2>
+        <div className="flex items-center gap-2">
+          <input type="date" value={hoy}
+            onChange={e => onToggle("__fecha__", e.target.value)}
+            className="border border-slate-200 rounded px-2 py-1 text-xs" />
+        </div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {recurrentes.map(t => {
+          const hecha = estaCompletada(t.id, hoy);
+          const noHechaAyer = !estaCompletada(t.id, ayer) && hoy !== ayer;
+          const fechaHoyDate = new Date(hoy + "T00:00:00");
+          const diaSemana = fechaHoyDate.getDay();
+          const diaDelMes = fechaHoyDate.getDate();
+
+          if (t.frecuencia === "semanal" && diaSemana !== 1) return null;
+          if (t.frecuencia === "mensual" && diaDelMes !== 1) return null;
+
+          return (
+            <div key={t.id} className={`flex items-center gap-4 px-5 py-3 ${noHechaAyer && !hecha ? "bg-red-50/60" : ""}`}>
+              <button onClick={() => onToggle(t.id, hoy)}
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
+                  hecha ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-blue-400"
+                }`}>
+                {hecha && (
+                  <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium ${hecha ? "line-through text-slate-400" : "text-slate-800"}`}>
+                    {t.titulo}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200">
+                    {FREQ_LABELS[t.frecuencia] || t.frecuencia}
+                  </span>
+                  {noHechaAyer && !hecha && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-300">
+                      No completada ayer
+                    </span>
+                  )}
+                </div>
+                {t.descripcion && <p className="text-xs text-slate-500 mt-0.5">{t.descripcion}</p>}
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => onEdit(t)} className="text-slate-400 hover:text-blue-600 transition p-1 rounded hover:bg-blue-50">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button onClick={() => onDelete(t.id)} className="text-slate-400 hover:text-red-600 transition p-1 rounded hover:bg-red-50">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function VistaLista({ tareas, onEdit, onDelete, onEstado }) {
-  const hoy = new Date().toISOString().split("T")[0];
+  const tareasNormales = tareas.filter(t => !t.es_recurrente);
 
   return (
     <div className="space-y-2">
-      {tareas.length === 0 ? (
+      {tareasNormales.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-8 text-center text-slate-400 text-sm">
-          No hay tareas para este período
+          No hay tareas puntuales para este período
         </div>
-      ) : tareas.map(t => {
+      ) : tareasNormales.map(t => {
         const dias = diasVencimiento(t.fecha_vencimiento);
         const vencida = dias < 0 && t.estado !== "completada";
         const proxima = dias >= 0 && dias <= 2 && t.estado !== "completada";
@@ -191,7 +317,7 @@ function VistaCalendario({ tareas, mes, anio, onDiaClick }) {
   for (let d = 1; d <= diasEnMes; d++) celdas.push(d);
 
   const tareasPorDia = {};
-  tareas.forEach(t => {
+  tareas.filter(t => !t.es_recurrente).forEach(t => {
     const dia = parseInt(t.fecha_vencimiento?.split("-")[2]);
     if (!tareasPorDia[dia]) tareasPorDia[dia] = [];
     tareasPorDia[dia].push(t);
@@ -246,8 +372,10 @@ export default function TareasPage() {
   const vista = searchParams.get("vista") || "lista";
 
   const [tareas, setTareas] = useState([]);
+  const [completaciones, setCompletaciones] = useState([]);
   const [modal, setModal] = useState(null);
   const [filtroEstado, setFiltroEstado] = useState("todas");
+  const [fechaRecurrentes, setFechaRecurrentes] = useState(new Date().toISOString().split("T")[0]);
   const [msg, setMsg] = useState("");
   const [mesActual, setMesActual] = useState(new Date().getMonth());
   const [anioActual, setAnioActual] = useState(new Date().getFullYear());
@@ -256,8 +384,12 @@ export default function TareasPage() {
 
   const cargar = async () => {
     try {
-      const data = await api.get("/tareas/");
+      const [data, comps] = await Promise.all([
+        api.get("/tareas/"),
+        api.get("/tareas/completaciones/").catch(() => []),
+      ]);
       setTareas(data);
+      setCompletaciones(comps || []);
     } catch { setMsg("Error al cargar tareas."); }
   };
 
@@ -287,11 +419,28 @@ export default function TareasPage() {
     } catch { setMsg("Error al actualizar estado."); }
   };
 
-  const tareasFiltradas = filtroEstado === "todas"
-    ? tareas
-    : tareas.filter(t => t.estado === filtroEstado);
+  const toggleCompletacion = async (tareaId, fecha) => {
+    if (tareaId === "__fecha__") {
+      setFechaRecurrentes(fecha);
+      return;
+    }
+    try {
+      const existe = completaciones.find(c => c.tarea_id === tareaId && c.fecha === fecha);
+      if (existe) {
+        await api.delete("/tareas/completaciones/", { tarea_id: tareaId, fecha });
+      } else {
+        await api.post("/tareas/completaciones/", { tarea_id: tareaId, fecha });
+      }
+      cargar();
+    } catch { setMsg("Error al actualizar completación."); }
+  };
 
-  const tareasDelMes = tareas.filter(t => {
+  const tareasNormales = tareas.filter(t => !t.es_recurrente);
+  const tareasFiltradas = filtroEstado === "todas"
+    ? tareasNormales
+    : tareasNormales.filter(t => t.estado === filtroEstado);
+
+  const tareasDelMes = tareasNormales.filter(t => {
     if (!t.fecha_vencimiento) return false;
     const [a, m] = t.fecha_vencimiento.split("-");
     return parseInt(a) === anioActual && parseInt(m) === mesActual + 1;
@@ -306,9 +455,9 @@ export default function TareasPage() {
     else setMesActual(m => m + 1);
   };
 
-  const pendientes = tareas.filter(t => t.estado !== "completada").length;
-  const vencidas = tareas.filter(t => t.estado !== "completada" && diasVencimiento(t.fecha_vencimiento) < 0).length;
-  const proximas = tareas.filter(t => t.estado !== "completada" && diasVencimiento(t.fecha_vencimiento) >= 0 && diasVencimiento(t.fecha_vencimiento) <= 2).length;
+  const pendientes = tareasNormales.filter(t => t.estado !== "completada").length;
+  const vencidas = tareasNormales.filter(t => t.estado !== "completada" && diasVencimiento(t.fecha_vencimiento) < 0).length;
+  const proximas = tareasNormales.filter(t => t.estado !== "completada" && diasVencimiento(t.fecha_vencimiento) >= 0 && diasVencimiento(t.fecha_vencimiento) <= 2).length;
 
   return (
     <div className="space-y-6">
@@ -319,13 +468,21 @@ export default function TareasPage() {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-800">Tareas</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setModal("nueva")}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
-            + Nueva tarea
-          </button>
-        </div>
+        <button onClick={() => setModal("nueva")}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          + Nueva tarea
+        </button>
       </div>
+
+      {/* Tareas recurrentes del día */}
+      <TareasRecurrentes
+        tareas={tareas}
+        completaciones={completaciones}
+        onToggle={toggleCompletacion}
+        onEdit={t => setModal(t)}
+        onDelete={eliminar}
+        fechaSeleccionada={fechaRecurrentes}
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-4">
@@ -406,9 +563,7 @@ export default function TareasPage() {
           tareas={tareasDelMes}
           mes={mesActual}
           anio={anioActual}
-          onDiaClick={(fecha) => {
-            setModal("nueva");
-          }}
+          onDiaClick={() => {}}
         />
       )}
     </div>
