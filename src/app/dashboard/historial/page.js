@@ -246,6 +246,8 @@ export default function HistorialPage() {
   const [filtroMes,   setFiltroMes]   = useState(String(hoyDate.getMonth() + 1));
   const [filtroAnio,  setFiltroAnio]  = useState(String(hoyDate.getFullYear()));
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
+  const [textoBusqueda, setTextoBusqueda] = useState("");
+  const [busquedaActiva, setBusquedaActiva] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error,    setError]    = useState("");
 
@@ -300,21 +302,108 @@ export default function HistorialPage() {
             <option>2025</option><option>2026</option><option>2027</option>
           </select>
         </div>
-        <button onClick={() => buscar(filtroMes, filtroAnio)} disabled={cargando}
+        <button onClick={() => { buscar(filtroMes, filtroAnio); setBusquedaActiva(""); setTextoBusqueda(""); }} disabled={cargando}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
           {cargando ? "Buscando…" : "Buscar"}
         </button>
       </div>
 
-      {/* Calendario */}
-      <CalendarioVista
-        mes={filtroMes}
-        anio={filtroAnio}
-        svcEquipos={svcEquipos}
-        svcInterior={svcInterior}
-        equipos={equipos}
-        onDayClick={setDiaSeleccionado}
-      />
+      {/* Buscador */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Buscar por patente, cliente, responsable, tipo..."
+          value={textoBusqueda}
+          onChange={e => setTextoBusqueda(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && setBusquedaActiva(textoBusqueda)}
+          className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
+        <button onClick={() => setBusquedaActiva(textoBusqueda)}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          Buscar
+        </button>
+        {busquedaActiva && (
+          <button onClick={() => { setBusquedaActiva(""); setTextoBusqueda(""); }}
+            className="text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm border border-slate-300 transition">
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Resultados de búsqueda o Calendario */}
+      {busquedaActiva ? (() => {
+        const q = busquedaActiva.toLowerCase();
+        const todos = [...svcEquipos, ...svcInterior];
+        const resultados = todos.filter(s =>
+          [s.patente, s.cliente, s.responsable, s.tipo_servicio, s.dispositivo, s.observaciones, s.estado]
+            .some(v => v?.toLowerCase().includes(q))
+        ).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+
+        const ESTADO_COLOR = {
+          REALIZADO:  "bg-green-100 text-green-700",
+          CONFIRMADO: "bg-blue-100 text-blue-700",
+          PENDIENTE:  "bg-yellow-100 text-yellow-700",
+          SUSPENDIDO: "bg-red-100 text-red-700",
+        };
+
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">
+                Resultados para &quot;{busquedaActiva}&quot;
+                <span className="ml-2 text-xs font-normal text-slate-400">{resultados.length} encontrado{resultados.length !== 1 ? "s" : ""}</span>
+              </h2>
+            </div>
+            {resultados.length === 0 ? (
+              <div className="px-5 py-8 text-center text-slate-400 text-sm">Sin resultados</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                      <th className="text-left px-4 py-2.5">Fecha</th>
+                      <th className="text-left px-4 py-2.5">Responsable</th>
+                      <th className="text-left px-4 py-2.5">Cliente</th>
+                      <th className="text-left px-4 py-2.5">Tipo</th>
+                      <th className="text-left px-4 py-2.5">Dispositivo</th>
+                      <th className="text-left px-4 py-2.5">Patente</th>
+                      <th className="text-left px-4 py-2.5">Estado</th>
+                      <th className="text-left px-4 py-2.5">Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultados.map((s, i) => (
+                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                        <td className="px-4 py-2.5 font-mono">{s.fecha?.split("-").reverse().join("/")}</td>
+                        <td className="px-4 py-2.5 font-medium">{s.equipos?.nombre || s.responsable || "Interior"}</td>
+                        <td className="px-4 py-2.5">{s.tipo_servicio === "-" ? "FERIADO" : (s.cliente || "—")}</td>
+                        <td className="px-4 py-2.5 text-blue-700 font-medium">{s.tipo_servicio === "-" ? "—" : (s.tipo_servicio || "—")}</td>
+                        <td className="px-4 py-2.5">{s.dispositivo || "—"}</td>
+                        <td className="px-4 py-2.5 font-mono font-medium">{s.patente || "—"}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-0.5 rounded font-medium ${ESTADO_COLOR[s.estado] || "bg-slate-100 text-slate-600"}`}>
+                            {s.estado || "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-500 max-w-[180px] truncate">{s.observaciones || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })() : (
+        <CalendarioVista
+          mes={filtroMes}
+          anio={filtroAnio}
+          svcEquipos={svcEquipos}
+          svcInterior={svcInterior}
+          equipos={equipos}
+          onDayClick={setDiaSeleccionado}
+        />
+      )}
 
       {diaSeleccionado && (
         <ModalDia

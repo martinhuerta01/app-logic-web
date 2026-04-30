@@ -141,7 +141,7 @@ export default function VistaDiaPage() {
     setServicios(prev => prev.map(s => s.id === id ? { ...s, ...form } : s));
   };
 
-  const getMovimiento = (equipoId) => movimientos.find(m => m.equipo_id === equipoId);
+  const getMovimiento = (equipoId) => movimientos.find(m => m.equipo_id === equipoId && m.fecha === fecha);
   const svcEquipo = (eqId) => servicios.filter(s => s.equipo_id === eqId);
   const svcInterior = servicios.filter(s => !s.equipo_id);
 
@@ -283,7 +283,7 @@ export default function VistaDiaPage() {
                     {mov.punto_inicio && <> | {mov.punto_inicio} → {mov.punto_fin || "—"}</>}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-400 mb-3">Sin movimiento cargado</p>
+                  <p className="text-xs text-slate-400 mb-3">Salida: <strong>-</strong> — Llegada: <strong>-</strong></p>
                 )
               )}
               <TablaServicios items={svcEquipo(eq.id)} />

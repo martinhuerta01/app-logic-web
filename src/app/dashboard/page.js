@@ -82,17 +82,20 @@ export default function DashboardPage() {
   const [svcsHoy,   setSvcsHoy]   = useState([]);
   const [svcsMes,   setSvcsMes]   = useState([]);
   const [recientes, setRecientes] = useState([]);
+  const [tareas,    setTareas]    = useState([]);
   const [cargando,  setCargando]  = useState(true);
 
   useEffect(() => {
     const cargar = async () => {
       try {
-        const [eqHoy, intHoy, eqMes, intMes] = await Promise.all([
+        const [eqHoy, intHoy, eqMes, intMes, tareasData] = await Promise.all([
           api.get("/servicios/", { fecha: hoy, tipo: "equipos"  }),
           api.get("/servicios/", { fecha: hoy, tipo: "interior" }),
           api.get("/servicios/", { mes: mesNum, anio: anioNum, tipo: "equipos"  }),
           api.get("/servicios/", { mes: mesNum, anio: anioNum, tipo: "interior" }),
+          api.get("/tareas/").catch(() => []),
         ]);
+        setTareas(tareasData || []);
         const todosHoy = [...(eqHoy || []), ...(intHoy || [])];
         const todosMes = [...(eqMes || []), ...(intMes || [])];
         setSvcsHoy(todosHoy);
@@ -325,6 +328,77 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* ── Fila 4: Tareas pendientes ── */}
+          {(() => {
+            const hoyDate = new Date();
+            hoyDate.setHours(0,0,0,0);
+            const tareasUrgentes = tareas
+              .filter(t => t.estado !== "completada")
+              .map(t => {
+                const venc = new Date(t.fecha_vencimiento + "T00:00:00");
+                const dias = Math.ceil((venc - hoyDate) / (1000 * 60 * 60 * 24));
+                return { ...t, dias };
+              })
+              .sort((a, b) => a.dias - b.dias)
+              .slice(0, 5);
+
+            if (tareasUrgentes.length === 0) return null;
+
+            return (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    Tareas pendientes
+                    {tareasUrgentes.some(t => t.dias < 0) && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                        {tareasUrgentes.filter(t => t.dias < 0).length} vencida{tareasUrgentes.filter(t => t.dias < 0).length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </h2>
+                  <button onClick={() => router.push("/dashboard/tareas?vista=lista")}
+                    className="text-xs text-indigo-600 hover:underline">Ver todas →</button>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                      <th className="text-left px-5 py-2.5">Tarea</th>
+                      <th className="text-left px-5 py-2.5">Prioridad</th>
+                      <th className="text-left px-5 py-2.5">Vencimiento</th>
+                      <th className="text-left px-5 py-2.5">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tareasUrgentes.map(t => (
+                      <tr key={t.id} className={`border-b border-slate-50 hover:bg-slate-50 ${t.dias < 0 ? "bg-red-50/50" : t.dias <= 2 ? "bg-amber-50/50" : ""}`}>
+                        <td className="px-5 py-2.5 font-medium text-slate-700 max-w-[200px] truncate">{t.titulo}</td>
+                        <td className="px-5 py-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                            t.prioridad === "alta" ? "bg-red-100 text-red-700 border-red-300" :
+                            t.prioridad === "baja" ? "bg-green-100 text-green-700 border-green-300" :
+                            "bg-yellow-100 text-yellow-700 border-yellow-300"
+                          }`}>{t.prioridad?.toUpperCase()}</span>
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <span className={`font-medium ${t.dias < 0 ? "text-red-600" : t.dias <= 2 ? "text-amber-600" : "text-slate-600"}`}>
+                            {t.fecha_vencimiento?.split("-").reverse().join("/")}
+                            {t.dias < 0 && ` (${Math.abs(t.dias)}d atrás)`}
+                            {t.dias === 0 && " (hoy)"}
+                            {t.dias === 1 && " (mañana)"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            t.estado === "en_progreso" ? "bg-blue-100 text-blue-700" : "bg-yellow-100 text-yellow-700"
+                          }`}>{t.estado === "en_progreso" ? "En progreso" : "Pendiente"}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

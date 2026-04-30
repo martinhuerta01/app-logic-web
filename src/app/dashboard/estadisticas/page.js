@@ -477,6 +477,55 @@ function ServiciosCliente() {
 
 // ─── REPORTE CRUZADO ──────────────────────────────────────────────
 
+function CruceGrupo({ resp, lista, totalGrupo, instGrupo, revGrupo, desGrupo }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <button type="button" onClick={() => setAbierto(!abierto)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition text-left">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-slate-800">{resp}</span>
+          <span className="text-xs text-slate-400">{lista.length} cliente{lista.length !== 1 ? "s" : ""}</span>
+          <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">{totalGrupo} total</span>
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-700">{instGrupo} inst.</span>
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">{revGrupo} rev.</span>
+          <span className="px-2 py-0.5 rounded text-xs font-medium bg-violet-50 text-violet-700">{desGrupo} des.</span>
+        </div>
+        <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${abierto ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {abierto && (
+        <div className="border-t border-slate-100 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+                <th className="text-left px-5 py-2.5">Cliente</th>
+                <th className="text-left px-5 py-2.5">Total</th>
+                <th className="text-left px-5 py-2.5">Instalaciones</th>
+                <th className="text-left px-5 py-2.5">Revisiones</th>
+                <th className="text-left px-5 py-2.5">Desinstalaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.sort((a, b) => b.total - a.total).map((c, i) => (
+                <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                  <td className="px-5 py-2.5 font-medium">{c.cliente}</td>
+                  <td className="px-5 py-2.5 font-bold text-blue-700">{c.total}</td>
+                  <td className="px-5 py-2.5 text-teal-700">{c.INSTALACION || 0}</td>
+                  <td className="px-5 py-2.5 text-amber-700">{c.REVISION || 0}</td>
+                  <td className="px-5 py-2.5 text-violet-700">{c.DESINSTALACION || 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReporteCruzado() {
   const [mes, setMes] = useState("");
   const [anio, setAnio] = useState("2026");
@@ -749,37 +798,33 @@ function ReporteCruzado() {
         </>
       )}
 
-      {/* Cliente vs Responsable */}
-      {subTab === "cliente-responsable" && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-                <th className="text-left px-4 py-3">Cliente</th>
-                <th className="text-left px-4 py-3">Responsable</th>
-                <th className="text-left px-4 py-3">Total</th>
-                <th className="text-left px-4 py-3">Instalaciones</th>
-                <th className="text-left px-4 py-3">Revisiones</th>
-                <th className="text-left px-4 py-3">Desinstalaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cruces.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-4 text-slate-400 text-xs">Sin datos</td></tr>
-              ) : cruces.map((c, i) => (
-                <tr key={i} className="border-b border-slate-100">
-                  <td className="px-4 py-3 font-medium">{c.cliente}</td>
-                  <td className="px-4 py-3">{c.responsable}</td>
-                  <td className="px-4 py-3 font-bold text-blue-700">{c.total}</td>
-                  <td className="px-4 py-3 text-teal-700">{c.INSTALACION || 0}</td>
-                  <td className="px-4 py-3 text-amber-700">{c.REVISION || 0}</td>
-                  <td className="px-4 py-3 text-violet-700">{c.DESINSTALACION || 0}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Cliente vs Responsable — agrupado por Responsable */}
+      {subTab === "cliente-responsable" && (() => {
+        const grupos = {};
+        cruces.forEach(c => {
+          if (!grupos[c.responsable]) grupos[c.responsable] = [];
+          grupos[c.responsable].push(c);
+        });
+        const gruposOrdenados = Object.entries(grupos).sort(([a], [b]) => a.localeCompare(b, "es"));
+
+        return (
+          <div className="space-y-2">
+            {cruces.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-8 text-center text-slate-400 text-sm">Sin datos</div>
+            ) : gruposOrdenados.map(([resp, lista]) => {
+              const totalGrupo = lista.reduce((s, c) => s + c.total, 0);
+              const instGrupo = lista.reduce((s, c) => s + (c.INSTALACION || 0), 0);
+              const revGrupo = lista.reduce((s, c) => s + (c.REVISION || 0), 0);
+              const desGrupo = lista.reduce((s, c) => s + (c.DESINSTALACION || 0), 0);
+
+              return (
+                <CruceGrupo key={resp} resp={resp} lista={lista}
+                  totalGrupo={totalGrupo} instGrupo={instGrupo} revGrupo={revGrupo} desGrupo={desGrupo} />
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Horas GR/LCH */}
       {subTab === "horas-gr" && (

@@ -53,6 +53,14 @@ const MODULOS_BASE = [
     isDynamic: true,
   },
   {
+    key: "tareas",
+    nombre: "Tareas",
+    icon: "✅",
+    subs: [
+      { href: "/dashboard/tareas", label: "Tareas" },
+    ],
+  },
+  {
     key: "configuracion",
     nombre: "Configuración",
     icon: "⚙️",
@@ -237,7 +245,7 @@ export default function Sidebar() {
           className="text-sm text-indigo-300 hover:text-red-400 transition text-left">
           Cerrar sesión
         </button>
-        <span className="text-xs text-indigo-500">v1.0</span>
+        <span className="text-xs text-indigo-500">v1.1</span>
       </div>
     </aside>
   );

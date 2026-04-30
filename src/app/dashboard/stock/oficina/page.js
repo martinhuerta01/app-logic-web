@@ -3,6 +3,13 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 
+const IconChevron = ({ open }) => (
+  <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
 /* ───────── OFICINA — ACTUAL ───────── */
 function OficinaActual() {
   const [productos, setProductos] = useState([]);
@@ -12,6 +19,7 @@ function OficinaActual() {
   const [oficina, setOficina] = useState(null);
   const [editando, setEditando] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [abiertos, setAbiertos] = useState({});
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
@@ -71,8 +79,18 @@ function OficinaActual() {
 
     const cantidadInicial = actual - entradas + salidas;
 
-    return { id: prod.id, stockItemId, codigo: prod.codigo, descripcion: prod.descripcion, cantidadInicial, entradas, salidas, actual };
+    return { id: prod.id, stockItemId, codigo: prod.codigo, descripcion: prod.descripcion, categoria: prod.categoria || "Sin categoría", cantidadInicial, entradas, salidas, actual };
   });
+
+  const categorias = {};
+  resumen.forEach(r => {
+    if (!categorias[r.categoria]) categorias[r.categoria] = [];
+    categorias[r.categoria].push(r);
+  });
+  const categoriasOrdenadas = Object.entries(categorias).sort(([a], [b]) => a.localeCompare(b, "es"));
+
+  const toggleCategoria = (key) =>
+    setAbiertos(prev => ({ ...prev, [key]: !prev[key] }));
 
   const iniciarEdicion = (r) => {
     setEditando(r.id);
@@ -148,97 +166,117 @@ function OficinaActual() {
       {msg && (
         <p className={`text-sm font-medium ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-600 bg-slate-50">
-              <th className="text-left px-4 py-3">Código</th>
-              <th className="text-left px-4 py-3">Insumo</th>
-              <th className="text-right px-4 py-3">Cant. Inicial</th>
-              <th className="text-right px-4 py-3">Entradas</th>
-              <th className="text-right px-4 py-3">Salidas</th>
-              <th className="text-right px-4 py-3">Stock Actual</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {resumen.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
-                  No hay productos cargados
-                </td>
-              </tr>
-            ) : (
-              resumen.map((r) => {
-                const editandoEste = editando === r.id;
-                return (
-                  <tr key={r.codigo} className={`border-b border-slate-100 ${editandoEste ? "bg-blue-50" : "hover:bg-slate-50"}`}>
-                    <td className="px-4 py-2.5 font-mono text-xs font-medium">{r.codigo}</td>
-                    <td className="px-4 py-2.5">{r.descripcion}</td>
+      {categoriasOrdenadas.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 px-4 py-8 text-center text-slate-400 text-sm">
+          No hay productos cargados
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {categoriasOrdenadas.map(([cat, items]) => {
+            const abierto = !!abiertos[cat];
+            return (
+              <div key={cat} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <button type="button" onClick={() => toggleCategoria(cat)}
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition text-left">
+                  <div>
+                    <span className="text-sm font-semibold text-slate-800">{cat}</span>
+                    <span className="ml-3 text-xs text-slate-400">
+                      {items.length === 1 ? "1 producto" : `${items.length} productos`}
+                    </span>
+                  </div>
+                  <IconChevron open={abierto} />
+                </button>
 
-                    {editandoEste ? (
-                      <>
-                        <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.cantidadInicial}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.entradas > 0 ? `+${r.entradas}` : "—"}</td>
-                        <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.salidas > 0 ? `-${r.salidas}` : "—"}</td>
-                        <td className="px-2 py-1.5 text-right">
-                          <input
-                            type="number"
-                            min="0"
-                            value={editForm.actual}
-                            onChange={e => setEditForm(f => ({ ...f, actual: e.target.value }))}
-                            className="w-24 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-300"
-                            autoFocus
-                          />
-                        </td>
-                        <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
-                          <button onClick={() => guardarEdicion(r)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
-                            Guardar
-                          </button>
-                          <button onClick={cancelarEdicion}
-                            className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
-                            Cancelar
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2.5 text-right">{r.cantidadInicial}</td>
-                        <td className="px-4 py-2.5 text-right text-green-600 font-medium">
-                          {r.entradas > 0 ? `+${r.entradas}` : "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-red-600 font-medium">
-                          {r.salidas > 0 ? `-${r.salidas}` : "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right">
-                          <span className={`font-bold ${r.actual <= 0 ? "text-red-600" : r.actual <= 5 ? "text-orange-500" : "text-green-600"}`}>
-                            {r.actual}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
-                          <button onClick={() => iniciarEdicion(r)}
-                            className="text-slate-400 hover:text-blue-600 transition" title="Editar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => eliminar(r)}
-                            className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
-                            </svg>
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                {abierto && (
+                  <div className="border-t border-slate-100 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+                          <th className="text-left px-4 py-2.5">Código</th>
+                          <th className="text-left px-4 py-2.5">Insumo</th>
+                          <th className="text-right px-4 py-2.5">Cant. Inicial</th>
+                          <th className="text-right px-4 py-2.5">Entradas</th>
+                          <th className="text-right px-4 py-2.5">Salidas</th>
+                          <th className="text-right px-4 py-2.5">Stock Actual</th>
+                          <th className="px-4 py-2.5 w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((r) => {
+                          const editandoEste = editando === r.id;
+                          return (
+                            <tr key={r.codigo} className={`border-b border-slate-100 ${editandoEste ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                              <td className="px-4 py-2.5 font-mono text-xs font-medium">{r.codigo}</td>
+                              <td className="px-4 py-2.5">{r.descripcion}</td>
+
+                              {editandoEste ? (
+                                <>
+                                  <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.cantidadInicial}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.entradas > 0 ? `+${r.entradas}` : "—"}</td>
+                                  <td className="px-4 py-2.5 text-right text-slate-300 text-xs">{r.salidas > 0 ? `-${r.salidas}` : "—"}</td>
+                                  <td className="px-2 py-1.5 text-right">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={editForm.actual}
+                                      onChange={e => setEditForm(f => ({ ...f, actual: e.target.value }))}
+                                      className="w-24 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                      autoFocus
+                                    />
+                                  </td>
+                                  <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
+                                    <button onClick={() => guardarEdicion(r)}
+                                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
+                                      Guardar
+                                    </button>
+                                    <button onClick={cancelarEdicion}
+                                      className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
+                                      Cancelar
+                                    </button>
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="px-4 py-2.5 text-right">{r.cantidadInicial}</td>
+                                  <td className="px-4 py-2.5 text-right text-green-600 font-medium">
+                                    {r.entradas > 0 ? `+${r.entradas}` : "—"}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right text-red-600 font-medium">
+                                    {r.salidas > 0 ? `-${r.salidas}` : "—"}
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right">
+                                    <span className={`font-bold ${r.actual <= 0 ? "text-red-600" : r.actual <= 5 ? "text-orange-500" : "text-green-600"}`}>
+                                      {r.actual}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
+                                    <button onClick={() => iniciarEdicion(r)}
+                                      className="text-slate-400 hover:text-blue-600 transition" title="Editar">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
+                                      </svg>
+                                    </button>
+                                    <button onClick={() => eliminar(r)}
+                                      className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
+                                      </svg>
+                                    </button>
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -489,26 +527,6 @@ function OficinaEntradas() {
 }
 
 /* ───────── OFICINA — SALIDAS ───────── */
-const DESTINOS_SERENISIMA = [
-  { slug: "general-rodriguez", nombre: "CD General Rodriguez" },
-  { slug: "longchamps", nombre: "CD Longchamps" },
-  { slug: "rosario", nombre: "CD Rosario" },
-  { slug: "corrientes", nombre: "CD Corrientes" },
-  { slug: "cordoba", nombre: "CD Córdoba" },
-  { slug: "mar-del-plata", nombre: "CD Mar del Plata" },
-  { slug: "mendoza", nombre: "CD Mendoza" },
-  { slug: "tucuman", nombre: "CD Tucumán" },
-  { slug: "neuquen", nombre: "CD Neuquén" },
-  { slug: "bahia-blanca", nombre: "CD Bahía Blanca" },
-];
-const DESTINOS_GENERAL = [
-  { slug: "camioneta-1", nombre: "Camioneta 1" },
-  { slug: "camioneta-2", nombre: "Camioneta 2" },
-  { slug: "vitaco", nombre: "Vitaco" },
-  { slug: "claudio-violini", nombre: "Claudio Violini (Bahía)" },
-  { slug: "alejandro", nombre: "Alejandro (Tucumán)" },
-  { slug: "witralem", nombre: "Witralem Mendoza" },
-];
 
 function OficinaSalidas() {
   const [productos, setProductos] = useState([]);
@@ -624,20 +642,20 @@ function OficinaSalidas() {
               required
             >
               <option value="">Seleccionar</option>
-              <optgroup label="La Serenísima">
-                {DESTINOS_SERENISIMA.map((d) => (
-                  <option key={d.slug} value={d.nombre}>
-                    {d.nombre}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="General">
-                {DESTINOS_GENERAL.map((d) => (
-                  <option key={d.slug} value={d.nombre}>
-                    {d.nombre}
-                  </option>
-                ))}
-              </optgroup>
+              {ubicaciones.filter(u => u.tipo === "cd").length > 0 && (
+                <optgroup label="La Serenísima">
+                  {ubicaciones.filter(u => u.tipo === "cd").map(u => (
+                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
+                  ))}
+                </optgroup>
+              )}
+              {ubicaciones.filter(u => u.tipo !== "oficina" && u.tipo !== "cd").length > 0 && (
+                <optgroup label="General">
+                  {ubicaciones.filter(u => u.tipo !== "oficina" && u.tipo !== "cd").map(u => (
+                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div>
