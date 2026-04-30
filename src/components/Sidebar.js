@@ -232,11 +232,12 @@ export default function Sidebar() {
       </nav>
 
       {/* Cerrar sesión */}
-      <div className="px-5 py-4 border-t border-indigo-700/50">
+      <div className="px-5 py-4 border-t border-indigo-700/50 flex items-center justify-between">
         <button onClick={logout}
-          className="w-full text-sm text-indigo-300 hover:text-red-400 transition text-left">
+          className="text-sm text-indigo-300 hover:text-red-400 transition text-left">
           Cerrar sesión
         </button>
+        <span className="text-xs text-indigo-500">v1.0</span>
       </div>
     </aside>
   );
