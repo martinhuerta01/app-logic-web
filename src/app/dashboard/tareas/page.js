@@ -22,7 +22,7 @@ const ESTADO_LABELS = {
   completada: "Completada",
 };
 
-const FREQ_LABELS = { diaria: "Diaria", semanal: "Semanal", mensual: "Mensual" };
+const FREQ_LABELS = { diaria: "Diaria", semanal: "Semanal", quincenal: "Quincenal", mensual: "Mensual" };
 
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const DIAS_SEMANA = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
@@ -59,8 +59,8 @@ function ModalTarea({ tarea, onClose, onSave }) {
       body.estado = "pendiente";
     }
     if (!tarea) body.cargado_por = user;
-    await onSave(tarea?.id, body);
-    onClose();
+    const ok = await onSave(tarea?.id, body);
+    if (ok) onClose();
   };
 
   return (
@@ -94,6 +94,7 @@ function ModalTarea({ tarea, onClose, onSave }) {
                 className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
                 <option value="diaria">Diaria</option>
                 <option value="semanal">Semanal</option>
+                <option value="quincenal">Quincenal</option>
                 <option value="mensual">Mensual</option>
               </select>
             )}
@@ -180,6 +181,7 @@ function TareasRecurrentes({ tareas, completaciones, onToggle, onEdit, onDelete,
           const diaDelMes = fechaHoyDate.getDate();
 
           if (t.frecuencia === "semanal" && diaSemana !== 1) return null;
+          if (t.frecuencia === "quincenal" && diaDelMes !== 1 && diaDelMes !== 16) return null;
           if (t.frecuencia === "mensual" && diaDelMes !== 1) return null;
 
           return (
@@ -396,12 +398,13 @@ export default function TareasPage() {
   const guardar = async (id, form) => {
     try {
       if (id) {
-        await api.put(`/tareas/${id}`, form);
+        await api.put(`/tareas/${id}/`, form);
       } else {
         await api.post("/tareas/", form);
       }
       cargar();
-    } catch { setMsg("Error al guardar tarea."); }
+      return true;
+    } catch { setMsg("Error al guardar tarea."); return false; }
   };
 
   const eliminar = async (id) => {
