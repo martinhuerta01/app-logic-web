@@ -97,7 +97,7 @@ function ModalEditar({ servicio, onClose, onSave }) {
 }
 
 export default function VistaDiaPage() {
-  const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
+  const [fecha, setFecha] = useState(() => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }));
   const [equipos, setEquipos] = useState([]);
   const [servicios, setServicios] = useState([]);
   const [movimientos, setMovimientos] = useState([]);

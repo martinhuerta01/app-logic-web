@@ -75,9 +75,10 @@ const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov"
 
 export default function DashboardPage() {
   const router  = useRouter();
-  const hoy     = new Date().toISOString().split("T")[0];
-  const mesNum  = new Date().getMonth() + 1;
-  const anioNum = new Date().getFullYear();
+  const _hoyAR  = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+  const hoy     = _hoyAR;
+  const mesNum  = parseInt(new Date().toLocaleDateString("en-US", { timeZone: "America/Argentina/Buenos_Aires", month: "numeric" }));
+  const anioNum = parseInt(new Date().toLocaleDateString("en-US", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric" }));
 
   const [svcsHoy,   setSvcsHoy]   = useState([]);
   const [svcsMes,   setSvcsMes]   = useState([]);
@@ -127,7 +128,7 @@ export default function DashboardPage() {
     const fechaStr = `${anioNum}-${String(mesNum).padStart(2,"0")}-${String(dia).padStart(2,"0")}`;
     const count = svcsMes.filter(s => s.fecha === fechaStr).length;
     return { dia: String(dia), servicios: count };
-  }).filter(d => d.servicios > 0 || parseInt(d.dia) <= new Date().getDate());
+  }).filter(d => d.servicios > 0 || parseInt(d.dia) <= parseInt(_hoyAR.split("-")[2]));
 
   // ── Donut por estado ──────────────────────────────────────────────
   const estadoCount = {};
@@ -181,7 +182,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
         <p className="text-sm text-slate-400 mt-0.5">
-          {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" })}
         </p>
       </div>
 
@@ -331,8 +332,7 @@ export default function DashboardPage() {
 
           {/* ── Fila 4: Tareas pendientes ── */}
           {(() => {
-            const hoyDate = new Date();
-            hoyDate.setHours(0,0,0,0);
+            const hoyDate = new Date(_hoyAR + "T00:00:00");
             const tareasUrgentes = tareas
               .filter(t => t.estado !== "completada")
               .map(t => {

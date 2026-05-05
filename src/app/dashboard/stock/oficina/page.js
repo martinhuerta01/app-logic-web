@@ -106,7 +106,7 @@ function OficinaActual() {
       setMsg("Error: ingresá un número válido");
       return;
     }
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
     try {
       if (r.stockItemId) {
         // Intenta PATCH directo; si falla (405/404) crea un ajuste por diferencia
@@ -288,7 +288,7 @@ function OficinaEntradas() {
   const [form, setForm] = useState({
     codigo: "",
     cantidad: "",
-    fecha: new Date().toISOString().split("T")[0],
+    fecha: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }),
   });
   const [msg, setMsg] = useState("");
   const [historial, setHistorial] = useState([]);
@@ -536,7 +536,7 @@ function OficinaSalidas() {
     destino: "",
     codigo: "",
     cantidad: "",
-    fecha: new Date().toISOString().split("T")[0],
+    fecha: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }),
   });
   const [msg, setMsg] = useState("");
   const [historial, setHistorial] = useState([]);

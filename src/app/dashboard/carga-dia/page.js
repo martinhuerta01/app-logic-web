@@ -29,7 +29,7 @@ export default function CargaDiaPage() {
   const [opciones,      setOpciones]      = useState({ tipos: [], dispositivos: [], estados: [] });
 
   // Cabecera del bloque
-  const [svcFecha,       setSvcFecha]       = useState(new Date().toISOString().split("T")[0]);
+  const [svcFecha,       setSvcFecha]       = useState(() => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }));
   const [svcResponsable, setSvcResponsable] = useState("");
   const [svcLocalidad,   setSvcLocalidad]   = useState("");
   const [svcHora,        setSvcHora]        = useState("");

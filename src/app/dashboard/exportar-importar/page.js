@@ -234,7 +234,7 @@ function Importar() {
       let count = 0;
       let saltados = 0;
       const errores = [];
-      const hoy = new Date().toISOString().split("T")[0];
+      const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
 
       try {
         // ── STOCK ACTUAL ──────────────────────────────────────────

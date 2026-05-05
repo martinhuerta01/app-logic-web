@@ -110,14 +110,15 @@ function ModalDia({ fecha, svcEquipos, svcInterior, equipos, onClose }) {
 
 // ─── Grilla de calendario ─────────────────────────────────────────────────
 function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayClick }) {
-  const mesNum  = parseInt(mes)  || new Date().getMonth() + 1;
-  const anioNum = parseInt(anio) || new Date().getFullYear();
+  const _ar = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+  const mesNum  = parseInt(mes)  || parseInt(_ar.split("-")[1]);
+  const anioNum = parseInt(anio) || parseInt(_ar.split("-")[0]);
 
   const diasEnMes  = new Date(anioNum, mesNum, 0).getDate();
   const primerDow  = new Date(anioNum, mesNum - 1, 1).getDay(); // 0=Dom
   const offsetLun  = (primerDow + 6) % 7; // convertir a lunes=0
 
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
 
   // Agrupar servicios por fecha
   const ESTADOS_ABIERTOS = new Set(["PENDIENTE", "CONFIRMADO"]);
@@ -239,7 +240,7 @@ function CalendarioVista({ mes, anio, svcEquipos, svcInterior, equipos, onDayCli
 
 // ─── Página principal ─────────────────────────────────────────────────────
 export default function HistorialPage() {
-  const hoyDate = new Date();
+  const hoyDate = new Date(new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }) + "T00:00:00");
   const [equipos,     setEquipos]     = useState([]);
   const [svcEquipos,  setSvcEquipos]  = useState([]);
   const [svcInterior, setSvcInterior] = useState([]);

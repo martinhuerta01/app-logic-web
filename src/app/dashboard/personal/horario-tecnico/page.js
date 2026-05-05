@@ -7,7 +7,7 @@ const PUNTOS = ["Oficina", "Casa Maxi", "Casa Hugo"];
 
 const FORM_VACIO = {
   equipo_id: "",
-  fecha: new Date().toISOString().split("T")[0],
+  fecha: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }),
   hora_salida: "09:00",
   hora_llegada: "",
   punto_inicio: "",
