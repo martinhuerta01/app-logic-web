@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { hoyAR, mesAR, anioAR } from "@/lib/date";
 
 const PRIORIDAD_STYLE = {
   alta:  "bg-red-100 text-red-700 border-red-300",
@@ -35,10 +36,7 @@ function diasVencimiento(fecha) {
   return Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
 }
 
-function localToday() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-}
+function localToday() { return hoyAR(); }
 
 function ajustarADiaHabil(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
@@ -96,7 +94,7 @@ function ModalTarea({ tarea, onClose, onSave }) {
   const [form, setForm] = useState({
     titulo: tarea?.titulo || "",
     descripcion: tarea?.descripcion || "",
-    fecha_vencimiento: tarea?.fecha_vencimiento || new Date().toISOString().split("T")[0],
+    fecha_vencimiento: tarea?.fecha_vencimiento || hoyAR(),
     prioridad: tarea?.prioridad || "media",
     estado: tarea?.estado || "pendiente",
     asignado_a: tarea?.asignado_a || "",
@@ -363,7 +361,7 @@ function VistaCalendario({ tareas, mes, anio, onDiaClick }) {
   let diaInicio = primerDia.getDay() - 1;
   if (diaInicio < 0) diaInicio = 6;
   const diasEnMes = new Date(anio, mes + 1, 0).getDate();
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = hoyAR();
 
   const celdas = [];
   for (let i = 0; i < diaInicio; i++) celdas.push(null);
@@ -428,10 +426,10 @@ export default function TareasPage() {
   const [completaciones, setCompletaciones] = useState([]);
   const [modal, setModal] = useState(null);
   const [filtroEstado, setFiltroEstado] = useState("todas");
-  const [fechaRecurrentes, setFechaRecurrentes] = useState(new Date().toISOString().split("T")[0]);
+  const [fechaRecurrentes, setFechaRecurrentes] = useState(hoyAR);
   const [msg, setMsg] = useState("");
-  const [mesActual, setMesActual] = useState(new Date().getMonth());
-  const [anioActual, setAnioActual] = useState(new Date().getFullYear());
+  const [mesActual, setMesActual] = useState(() => mesAR() - 1);
+  const [anioActual, setAnioActual] = useState(anioAR);
 
   useEffect(() => { cargar(); }, []);
 
