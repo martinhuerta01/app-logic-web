@@ -35,6 +35,62 @@ function diasVencimiento(fecha) {
   return Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
 }
 
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+function ajustarADiaHabil(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  return d.toISOString().split("T")[0];
+}
+
+function prevDiaHabil(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  return d.toISOString().split("T")[0];
+}
+
+function debeMostrar(t, hoy) {
+  const fechaInicio = t.fecha_vencimiento || hoy;
+  const inicioDate = new Date(fechaInicio + "T00:00:00");
+  const hoyDate   = new Date(hoy + "T00:00:00");
+  if (hoyDate < inicioDate) return false;
+
+  const dow = hoyDate.getDay();
+  const esFinDeSemana = dow === 0 || dow === 6;
+
+  if (t.frecuencia === "diaria") return !esFinDeSemana;
+
+  if (t.frecuencia === "semanal") {
+    if (esFinDeSemana) return false;
+    const inicioAjustado = new Date(ajustarADiaHabil(fechaInicio) + "T00:00:00");
+    return dow === inicioAjustado.getDay();
+  }
+
+  if (t.frecuencia === "quincenal") {
+    const current = new Date(inicioDate);
+    while (current <= hoyDate) {
+      if (ajustarADiaHabil(current.toISOString().split("T")[0]) === hoy) return true;
+      current.setDate(current.getDate() + 15);
+    }
+    return false;
+  }
+
+  if (t.frecuencia === "mensual") {
+    const current = new Date(inicioDate);
+    while (current <= hoyDate) {
+      if (ajustarADiaHabil(current.toISOString().split("T")[0]) === hoy) return true;
+      current.setMonth(current.getMonth() + 1);
+    }
+    return false;
+  }
+
+  return true;
+}
+
 function ModalTarea({ tarea, onClose, onSave }) {
   const { user } = useAuth();
   const [form, setForm] = useState({
@@ -55,7 +111,7 @@ function ModalTarea({ tarea, onClose, onSave }) {
       body.frecuencia = null;
     }
     if (form.es_recurrente) {
-      body.fecha_vencimiento = null;
+      body.fecha_vencimiento = tarea?.fecha_vencimiento || localToday();
       body.estado = "pendiente";
     }
     if (!tarea) body.cargado_por = user;
@@ -146,18 +202,15 @@ function ModalTarea({ tarea, onClose, onSave }) {
 
 /* ── Sección de tareas recurrentes del día ── */
 function TareasRecurrentes({ tareas, completaciones, onToggle, onEdit, onDelete, fechaSeleccionada }) {
-  const hoy = fechaSeleccionada || new Date().toISOString().split("T")[0];
-  const ayer = (() => {
-    const d = new Date(hoy + "T00:00:00");
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split("T")[0];
-  })();
+  const hoy = fechaSeleccionada || localToday();
 
   const recurrentes = tareas.filter(t => t.es_recurrente);
   if (recurrentes.length === 0) return null;
 
   const estaCompletada = (tareaId, fecha) =>
     completaciones.some(c => c.tarea_id === tareaId && c.fecha === fecha);
+
+  const tareasDeHoy = recurrentes.filter(t => debeMostrar(t, hoy));
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -172,20 +225,17 @@ function TareasRecurrentes({ tareas, completaciones, onToggle, onEdit, onDelete,
             className="border border-slate-200 rounded px-2 py-1 text-xs" />
         </div>
       </div>
+      {tareasDeHoy.length === 0 ? (
+        <div className="px-5 py-6 text-center text-sm text-slate-400">No hay tareas recurrentes para este día</div>
+      ) : (
       <div className="divide-y divide-slate-100">
-        {recurrentes.map(t => {
+        {tareasDeHoy.map(t => {
           const hecha = estaCompletada(t.id, hoy);
-          const noHechaAyer = !estaCompletada(t.id, ayer) && hoy !== ayer;
-          const fechaHoyDate = new Date(hoy + "T00:00:00");
-          const diaSemana = fechaHoyDate.getDay();
-          const diaDelMes = fechaHoyDate.getDate();
-
-          if (t.frecuencia === "semanal" && diaSemana !== 1) return null;
-          if (t.frecuencia === "quincenal" && diaDelMes !== 1 && diaDelMes !== 16) return null;
-          if (t.frecuencia === "mensual" && diaDelMes !== 1) return null;
+          const ultimoDiaHabil = prevDiaHabil(hoy);
+          const noHechaAntes = t.frecuencia === "diaria" && !estaCompletada(t.id, ultimoDiaHabil) && !hecha;
 
           return (
-            <div key={t.id} className={`flex items-center gap-4 px-5 py-3 ${noHechaAyer && !hecha ? "bg-red-50/60" : ""}`}>
+            <div key={t.id} className={`flex items-center gap-4 px-5 py-3 ${noHechaAntes ? "bg-red-50/60" : ""}`}>
               <button onClick={() => onToggle(t.id, hoy)}
                 className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
                   hecha ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-blue-400"
@@ -205,7 +255,7 @@ function TareasRecurrentes({ tareas, completaciones, onToggle, onEdit, onDelete,
                   <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200">
                     {FREQ_LABELS[t.frecuencia] || t.frecuencia}
                   </span>
-                  {noHechaAyer && !hecha && (
+                  {noHechaAntes && (
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-300">
                       No completada ayer
                     </span>
@@ -232,6 +282,7 @@ function TareasRecurrentes({ tareas, completaciones, onToggle, onEdit, onDelete,
           );
         })}
       </div>
+      )}
     </div>
   );
 }
