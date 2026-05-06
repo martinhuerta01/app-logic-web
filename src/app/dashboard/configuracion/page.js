@@ -174,8 +174,7 @@ function FormUbicacion({ onDone }) {
           <option value="">Sin tipo</option>
           <option value="oficina">Oficina</option>
           <option value="cd">CD (Centro Distribución)</option>
-          <option value="camioneta">Camioneta</option>
-          <option value="tecnico">Técnico</option>
+          <option value="general">General</option>
         </select>
       </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
@@ -207,8 +206,7 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
           <option value="">Sin tipo</option>
           <option value="oficina">Oficina</option>
           <option value="cd">CD (Centro Distribución)</option>
-          <option value="camioneta">Camioneta</option>
-          <option value="tecnico">Técnico</option>
+          <option value="general">General</option>
         </select>
       </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>

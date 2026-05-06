@@ -137,8 +137,7 @@ export default function GeneralStockPage() {
       {!ubic && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
           La ubicación &quot;{ubNombre}&quot; no existe en la base de datos. Creala desde
-          Configuración &gt; Ubicaciones de Stock con tipo <strong>camioneta</strong> o{" "}
-          <strong>tecnico</strong>.
+          Configuración &gt; Ubicaciones de Stock con tipo <strong>General</strong>.
         </div>
       )}
     </div>

@@ -89,7 +89,7 @@ const MODULO_ADMIN = {
 
 function buildStockGrupos(ubicaciones) {
   const cds      = ubicaciones.filter(u => u.tipo === "cd");
-  const generales = ubicaciones.filter(u => u.tipo === "camioneta" || u.tipo === "tecnico");
+  const generales = ubicaciones.filter(u => u.tipo === "general");
   return [
     {
       nombre: "Oficina",
