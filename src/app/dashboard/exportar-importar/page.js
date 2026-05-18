@@ -34,6 +34,24 @@ function balanceHHMM(trabajadoMins, esperadoMins) {
   return `${sign}${h}:${String(m).padStart(2, "0")}`;
 }
 
+// Convierte horas decimales (ej: 118.88) a HH:MM
+function horasDecToHHMM(horas) {
+  if (!horas && horas !== 0) return "0:00";
+  const neg = horas < 0;
+  const totalMins = Math.round(Math.abs(horas) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${neg ? "-" : ""}${h}:${String(m).padStart(2, "0")}`;
+}
+
+function balanceDecToHHMM(horas) {
+  const neg = horas < 0;
+  const totalMins = Math.round(Math.abs(horas) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${neg ? "-" : "+"}${h}:${String(m).padStart(2, "0")}`;
+}
+
 function diasHabilesEnMes(mes, anio) {
   const dias = new Date(anio, mes, 0).getDate();
   let count = 0;
@@ -240,21 +258,20 @@ async function exportarProductividad(mes, anio) {
   const subtotalIdxs = [];
 
   for (const t of tecnicos) {
-    const balStr = t.balance >= 0 ? `+${t.balance.toFixed(2)}` : t.balance.toFixed(2);
-    rows.push([t.nombre, t.dias_presentes, t.horas_trabajadas, t.horas_base, balStr, t.servicios_realizados, t.instalaciones, t.revisiones, t.desinstalaciones, t.servicios_por_dia]);
+    rows.push([t.nombre, t.dias_presentes, horasDecToHHMM(t.horas_trabajadas), horasDecToHHMM(t.horas_base), balanceDecToHHMM(t.balance), t.servicios_realizados, t.instalaciones, t.revisiones, t.desinstalaciones, t.servicios_por_dia]);
   }
 
   // Totales
   const totDias  = tecnicos.reduce((s, t) => s + t.dias_presentes, 0);
-  const totHoras = +tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0).toFixed(2);
+  const totHoras = tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0);
   const totBase  = tecnicos.reduce((s, t) => s + t.horas_base, 0);
-  const totBal   = +(totHoras - totBase).toFixed(2);
+  const totBal   = totHoras - totBase;
   const totSvcs  = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
   const totInst  = tecnicos.reduce((s, t) => s + t.instalaciones, 0);
   const totRev   = tecnicos.reduce((s, t) => s + t.revisiones, 0);
   const totDes   = tecnicos.reduce((s, t) => s + t.desinstalaciones, 0);
   subtotalIdxs.push(rows.length);
-  rows.push(["TOTAL", totDias, totHoras, totBase, totBal >= 0 ? `+${totBal.toFixed(2)}` : totBal.toFixed(2), totSvcs, totInst, totRev, totDes, totDias > 0 ? +(totSvcs / totDias).toFixed(1) : 0]);
+  rows.push(["TOTAL", totDias, horasDecToHHMM(totHoras), horasDecToHHMM(totBase), balanceDecToHHMM(totBal), totSvcs, totInst, totRev, totDes, totDias > 0 ? +(totSvcs / totDias).toFixed(1) : 0]);
 
   const ws = makeSheet(rows);
   setColWidths(ws, [22, 16, 18, 22, 14, 20, 14, 12, 16, 10]);
