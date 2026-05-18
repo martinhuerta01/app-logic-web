@@ -4,6 +4,400 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
+const ESTADO_COLOR = {
+  REALIZADO:  { bg: "bg-green-100  text-green-700",  dot: "bg-green-500"  },
+  CONFIRMADO: { bg: "bg-blue-100   text-blue-700",   dot: "bg-blue-500"   },
+  PENDIENTE:  { bg: "bg-yellow-100 text-yellow-700", dot: "bg-yellow-500" },
+  SUSPENDIDO: { bg: "bg-red-100    text-red-700",    dot: "bg-red-500"    },
+};
+
+const PIE_COLORS = {
+  REALIZADO:  "#22c55e",
+  CONFIRMADO: "#3b82f6",
+  PENDIENTE:  "#eab308",
+  SUSPENDIDO: "#ef4444",
+};
+
+// ── Helpers de fecha (T12:00:00Z evita edge-cases de timezone) ──────
+const toUTC   = (s) => new Date(s + "T12:00:00Z");
+const toStr   = (d) => d.toISOString().slice(0, 10);
+const addDays = (s, n) => { const d = toUTC(s); d.setUTCDate(d.getUTCDate() + n); return toStr(d); };
+const addMonths = (s, n) => { const d = toUTC(s); d.setUTCMonth(d.getUTCMonth() + n); return toStr(d); };
+const addYears  = (s, n) => { const d = toUTC(s); d.setUTCFullYear(d.getUTCFullYear() + n); return toStr(d); };
+
+function getMondayOfWeek(s) {
+  const d = toUTC(s);
+  const dow = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return toStr(d);
+}
+
+const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const MESES_LARGOS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function calcPeriodoInfo(periodo, refDate) {
+  const d   = toUTC(refDate);
+  const anio = d.getUTCFullYear();
+  const mes  = d.getUTCMonth() + 1;
+
+  if (periodo === "dia") {
+    const label = new Date(refDate + "T12:00:00Z").toLocaleDateString("es-AR", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+    return { label, fechas: [refDate] };
+  }
+  if (periodo === "semana") {
+    const lunes   = getMondayOfWeek(refDate);
+    const viernes = addDays(lunes, 4);
+    const lD = toUTC(lunes), vD = toUTC(viernes);
+    const lM = lD.getUTCMonth(), vM = vD.getUTCMonth();
+    const label = lM === vM
+      ? `${lD.getUTCDate()} - ${vD.getUTCDate()} de ${MESES_LARGOS[lM]} ${lD.getUTCFullYear()}`
+      : `${lD.getUTCDate()} ${MESES_CORTOS[lM]} - ${vD.getUTCDate()} ${MESES_CORTOS[vM]} ${vD.getUTCFullYear()}`;
+    const fechas = [lunes, addDays(lunes,1), addDays(lunes,2), addDays(lunes,3), viernes];
+    return { label, lunes, viernes, fechas };
+  }
+  if (periodo === "mes") {
+    return { label: `${MESES_LARGOS[mes - 1]} ${anio}`, mes, anio };
+  }
+  return { label: String(anio), anio };
+}
+
+function navRefDate(periodo, refDate, dir) {
+  if (periodo === "dia")    return addDays(refDate, dir);
+  if (periodo === "semana") return addDays(getMondayOfWeek(refDate), dir * 7);
+  if (periodo === "mes")    return addMonths(refDate, dir);
+  return addYears(refDate, dir);
+}
+
+function isNextFuture(periodo, refDate, hoy) {
+  const next = navRefDate(periodo, refDate, +1);
+  if (periodo === "dia")    return next > hoy;
+  if (periodo === "semana") return getMondayOfWeek(next) > getMondayOfWeek(hoy);
+  if (periodo === "mes") {
+    const n = toUTC(next);
+    const h = toUTC(hoy);
+    return n.getUTCFullYear() > h.getUTCFullYear() ||
+      (n.getUTCFullYear() === h.getUTCFullYear() && n.getUTCMonth() > h.getUTCMonth());
+  }
+  return toUTC(next).getUTCFullYear() > toUTC(hoy).getUTCFullYear();
+}
+
+// ── DASHBOARD DE ESTADÍSTICAS ─────────────────────────────────────
+function DashboardEstadisticas() {
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+
+  const [periodo,  setPeriodo]  = useState("mes");
+  const [refDate,  setRefDate]  = useState(hoy);
+  const [servicios, setServicios] = useState([]);
+  const [cargando,  setCargando]  = useState(true);
+
+  useEffect(() => {
+    const info = calcPeriodoInfo(periodo, refDate);
+    const cargar = async () => {
+      setCargando(true);
+      try {
+        let svcs = [];
+        if (periodo === "dia") {
+          const [eq, int] = await Promise.all([
+            api.get("/servicios/", { fecha: info.fechas[0], tipo: "equipos"  }),
+            api.get("/servicios/", { fecha: info.fechas[0], tipo: "interior" }),
+          ]);
+          svcs = [...(eq||[]), ...(int||[])];
+
+        } else if (periodo === "semana") {
+          // Puede abarcar dos meses — deduplico por id
+          const meses = new Set();
+          [info.lunes, info.viernes].forEach(f => {
+            const dd = toUTC(f);
+            meses.add(`${dd.getUTCFullYear()}-${dd.getUTCMonth()+1}`);
+          });
+          const fetches = [];
+          for (const key of meses) {
+            const [y, m] = key.split("-");
+            fetches.push(api.get("/servicios/", { mes: m, anio: y, tipo: "equipos"  }));
+            fetches.push(api.get("/servicios/", { mes: m, anio: y, tipo: "interior" }));
+          }
+          const results = await Promise.all(fetches);
+          const all  = results.flat().filter(Boolean);
+          const seen = new Set();
+          svcs = all
+            .filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; })
+            .filter(s => info.fechas.includes(s.fecha));
+
+        } else if (periodo === "mes") {
+          const [eq, int] = await Promise.all([
+            api.get("/servicios/", { mes: info.mes, anio: info.anio, tipo: "equipos"  }),
+            api.get("/servicios/", { mes: info.mes, anio: info.anio, tipo: "interior" }),
+          ]);
+          svcs = [...(eq||[]), ...(int||[])];
+
+        } else {
+          const [eq, int] = await Promise.all([
+            api.get("/servicios/", { anio: info.anio, tipo: "equipos"  }),
+            api.get("/servicios/", { anio: info.anio, tipo: "interior" }),
+          ]);
+          svcs = [...(eq||[]), ...(int||[])];
+        }
+        setServicios(svcs);
+      } catch { setServicios([]); }
+      finally { setCargando(false); }
+    };
+    cargar();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, refDate]);
+
+  const info       = calcPeriodoInfo(periodo, refDate);
+  const total      = servicios.length;
+  const realizados = servicios.filter(s => s.estado === "REALIZADO").length;
+  const sinCerrar  = servicios.filter(s => s.estado === "PENDIENTE" || s.estado === "CONFIRMADO").length;
+  const pct        = total > 0 ? Math.round(realizados / total * 100) : 0;
+  const instalaciones = servicios.filter(s => s.tipo_servicio === "INSTALACION").length;
+  const revisiones    = servicios.filter(s => s.tipo_servicio === "REVISION").length;
+
+  // ── Datos del gráfico de barras ─────────────────────────────────
+  let barData = [];
+  let barTitle = "";
+
+  if (periodo === "dia") {
+    const tipos = {};
+    servicios.forEach(s => { const t = s.tipo_servicio || "Otro"; tipos[t] = (tipos[t]||0)+1; });
+    barData  = Object.entries(tipos).map(([label, servicios]) => ({ label, servicios }));
+    barTitle = "Servicios por tipo";
+  } else if (periodo === "semana") {
+    const DIAS = ["Lun","Mar","Mié","Jue","Vie"];
+    barData  = info.fechas.map((f, i) => ({ label: DIAS[i], servicios: servicios.filter(s => s.fecha === f).length }));
+    barTitle = `Semana ${info.label}`;
+  } else if (periodo === "mes") {
+    const diasEnMes = new Date(info.anio, info.mes, 0).getDate();
+    const hoyDia    = periodo === "mes" && info.anio === parseInt(hoy.split("-")[0]) && info.mes === parseInt(hoy.split("-")[1])
+      ? parseInt(hoy.split("-")[2])
+      : diasEnMes;
+    barData = Array.from({ length: hoyDia }, (_, i) => {
+      const dia = i + 1;
+      const f   = `${info.anio}-${String(info.mes).padStart(2,"0")}-${String(dia).padStart(2,"0")}`;
+      return { label: String(dia), servicios: servicios.filter(s => s.fecha === f).length };
+    });
+    barTitle = `Servicios por día — ${info.label}`;
+  } else {
+    const hoyAnio = parseInt(hoy.split("-")[0]);
+    const hoyMes  = parseInt(hoy.split("-")[1]);
+    const limite  = info.anio === hoyAnio ? hoyMes : 12;
+    barData  = MESES_CORTOS.slice(0, limite).map((label, i) => ({
+      label,
+      servicios: servicios.filter(s => {
+        if (!s.fecha) return false;
+        const [y, m] = s.fecha.split("-");
+        return parseInt(y) === info.anio && parseInt(m) === i + 1;
+      }).length,
+    }));
+    barTitle = `Servicios por mes — ${info.anio}`;
+  }
+
+  // ── Donut ───────────────────────────────────────────────────────
+  const estadoCount = {};
+  servicios.forEach(s => { estadoCount[s.estado] = (estadoCount[s.estado]||0)+1; });
+  const donutData = Object.entries(estadoCount)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  // ── Tabla de servicios ──────────────────────────────────────────
+  const tablaServicios = periodo === "dia"
+    ? [...servicios].sort((a, b) => (b.id||0) - (a.id||0))
+    : [...servicios]
+        .sort((a, b) => (b.fecha||"").localeCompare(a.fecha||"") || (b.id||0) - (a.id||0))
+        .slice(0, 8);
+
+  const PERIODOS = [
+    { key: "dia",    label: "Día"    },
+    { key: "semana", label: "Semana" },
+    { key: "mes",    label: "Mes"    },
+    { key: "anio",   label: "Año"    },
+  ];
+
+  return (
+    <div className="space-y-6">
+
+      {/* Selector de período + navegación */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+          {PERIODOS.map(p => (
+            <button key={p.key}
+              onClick={() => { setPeriodo(p.key); setRefDate(hoy); }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+                periodo === p.key ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button onClick={() => setRefDate(navRefDate(periodo, refDate, -1))}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm transition">
+            ←
+          </button>
+          <span className="text-sm font-medium text-slate-700 min-w-52 text-center capitalize">
+            {info.label}
+          </span>
+          <button onClick={() => setRefDate(navRefDate(periodo, refDate, +1))}
+            disabled={isNextFuture(periodo, refDate, hoy)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-sm transition disabled:opacity-30 disabled:cursor-not-allowed">
+            →
+          </button>
+        </div>
+      </div>
+
+      {cargando ? (
+        <div className="text-slate-400 text-sm">Cargando datos…</div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                label: "Total servicios",
+                value: total,
+                gradient: "bg-gradient-to-br from-indigo-500 to-violet-600",
+                sub: info.label,
+              },
+              {
+                label: "Realizados",
+                value: realizados,
+                gradient: "bg-gradient-to-br from-emerald-400 to-teal-600",
+                sub: total > 0 ? `${pct}% del período` : "—",
+              },
+              {
+                label: "Sin cerrar",
+                value: sinCerrar,
+                gradient: sinCerrar > 0
+                  ? "bg-gradient-to-br from-amber-400 to-orange-500"
+                  : "bg-gradient-to-br from-slate-400 to-slate-600",
+                sub: "Pendientes + Confirmados",
+              },
+              {
+                label: "Instalaciones",
+                value: instalaciones,
+                gradient: "bg-gradient-to-br from-sky-400 to-indigo-500",
+                sub: `${revisiones} revisiones`,
+              },
+            ].map(k => (
+              <div key={k.label}
+                className={`${k.gradient} rounded-xl shadow-md p-5 text-white`}>
+                <p className="text-xs opacity-80 leading-tight">{k.label}</p>
+                <p className="text-3xl font-bold leading-tight mt-0.5">{k.value}</p>
+                <p className="text-xs opacity-70 mt-0.5 truncate">{k.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Gráficos */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-slate-700 mb-4">{barTitle}</h2>
+              {barData.length === 0 || barData.every(d => d.servicios === 0) ? (
+                <p className="text-slate-400 text-sm">Sin servicios en el período.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={barData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip formatter={(v) => [`${v} servicio${v !== 1 ? "s" : ""}`, ""]} />
+                    <Bar dataKey="servicios" fill="#6366f1" radius={[3,3,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-slate-700 mb-4">Distribución de estados</h2>
+              {donutData.length === 0 ? (
+                <p className="text-slate-400 text-sm">Sin datos.</p>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={160}>
+                    <PieChart>
+                      <Pie data={donutData} cx="50%" cy="50%"
+                        innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={2}>
+                        {donutData.map((d, i) => (
+                          <Cell key={i} fill={PIE_COLORS[d.name] || "#94a3b8"} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v, n) => [`${v} servicios`, n]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-1.5 mt-2">
+                    {donutData.map(d => (
+                      <div key={d.name} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: PIE_COLORS[d.name] || "#94a3b8" }} />
+                          <span className="text-slate-600">{d.name}</span>
+                        </div>
+                        <span className="font-semibold text-slate-700">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Tabla de servicios */}
+          {servicios.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-700">
+                  {periodo === "dia" ? "Todos los servicios del día" : "Últimos servicios del período"}
+                </h2>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
+                    <th className="text-left px-5 py-2.5">Fecha</th>
+                    <th className="text-left px-5 py-2.5">Responsable</th>
+                    <th className="text-left px-5 py-2.5">Cliente</th>
+                    <th className="text-left px-5 py-2.5">Tipo</th>
+                    <th className="text-left px-5 py-2.5">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tablaServicios.map((s, i) => {
+                    const ec = ESTADO_COLOR[s.estado] || { bg: "bg-slate-100 text-slate-600", dot: "bg-slate-400" };
+                    return (
+                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                        <td className="px-5 py-2.5 font-mono">{s.fecha?.split("-").reverse().join("/")}</td>
+                        <td className="px-5 py-2.5 font-medium">{s.responsable || "—"}</td>
+                        <td className="px-5 py-2.5 text-slate-600 max-w-[140px] truncate">{s.cliente || "—"}</td>
+                        <td className="px-5 py-2.5 text-slate-600">
+                          {s.tipo_servicio === "-" ? "FERIADO" : (s.tipo_servicio || "—")}
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${ec.bg}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${ec.dot}`} />
+                            {s.estado || "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {servicios.length === 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-10 text-center text-slate-400 text-sm">
+              Sin servicios registrados en este período.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 const COLORES = ["#1e3a8a", "#0f766e", "#b45309", "#7c3aed", "#dc2626", "#059669", "#d97706", "#4f46e5"];
 
 function calcHoras(inicio, fin) {
@@ -898,22 +1292,24 @@ function ReporteCruzado() {
 
 export default function EstadisticasPage() {
   const searchParams = useSearchParams();
-  const tab = searchParams.get("tab") || "horas";
+  const tab = searchParams.get("tab") || "dashboard";
 
   const titulos = {
-    horas: "Horas Trabajadas",
+    dashboard:   "Dashboard",
+    horas:       "Horas Trabajadas",
     responsable: "Servicios por Responsable",
-    clientes: "Servicios por Cliente",
-    cruzado: "Reporte Cruzado",
+    clientes:    "Servicios por Cliente",
+    cruzado:     "Reporte Cruzado",
   };
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">{titulos[tab] || "Estadísticas"}</h1>
-      {tab === "horas" && <HorasTrabajadas />}
+      {tab === "dashboard"   && <DashboardEstadisticas />}
+      {tab === "horas"       && <HorasTrabajadas />}
       {tab === "responsable" && <ServiciosResponsable />}
-      {tab === "clientes" && <ServiciosCliente />}
-      {tab === "cruzado" && <ReporteCruzado />}
+      {tab === "clientes"    && <ServiciosCliente />}
+      {tab === "cruzado"     && <ReporteCruzado />}
     </div>
   );
 }

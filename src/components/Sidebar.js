@@ -40,6 +40,7 @@ const MODULOS_BASE = [
     nombre: "Estadísticas",
     icon: "📊",
     subs: [
+      { href: "/dashboard/estadisticas?tab=dashboard",   label: "Dashboard" },
       { href: "/dashboard/estadisticas?tab=horas",       label: "Horas trabajadas" },
       { href: "/dashboard/estadisticas?tab=responsable", label: "Servicios por Responsable" },
       { href: "/dashboard/estadisticas?tab=clientes",    label: "Servicios por Cliente" },
