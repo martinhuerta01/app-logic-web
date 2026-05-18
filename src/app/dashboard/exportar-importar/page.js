@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api";
-import * as XLSX from "xlsx";
+import XS from "xlsx-js-style";
 
 const TZ = "America/Argentina/Buenos_Aires";
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -18,13 +18,48 @@ function parseMins(hhmm) {
   return h * 60 + (m || 0);
 }
 
-function minsToHoras(mins) {
-  if (mins == null || isNaN(mins) || mins <= 0) return 0;
-  return Math.round(mins / 6) / 10;
+function minsToHHMM(mins) {
+  if (!mins || mins <= 0) return "";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}:${String(m).padStart(2, "0")}`;
 }
 
 function setColWidths(ws, widths) {
   ws["!cols"] = widths.map(w => ({ wch: w }));
+}
+
+// ── Styling helpers ─────────────────────────────────────────────────
+const S_HEADER = {
+  font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+  fill: { fgColor: { rgb: "4F46E5" } },
+  alignment: { horizontal: "center", vertical: "center" },
+  border: {
+    bottom: { style: "thin", color: { rgb: "818CF8" } },
+  },
+};
+
+const S_TOTAL = {
+  font: { bold: true, color: { rgb: "1E1B4B" }, sz: 11 },
+  fill: { fgColor: { rgb: "E0E7FF" } },
+  alignment: { horizontal: "center" },
+};
+
+const S_SUBTOTAL = {
+  font: { bold: true, color: { rgb: "374151" } },
+  fill: { fgColor: { rgb: "F1F5F9" } },
+};
+
+function applyRowStyle(ws, rowIdx, colCount, style) {
+  for (let c = 0; c < colCount; c++) {
+    const ref = XS.utils.encode_cell({ r: rowIdx, c });
+    if (!ws[ref]) ws[ref] = { v: "", t: "s" };
+    ws[ref].s = style;
+  }
+}
+
+function makeSheet(rows) {
+  return XS.utils.aoa_to_sheet(rows);
 }
 
 // ── Export 1: Horas Trabajadas ──────────────────────────────────────
@@ -43,19 +78,18 @@ async function exportarHoras(mes, anio) {
     byEquipo[eq].push(mov);
   }
 
-  const wb = XLSX.utils.book_new();
+  const wb = XS.utils.book_new();
   const summaryRows = [["Equipo", "Días trabajados", "Total horas", "Promedio hs/día"]];
 
   for (const [eq, movs] of Object.entries(byEquipo)) {
     const sorted = [...movs].sort((a, b) => a.fecha.localeCompare(b.fecha));
-    const rows = [["Fecha", "Día", "Hora salida", "Hora llegada", "Horas", "Punto inicio", "Punto fin", "Cargado por"]];
+    const rows = [["Fecha", "Día", "Hora salida", "Hora llegada", "Horas", "Punto inicio", "Punto fin"]];
     let totalMins = 0;
 
     for (const m of sorted) {
       const salidaMins = parseMins(m.hora_salida);
       const llegadaMins = parseMins(m.hora_llegada);
       const mins = (salidaMins != null && llegadaMins != null) ? llegadaMins - salidaMins : null;
-      const horas = mins != null ? minsToHoras(mins) : "";
       if (mins != null && mins > 0) totalMins += mins;
 
       const d = new Date(m.fecha + "T12:00:00Z");
@@ -65,28 +99,32 @@ async function exportarHoras(mes, anio) {
         dias[d.getUTCDay()],
         m.hora_salida || "",
         m.hora_llegada || "",
-        horas,
+        mins != null ? minsToHHMM(mins) : "",
         m.punto_inicio || "",
         m.punto_fin || "",
-        m.cargado_por || "",
       ]);
     }
 
-    const totalHs = minsToHoras(totalMins);
-    rows.push(["TOTAL", "", "", "", totalHs, "", "", ""]);
+    rows.push(["TOTAL", "", "", "", minsToHHMM(totalMins), "", ""]);
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    setColWidths(ws, [12, 6, 12, 12, 8, 22, 22, 16]);
-    XLSX.utils.book_append_sheet(wb, ws, eq.slice(0, 31));
-    summaryRows.push([eq, movs.length, totalHs, movs.length > 0 ? Math.round(totalHs / movs.length * 10) / 10 : 0]);
+    const ws = makeSheet(rows);
+    setColWidths(ws, [12, 6, 12, 12, 8, 22, 22]);
+    applyRowStyle(ws, 0, 7, S_HEADER);
+    applyRowStyle(ws, rows.length - 1, 7, S_TOTAL);
+    XS.utils.book_append_sheet(wb, ws, eq.slice(0, 31));
+
+    const hTot = totalMins > 0 ? minsToHHMM(totalMins) : "0:00";
+    const hProm = movs.length > 0 ? minsToHHMM(Math.round(totalMins / movs.length)) : "0:00";
+    summaryRows.push([eq, movs.length, hTot, hProm]);
   }
 
-  const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
+  const wsSum = makeSheet(summaryRows);
   setColWidths(wsSum, [22, 16, 14, 18]);
-  XLSX.utils.book_append_sheet(wb, wsSum, "Resumen");
+  applyRowStyle(wsSum, 0, 4, S_HEADER);
+  XS.utils.book_append_sheet(wb, wsSum, "Resumen");
   wb.SheetNames = ["Resumen", ...wb.SheetNames.filter(s => s !== "Resumen")];
 
-  XLSX.writeFile(wb, `Horas_Trabajadas_${MESES[mes - 1]}_${anio}.xlsx`);
+  XS.writeFile(wb, `Horas_Trabajadas_${MESES[mes - 1]}_${anio}.xlsx`);
 }
 
 // ── Export 2: Productividad ─────────────────────────────────────────
@@ -94,7 +132,7 @@ async function exportarProductividad(mes, anio) {
   const data = await api.get("/estadisticas/reporte-cruzado", { mes, anio });
   if (!data.tecnicos?.length) throw new Error("Sin datos para el período seleccionado");
 
-  const wb = XLSX.utils.book_new();
+  const wb = XS.utils.book_new();
   const rows = [["Técnico", "Equipo", "Días presentes", "Servicios realizados", "Svc/día", "Horas trabajadas", "Balance"]];
 
   const byEquipo = {};
@@ -104,6 +142,7 @@ async function exportarProductividad(mes, anio) {
     byEquipo[eq].push(t);
   }
 
+  const subtotalRows = [];
   for (const [eq, tecnicos] of Object.entries(byEquipo)) {
     let eqSvcs = 0, eqHoras = 0, eqDias = 0;
     for (const t of tecnicos) {
@@ -112,25 +151,29 @@ async function exportarProductividad(mes, anio) {
       eqHoras += t.horas_trabajadas || 0;
       eqDias += t.dias_presentes || 0;
     }
+    subtotalRows.push(rows.length);
     rows.push([`SUBTOTAL ${eq}`, "", eqDias, eqSvcs, eqDias > 0 ? Math.round(eqSvcs / eqDias * 10) / 10 : 0, Math.round(eqHoras * 10) / 10, ""]);
     rows.push([]);
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const ws = makeSheet(rows);
   setColWidths(ws, [24, 18, 16, 20, 10, 18, 12]);
-  XLSX.utils.book_append_sheet(wb, ws, "Productividad");
+  applyRowStyle(ws, 0, 7, S_HEADER);
+  for (const r of subtotalRows) applyRowStyle(ws, r, 7, S_SUBTOTAL);
+  XS.utils.book_append_sheet(wb, ws, "Productividad");
 
   if (data.dias?.length) {
     const detRows = [["Fecha", "Equipo", "Técnico", "Servicios", "Horas GR/LCH", "Horas total", "% GR/LCH"]];
     for (const d of data.dias) {
       detRows.push([fmtFecha(d.fecha), d.equipo, d.tecnico, d.servicios, d.horas_gr, d.horas_total, d.pct_gr]);
     }
-    const wsDet = XLSX.utils.aoa_to_sheet(detRows);
+    const wsDet = makeSheet(detRows);
     setColWidths(wsDet, [12, 18, 24, 12, 14, 12, 10]);
-    XLSX.utils.book_append_sheet(wb, wsDet, "Detalle días");
+    applyRowStyle(wsDet, 0, 7, S_HEADER);
+    XS.utils.book_append_sheet(wb, wsDet, "Detalle días");
   }
 
-  XLSX.writeFile(wb, `Productividad_${MESES[mes - 1]}_${anio}.xlsx`);
+  XS.writeFile(wb, `Productividad_${MESES[mes - 1]}_${anio}.xlsx`);
 }
 
 // ── Export 3: Stock Actual ──────────────────────────────────────────
@@ -145,20 +188,20 @@ async function exportarStock() {
     byUbic[ub].push(item);
   }
 
-  const wb = XLSX.utils.book_new();
+  const wb = XS.utils.book_new();
 
-  const allRows = [["Ubicación", "Código", "Descripción", "Categoría", "Cantidad"]];
   const sortedAll = [...data].sort((a, b) => {
     const ub = (a.ubicaciones?.nombre || "").localeCompare(b.ubicaciones?.nombre || "");
-    if (ub !== 0) return ub;
-    return (a.productos?.codigo || "").localeCompare(b.productos?.codigo || "");
+    return ub !== 0 ? ub : (a.productos?.codigo || "").localeCompare(b.productos?.codigo || "");
   });
+  const allRows = [["Ubicación", "Código", "Descripción", "Categoría", "Cantidad"]];
   for (const item of sortedAll) {
     allRows.push([item.ubicaciones?.nombre || "", item.productos?.codigo || "", item.productos?.descripcion || "", item.productos?.categoria || "", item.cantidad]);
   }
-  const wsAll = XLSX.utils.aoa_to_sheet(allRows);
+  const wsAll = makeSheet(allRows);
   setColWidths(wsAll, [20, 12, 38, 18, 10]);
-  XLSX.utils.book_append_sheet(wb, wsAll, "Todo");
+  applyRowStyle(wsAll, 0, 5, S_HEADER);
+  XS.utils.book_append_sheet(wb, wsAll, "Todo");
 
   for (const [ub, items] of Object.entries(byUbic)) {
     const sorted = [...items].sort((a, b) => {
@@ -170,13 +213,15 @@ async function exportarStock() {
       rows.push([item.productos?.codigo || "", item.productos?.descripcion || "", item.productos?.categoria || "", item.cantidad]);
     }
     rows.push(["", "", "TOTAL", sorted.reduce((s, i) => s + (i.cantidad || 0), 0)]);
-    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const ws = makeSheet(rows);
     setColWidths(ws, [12, 38, 18, 10]);
-    XLSX.utils.book_append_sheet(wb, ws, ub.slice(0, 31));
+    applyRowStyle(ws, 0, 4, S_HEADER);
+    applyRowStyle(ws, rows.length - 1, 4, S_TOTAL);
+    XS.utils.book_append_sheet(wb, ws, ub.slice(0, 31));
   }
 
   const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: TZ });
-  XLSX.writeFile(wb, `Stock_Actual_${hoy}.xlsx`);
+  XS.writeFile(wb, `Stock_Actual_${hoy}.xlsx`);
 }
 
 // ── Export 4: Servicios ─────────────────────────────────────────────
@@ -189,17 +234,17 @@ async function exportarServicios(mes, anio) {
     return f !== 0 ? f : (a.hora_programada || "").localeCompare(b.hora_programada || "");
   });
 
-  const wb = XLSX.utils.book_new();
-
-  const rows = [["Fecha", "Hora", "Responsable", "Cliente", "Tipo", "Dispositivo", "Patente", "Localidad", "Estado", "Observaciones"]];
+  const wb = XS.utils.book_new();
+  const cols = ["Fecha", "Hora", "Responsable", "Cliente", "Tipo", "Dispositivo", "Patente", "Localidad", "Estado", "Observaciones"];
+  const rows = [cols];
   for (const s of sorted) {
     rows.push([fmtFecha(s.fecha), s.hora_programada || "", s.responsable || "", s.cliente || "", s.tipo_servicio || "", s.dispositivo || "", s.patente || "", s.localidad || "", s.estado || "", s.observaciones || ""]);
   }
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const ws = makeSheet(rows);
   setColWidths(ws, [12, 8, 20, 28, 14, 18, 10, 20, 12, 35]);
-  XLSX.utils.book_append_sheet(wb, ws, "Servicios");
+  applyRowStyle(ws, 0, cols.length, S_HEADER);
+  XS.utils.book_append_sheet(wb, ws, "Servicios");
 
-  // Summary by responsable
   const byResp = {};
   for (const s of sorted) {
     const r = s.responsable || "Sin responsable";
@@ -215,14 +260,16 @@ async function exportarServicios(mes, anio) {
   const totalReal = sorted.filter(s => s.estado === "REALIZADO").length;
   const totalCanc = sorted.filter(s => s.estado === "CANCELADO").length;
   sumRows.push(["TOTAL", sorted.length, totalReal, totalCanc, sorted.length - totalReal - totalCanc]);
-  const wsSum = XLSX.utils.aoa_to_sheet(sumRows);
+  const wsSum = makeSheet(sumRows);
   setColWidths(wsSum, [24, 8, 12, 12, 12]);
-  XLSX.utils.book_append_sheet(wb, wsSum, "Por responsable");
+  applyRowStyle(wsSum, 0, 5, S_HEADER);
+  applyRowStyle(wsSum, sumRows.length - 1, 5, S_TOTAL);
+  XS.utils.book_append_sheet(wb, wsSum, "Por responsable");
 
-  XLSX.writeFile(wb, `Servicios_${MESES[mes - 1]}_${anio}.xlsx`);
+  XS.writeFile(wb, `Servicios_${MESES[mes - 1]}_${anio}.xlsx`);
 }
 
-// ── Export 5: Cliente vs Responsables ──────────────────────────────
+// ── Export 5: Clientes vs Responsables ─────────────────────────────
 async function exportarClienteResponsable(mes, anio) {
   const data = await api.get("/servicios/", { mes, anio });
   if (!data?.length) throw new Error("Sin datos para el período seleccionado");
@@ -238,9 +285,7 @@ async function exportarClienteResponsable(mes, anio) {
     pivot[cli][resp] = (pivot[cli][resp] || 0) + 1;
   }
 
-  const wb = XLSX.utils.book_new();
-
-  // Cross table
+  const wb = XS.utils.book_new();
   const colTotals = {};
   for (const resp of responsables) colTotals[resp] = 0;
 
@@ -259,11 +304,13 @@ async function exportarClienteResponsable(mes, anio) {
   }
   rows.push(["TOTAL", ...responsables.map(r => colTotals[r] || ""), data.length]);
 
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const ncols = responsables.length + 2;
+  const ws = makeSheet(rows);
   setColWidths(ws, [28, ...responsables.map(() => 16), 10]);
-  XLSX.utils.book_append_sheet(wb, ws, "Tabla cruzada");
+  applyRowStyle(ws, 0, ncols, S_HEADER);
+  applyRowStyle(ws, rows.length - 1, ncols, S_TOTAL);
+  XS.utils.book_append_sheet(wb, ws, "Tabla cruzada");
 
-  // Detail sheet
   const detRows = [["Cliente", "Responsable", "Servicios"]];
   for (const cli of clientes) {
     for (const resp of responsables) {
@@ -271,11 +318,12 @@ async function exportarClienteResponsable(mes, anio) {
       if (val) detRows.push([cli, resp, val]);
     }
   }
-  const wsDet = XLSX.utils.aoa_to_sheet(detRows);
+  const wsDet = makeSheet(detRows);
   setColWidths(wsDet, [28, 22, 12]);
-  XLSX.utils.book_append_sheet(wb, wsDet, "Detalle");
+  applyRowStyle(wsDet, 0, 3, S_HEADER);
+  XS.utils.book_append_sheet(wb, wsDet, "Detalle");
 
-  XLSX.writeFile(wb, `Clientes_vs_Responsables_${MESES[mes - 1]}_${anio}.xlsx`);
+  XS.writeFile(wb, `Clientes_vs_Responsables_${MESES[mes - 1]}_${anio}.xlsx`);
 }
 
 // ── Página principal ────────────────────────────────────────────────
@@ -286,7 +334,6 @@ const EXPORTS = [
     icon: "🕐",
     title: "Horas Trabajadas",
     desc: "Detalle diario por equipo + resumen. Una hoja por equipo.",
-    needsMes: true,
     fn: (mes, anio) => exportarHoras(mes, anio),
   },
   {
@@ -294,7 +341,6 @@ const EXPORTS = [
     icon: "📊",
     title: "Productividad",
     desc: "Servicios, horas y balance por técnico y equipo.",
-    needsMes: true,
     fn: (mes, anio) => exportarProductividad(mes, anio),
   },
   {
@@ -302,7 +348,6 @@ const EXPORTS = [
     icon: "📦",
     title: "Stock Actual",
     desc: "Stock de todas las ubicaciones. Una hoja por ubicación + hoja resumen.",
-    needsMes: false,
     fn: () => exportarStock(),
   },
   {
@@ -310,7 +355,6 @@ const EXPORTS = [
     icon: "📋",
     title: "Servicios del mes",
     desc: "Todos los servicios ordenados por fecha + resumen por responsable.",
-    needsMes: true,
     fn: (mes, anio) => exportarServicios(mes, anio),
   },
   {
@@ -318,7 +362,6 @@ const EXPORTS = [
     icon: "📌",
     title: "Clientes vs Responsables",
     desc: "Tabla cruzada: cuántos servicios atendió cada responsable por cliente.",
-    needsMes: true,
     fn: (mes, anio) => exportarClienteResponsable(mes, anio),
   },
 ];
