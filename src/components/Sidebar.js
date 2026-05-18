@@ -71,10 +71,10 @@ const MODULOS_BASE = [
   },
   {
     key: "exportar",
-    nombre: "Exportar / Importar",
+    nombre: "Exportar",
     icon: "📥",
     subs: [
-      { href: "/dashboard/exportar-importar", label: "Exportar / Importar" },
+      { href: "/dashboard/exportar-importar", label: "Exportar" },
     ],
   },
 ];
