@@ -1243,9 +1243,9 @@ function ReporteCruzado() {
         };
         const pctColor = (p) =>
           p === null ? "text-slate-400"
-          : p > 70   ? "text-red-600 font-semibold"
+          : p > 70   ? "text-green-600 font-semibold"
           : p > 55   ? "text-amber-600 font-semibold"
-          : "text-green-600 font-semibold";
+          : "text-red-600 font-semibold";
 
         const datos = horasGR.map(f => ({
           ...f,
@@ -1325,7 +1325,7 @@ function ReporteCruzado() {
                         {f.pct !== null ? (
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden max-w-[100px]">
-                              <div className={`h-full rounded-full ${f.pct > 70 ? "bg-red-400" : f.pct > 55 ? "bg-amber-400" : "bg-green-400"}`}
+                              <div className={`h-full rounded-full ${f.pct > 70 ? "bg-green-400" : f.pct > 55 ? "bg-amber-400" : "bg-red-400"}`}
                                 style={{ width: `${f.pct}%` }} />
                             </div>
                             <span className={`text-xs min-w-[32px] ${pctColor(f.pct)}`}>{f.pct}%</span>
