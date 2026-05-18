@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Line } from "recharts";
 
 const ESTADO_COLOR = {
   REALIZADO:  { bg: "bg-green-100  text-green-700",  dot: "bg-green-500"  },
@@ -1231,69 +1231,115 @@ function ReporteCruzado() {
       })()}
 
       {/* Horas GR/LCH */}
-      {subTab === "horas-gr" && (
-        <>
-          {horasGR.length > 0 && (
-            <div className="flex gap-4 flex-wrap">
+      {subTab === "horas-gr" && (() => {
+        if (horasGR.length === 0) return (
+          <p className="text-slate-400 text-sm">Sin datos — cargá movimientos de Equipo 2 con Llegada/Salida GR/LCH</p>
+        );
+
+        const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+        const fmtDia = (s) => {
+          const d = new Date(s + "T12:00:00Z");
+          return `${DIAS[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2,"0")}/${String(d.getUTCMonth()+1).padStart(2,"0")}`;
+        };
+        const pctColor = (p) =>
+          p === null ? "text-slate-400"
+          : p > 70   ? "text-red-600 font-semibold"
+          : p > 55   ? "text-amber-600 font-semibold"
+          : "text-green-600 font-semibold";
+
+        const datos = horasGR.map(f => ({
+          ...f,
+          label: fmtDia(f.fecha),
+          pct: f.horas_trabajadas && f.horas_gr
+            ? Math.round((f.horas_gr / f.horas_trabajadas) * 100) : null,
+        }));
+
+        const pctPromedio = datos.filter(d => d.pct !== null).reduce((s, d) => s + d.pct, 0)
+          / (datos.filter(d => d.pct !== null).length || 1);
+
+        return (
+          <>
+            {/* KPIs */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Días con registro", value: horasGR.length, color: "text-blue-700" },
-                { label: "Horas trabajadas total", value: fmtHM(totalHT), color: "text-teal-700" },
-                { label: "Horas en GR/LCH total", value: fmtHM(totalGR), color: "text-amber-700" },
-                { label: "% tiempo en GR/LCH", value: totalHT > 0 ? `${((totalGR / totalHT) * 100).toFixed(0)}%` : "—", color: "text-violet-700" },
+                { label: "Días con registro",      value: horasGR.length,                                               color: "from-indigo-500 to-violet-600" },
+                { label: "Horas trabajadas total", value: fmtHM(totalHT),                                               color: "from-sky-400 to-indigo-500"    },
+                { label: "Horas en GR/LCH total",  value: fmtHM(totalGR),                                               color: "from-amber-400 to-orange-500"  },
+                { label: "% promedio en GR/LCH",   value: totalHT > 0 ? `${Math.round((totalGR/totalHT)*100)}%` : "—", color: "from-violet-500 to-purple-700" },
               ].map(card => (
-                <div key={card.label} className="bg-white border border-slate-200 rounded-xl px-5 py-4 text-center">
-                  <p className="text-xs text-slate-500">{card.label}</p>
-                  <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                <div key={card.label} className={`bg-gradient-to-br ${card.color} rounded-xl shadow-md p-5 text-white`}>
+                  <p className="text-xs opacity-80">{card.label}</p>
+                  <p className="text-3xl font-bold mt-0.5">{card.value}</p>
                 </div>
               ))}
             </div>
-          )}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-                  <th className="text-left px-4 py-3">Fecha</th>
-                  <th className="text-left px-4 py-3">Horas trabajadas</th>
-                  <th className="text-left px-4 py-3">Horas en GR/LCH</th>
-                  <th className="text-left px-4 py-3">% tiempo en GR/LCH</th>
-                </tr>
-              </thead>
-              <tbody>
-                {horasGR.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-4 text-slate-400 text-xs">Sin datos — cargá movimientos de Equipo 2 con Llegada/Salida GR/LCH</td></tr>
-                ) : horasGR.map((f, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="px-4 py-3 text-xs">{f.fecha}</td>
-                    <td className="px-4 py-3 text-xs">{fmtHM(f.horas_trabajadas)}</td>
-                    <td className="px-4 py-3 text-xs text-amber-700">{fmtHM(f.horas_gr)}</td>
-                    <td className="px-4 py-3 text-xs">
-                      {f.horas_trabajadas && f.horas_gr
-                        ? `${((f.horas_gr / f.horas_trabajadas) * 100).toFixed(0)}%`
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {horasGR.length > 0 && (
+
+            {/* Gráfico combo: barras de horas + línea de % */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-              <h3 className="text-sm font-semibold text-slate-600 mb-3">Horas trabajadas vs Horas en GR/LCH</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={horasGR}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-slate-700">Horas trabajadas vs % tiempo en GR/LCH</h3>
+                <span className="text-xs text-slate-400">Línea morada = % en GR/LCH (eje derecho)</span>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <ComposedChart data={datos} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="label" tick={{ fontSize: 9 }} interval={0} angle={-35} textAnchor="end" height={50} />
+                  <YAxis yAxisId="left"  tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} unit="%" domain={[0, 100]} />
+                  <Tooltip
+                    formatter={(v, name) =>
+                      name === "% GR/LCH" ? [`${v}%`, name] : [fmtHM(v), name]
+                    }
+                    labelFormatter={(l) => l}
+                  />
                   <Legend />
-                  <Bar dataKey="horas_trabajadas" name="Horas trabajadas" fill="#1e3a8a" />
-                  <Bar dataKey="horas_gr" name="Horas GR/LCH" fill="#d97706" />
-                </BarChart>
+                  <Bar    yAxisId="left"  dataKey="horas_trabajadas" name="Hs trabajadas" fill="#1e3a8a" radius={[3,3,0,0]} />
+                  <Bar    yAxisId="left"  dataKey="horas_gr"         name="Hs GR/LCH"    fill="#f59e0b" radius={[3,3,0,0]} />
+                  <Line   yAxisId="right" dataKey="pct"              name="% GR/LCH"     stroke="#7c3aed" strokeWidth={2} dot={{ r: 3, fill: "#7c3aed" }} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
-          )}
-        </>
-      )}
+
+            {/* Tabla mejorada */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-700">Detalle por día</h3>
+                <span className="text-xs text-slate-400">Promedio: <span className={pctColor(Math.round(pctPromedio))}>{Math.round(pctPromedio)}%</span></span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                    <th className="text-left px-5 py-2.5">Día</th>
+                    <th className="text-left px-5 py-2.5">Hs trabajadas</th>
+                    <th className="text-left px-5 py-2.5">Hs en GR/LCH</th>
+                    <th className="text-left px-5 py-2.5 min-w-[180px]">% en GR/LCH</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {datos.map((f, i) => (
+                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                      <td className="px-5 py-2.5 text-xs font-medium text-slate-700">{f.label}</td>
+                      <td className="px-5 py-2.5 text-xs text-slate-600">{fmtHM(f.horas_trabajadas)}</td>
+                      <td className="px-5 py-2.5 text-xs font-medium text-amber-600">{fmtHM(f.horas_gr) !== "—" ? fmtHM(f.horas_gr) : "—"}</td>
+                      <td className="px-5 py-2.5">
+                        {f.pct !== null ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden max-w-[100px]">
+                              <div className={`h-full rounded-full ${f.pct > 70 ? "bg-red-400" : f.pct > 55 ? "bg-amber-400" : "bg-green-400"}`}
+                                style={{ width: `${f.pct}%` }} />
+                            </div>
+                            <span className={`text-xs min-w-[32px] ${pctColor(f.pct)}`}>{f.pct}%</span>
+                          </div>
+                        ) : <span className="text-slate-300 text-xs">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
