@@ -98,6 +98,7 @@ function buildStockGrupos(ubicaciones) {
         { href: "/dashboard/stock/oficina?tab=actual",   label: "Actual"   },
         { href: "/dashboard/stock/oficina?tab=entradas", label: "Entradas" },
         { href: "/dashboard/stock/oficina?tab=salidas",  label: "Salidas"  },
+        { href: "/dashboard/stock/oficina?tab=busqueda", label: "Búsqueda" },
       ],
     },
     {

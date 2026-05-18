@@ -294,6 +294,7 @@ function OficinaEntradas() {
   const [historial, setHistorial] = useState([]);
   const [editandoMov, setEditandoMov] = useState(null);
   const [editFormMov, setEditFormMov] = useState({});
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
     cargarDatos();
@@ -317,7 +318,7 @@ function OficinaEntradas() {
             (m.ubicacion_destino_id === ofic.id || m.destino_id === ofic.id) &&
             (m.tipo?.toUpperCase() === "ENTRADA" || m.tipo?.toUpperCase() === "COMPRA")
         );
-        setHistorial(entradas);
+        setHistorial(entradas.sort((a,b) => (b.fecha||"").localeCompare(a.fecha||"")));
       }
     } catch { setMsg("Error al cargar datos. Verificá la conexión con el servidor."); }
   };
@@ -441,87 +442,89 @@ function OficinaEntradas() {
         </div>
       </form>
 
-      {historial.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-          <h3 className="font-semibold text-slate-700 px-4 pt-4 pb-2">
-            Historial de entradas
-          </h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600 bg-slate-50">
-                <th className="text-left px-4 py-2">Código</th>
-                <th className="text-left px-4 py-2">Insumo</th>
-                <th className="text-right px-4 py-2">Cantidad</th>
-                <th className="text-left px-4 py-2">Fecha</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {historial.map((m) => {
-                const prod = productos.find((p) => p.id === m.producto_id);
-                const editando = editandoMov === m.id;
-                return (
-                  <tr key={m.id} className={`border-b border-slate-100 ${editando ? "bg-blue-50" : "hover:bg-slate-50"}`}>
-                    <td className="px-4 py-2 font-mono text-xs">{prod?.codigo || "—"}</td>
-                    <td className="px-4 py-2">{prod?.descripcion || "—"}</td>
-                    {editando ? (
-                      <>
-                        <td className="px-2 py-1.5 text-right">
-                          <input
-                            type="number" min="1"
-                            value={editFormMov.cantidad}
-                            onChange={(e) => setEditFormMov(f => ({ ...f, cantidad: e.target.value }))}
-                            className="w-20 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none"
-                            autoFocus
-                          />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <input
-                            type="date"
-                            value={editFormMov.fecha}
-                            onChange={(e) => setEditFormMov(f => ({ ...f, fecha: e.target.value }))}
-                            className="border-2 border-blue-400 rounded px-2 py-1 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
-                          <button onClick={() => guardarEditMov(m)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
-                            Guardar
-                          </button>
-                          <button onClick={() => setEditandoMov(null)}
-                            className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
-                            Cancelar
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-green-600 font-medium">+{m.cantidad}</td>
-                        <td className="px-4 py-2">{m.fecha || "—"}</td>
-                        <td className="px-3 py-2 flex items-center gap-1.5 whitespace-nowrap">
-                          <button
-                            onClick={() => { setEditandoMov(m.id); setEditFormMov({ cantidad: String(m.cantidad), fecha: m.fecha || "" }); }}
-                            className="text-slate-400 hover:text-blue-600 transition" title="Editar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => eliminarMov(m)}
-                            className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
-                            </svg>
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {historial.length > 0 && (() => {
+        const histFiltrado = busqueda
+          ? historial.filter(m => {
+              const prod = productos.find(p => p.id === m.producto_id);
+              const q = busqueda.toLowerCase();
+              return prod?.descripcion?.toLowerCase().includes(q) || prod?.codigo?.toLowerCase().includes(q);
+            })
+          : historial;
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700">Historial de entradas</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{histFiltrado.length} registro{histFiltrado.length !== 1 ? "s" : ""}</p>
+              </div>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Filtrar por insumo o código…"
+                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-64"
+              />
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                  <th className="text-left px-5 py-2.5">Código</th>
+                  <th className="text-left px-5 py-2.5">Insumo</th>
+                  <th className="text-right px-5 py-2.5">Cantidad</th>
+                  <th className="text-left px-5 py-2.5">Fecha</th>
+                  <th className="px-5 py-2.5 w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {histFiltrado.length === 0 ? (
+                  <tr><td colSpan={5} className="px-5 py-4 text-slate-400 text-xs">Sin resultados</td></tr>
+                ) : histFiltrado.map((m) => {
+                  const prod = productos.find((p) => p.id === m.producto_id);
+                  const editando = editandoMov === m.id;
+                  return (
+                    <tr key={m.id} className={`border-b border-slate-50 ${editando ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                      <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{prod?.codigo || "—"}</td>
+                      <td className="px-5 py-2.5 font-medium text-slate-700">{prod?.descripcion || "—"}</td>
+                      {editando ? (
+                        <>
+                          <td className="px-2 py-1.5 text-right">
+                            <input type="number" min="1" value={editFormMov.cantidad}
+                              onChange={(e) => setEditFormMov(f => ({ ...f, cantidad: e.target.value }))}
+                              className="w-20 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none" autoFocus />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input type="date" value={editFormMov.fecha}
+                              onChange={(e) => setEditFormMov(f => ({ ...f, fecha: e.target.value }))}
+                              className="border-2 border-blue-400 rounded px-2 py-1 text-sm focus:outline-none" />
+                          </td>
+                          <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
+                            <button onClick={() => guardarEditMov(m)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">Guardar</button>
+                            <button onClick={() => setEditandoMov(null)} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">Cancelar</button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-5 py-2.5 text-right text-green-600 font-semibold">+{m.cantidad}</td>
+                          <td className="px-5 py-2.5 text-slate-500 text-xs">{m.fecha ? m.fecha.split("-").reverse().join("/") : "—"}</td>
+                          <td className="px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
+                            <button onClick={() => { setEditandoMov(m.id); setEditFormMov({ cantidad: String(m.cantidad), fecha: m.fecha || "" }); }}
+                              className="text-slate-400 hover:text-blue-600 transition" title="Editar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" /></svg>
+                            </button>
+                            <button onClick={() => eliminarMov(m)} className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" /></svg>
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -542,6 +545,7 @@ function OficinaSalidas() {
   const [historial, setHistorial] = useState([]);
   const [editandoMov, setEditandoMov] = useState(null);
   const [editFormMov, setEditFormMov] = useState({});
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
     cargarDatos();
@@ -566,7 +570,7 @@ function OficinaSalidas() {
             (m.ubicacion_origen_id === ofic.id || m.origen_id === ofic.id) &&
             (m.tipo?.toUpperCase() === "TRANSFERENCIA" || m.tipo?.toUpperCase() === "SALIDA")
         );
-        setHistorial(salidas);
+        setHistorial(salidas.sort((a,b) => (b.fecha||"").localeCompare(a.fecha||"")));
       }
     } catch { setMsg("Error al cargar datos. Verificá la conexión con el servidor."); }
   };
@@ -725,93 +729,240 @@ function OficinaSalidas() {
         </div>
       </form>
 
-      {historial.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-          <h3 className="font-semibold text-slate-700 px-4 pt-4 pb-2">
-            Historial de salidas
-          </h3>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-600 bg-slate-50">
-                <th className="text-left px-4 py-2">Destino</th>
-                <th className="text-left px-4 py-2">Código</th>
-                <th className="text-left px-4 py-2">Insumo</th>
-                <th className="text-right px-4 py-2">Cantidad</th>
-                <th className="text-left px-4 py-2">Fecha</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {historial.map((m) => {
-                const prod = productos.find((p) => p.id === m.producto_id);
-                const dest = ubicaciones.find((u) => u.id === (m.ubicacion_destino_id || m.destino_id));
-                const editando = editandoMov === m.id;
-                return (
-                  <tr key={m.id} className={`border-b border-slate-100 ${editando ? "bg-blue-50" : "hover:bg-slate-50"}`}>
-                    <td className="px-4 py-2">{dest?.nombre || "—"}</td>
-                    <td className="px-4 py-2 font-mono text-xs">{prod?.codigo || "—"}</td>
-                    <td className="px-4 py-2">{prod?.descripcion || "—"}</td>
-                    {editando ? (
-                      <>
-                        <td className="px-2 py-1.5 text-right">
-                          <input
-                            type="number" min="1"
-                            value={editFormMov.cantidad}
-                            onChange={(e) => setEditFormMov(f => ({ ...f, cantidad: e.target.value }))}
-                            className="w-20 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none"
-                            autoFocus
-                          />
-                        </td>
-                        <td className="px-2 py-1.5">
-                          <input
-                            type="date"
-                            value={editFormMov.fecha}
-                            onChange={(e) => setEditFormMov(f => ({ ...f, fecha: e.target.value }))}
-                            className="border-2 border-blue-400 rounded px-2 py-1 text-sm focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
-                          <button onClick={() => guardarEditMov(m)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">
-                            Guardar
-                          </button>
-                          <button onClick={() => setEditandoMov(null)}
-                            className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">
-                            Cancelar
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-2 text-right text-red-600 font-medium">-{m.cantidad}</td>
-                        <td className="px-4 py-2">{m.fecha || "—"}</td>
-                        <td className="px-3 py-2 flex items-center gap-1.5 whitespace-nowrap">
-                          <button
-                            onClick={() => { setEditandoMov(m.id); setEditFormMov({ cantidad: String(m.cantidad), fecha: m.fecha || "" }); }}
-                            className="text-slate-400 hover:text-blue-600 transition" title="Editar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => eliminarMov(m)}
-                            className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" />
-                            </svg>
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {historial.length > 0 && (() => {
+        const histFiltrado = busqueda
+          ? historial.filter(m => {
+              const prod = productos.find(p => p.id === m.producto_id);
+              const dest = ubicaciones.find(u => u.id === (m.ubicacion_destino_id || m.destino_id));
+              const q = busqueda.toLowerCase();
+              return prod?.descripcion?.toLowerCase().includes(q)
+                || prod?.codigo?.toLowerCase().includes(q)
+                || dest?.nombre?.toLowerCase().includes(q);
+            })
+          : historial;
+        return (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700">Historial de salidas</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{histFiltrado.length} registro{histFiltrado.length !== 1 ? "s" : ""}</p>
+              </div>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Filtrar por insumo, código o destino…"
+                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-72"
+              />
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                  <th className="text-left px-5 py-2.5">Destino</th>
+                  <th className="text-left px-5 py-2.5">Código</th>
+                  <th className="text-left px-5 py-2.5">Insumo</th>
+                  <th className="text-right px-5 py-2.5">Cantidad</th>
+                  <th className="text-left px-5 py-2.5">Fecha</th>
+                  <th className="px-5 py-2.5 w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {histFiltrado.length === 0 ? (
+                  <tr><td colSpan={6} className="px-5 py-4 text-slate-400 text-xs">Sin resultados</td></tr>
+                ) : histFiltrado.map((m) => {
+                  const prod = productos.find((p) => p.id === m.producto_id);
+                  const dest = ubicaciones.find((u) => u.id === (m.ubicacion_destino_id || m.destino_id));
+                  const editando = editandoMov === m.id;
+                  return (
+                    <tr key={m.id} className={`border-b border-slate-50 ${editando ? "bg-blue-50" : "hover:bg-slate-50"}`}>
+                      <td className="px-5 py-2.5 font-medium text-slate-700">{dest?.nombre || "—"}</td>
+                      <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{prod?.codigo || "—"}</td>
+                      <td className="px-5 py-2.5 text-slate-700">{prod?.descripcion || "—"}</td>
+                      {editando ? (
+                        <>
+                          <td className="px-2 py-1.5 text-right">
+                            <input type="number" min="1" value={editFormMov.cantidad}
+                              onChange={(e) => setEditFormMov(f => ({ ...f, cantidad: e.target.value }))}
+                              className="w-20 text-right border-2 border-blue-400 rounded px-2 py-1 text-sm font-bold focus:outline-none" autoFocus />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input type="date" value={editFormMov.fecha}
+                              onChange={(e) => setEditFormMov(f => ({ ...f, fecha: e.target.value }))}
+                              className="border-2 border-blue-400 rounded px-2 py-1 text-sm focus:outline-none" />
+                          </td>
+                          <td className="px-3 py-1.5 flex items-center gap-1 whitespace-nowrap">
+                            <button onClick={() => guardarEditMov(m)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded transition">Guardar</button>
+                            <button onClick={() => setEditandoMov(null)} className="text-slate-500 hover:text-slate-700 text-xs px-2 py-1 rounded transition">Cancelar</button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-5 py-2.5 text-right text-red-600 font-semibold">-{m.cantidad}</td>
+                          <td className="px-5 py-2.5 text-slate-500 text-xs">{m.fecha ? m.fecha.split("-").reverse().join("/") : "—"}</td>
+                          <td className="px-4 py-2.5 flex items-center gap-1.5 whitespace-nowrap">
+                            <button onClick={() => { setEditandoMov(m.id); setEditFormMov({ cantidad: String(m.cantidad), fecha: m.fecha || "" }); }}
+                              className="text-slate-400 hover:text-blue-600 transition" title="Editar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 012.828 0l.172.172a2 2 0 010 2.828L12 16H9v-3z" /></svg>
+                            </button>
+                            <button onClick={() => eliminarMov(m)} className="text-slate-400 hover:text-red-600 transition" title="Eliminar">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4h6v3M3 7h18" /></svg>
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
       {msg && (
         <p className={`text-sm font-medium ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>{msg}</p>
       )}
+    </div>
+  );
+}
+
+/* ───────── OFICINA — BÚSQUEDA ───────── */
+function OficinasBusqueda() {
+  const [productos,   setProductos]   = useState([]);
+  const [ubicaciones, setUbicaciones] = useState([]);
+  const [movimientos, setMovimientos] = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [query,       setQuery]       = useState("");
+  const [tipoFiltro,  setTipoFiltro]  = useState("todos");
+  const [destFiltro,  setDestFiltro]  = useState("");
+
+  useEffect(() => {
+    const cargar = async () => {
+      try {
+        const [prods, ubics, movs] = await Promise.all([
+          api.get("/stock/productos/"),
+          api.get("/stock/ubicaciones/"),
+          api.get("/stock/movimientos/"),
+        ]);
+        setProductos(prods);
+        setUbicaciones(ubics);
+        const ofic = ubics.find(u => u.nombre.toLowerCase() === "oficina" || u.tipo === "oficina");
+        if (ofic) {
+          const relacionados = movs.filter(m =>
+            m.ubicacion_origen_id === ofic.id || m.origen_id === ofic.id ||
+            m.ubicacion_destino_id === ofic.id || m.destino_id === ofic.id
+          );
+          setMovimientos(relacionados.sort((a,b) => (b.fecha||"").localeCompare(a.fecha||"")));
+        }
+      } catch {}
+      setLoading(false);
+    };
+    cargar();
+  }, []);
+
+  const enriched = movimientos.map(m => {
+    const prod    = productos.find(p => p.id === m.producto_id);
+    const origen  = ubicaciones.find(u => u.id === (m.ubicacion_origen_id  || m.origen_id));
+    const destino = ubicaciones.find(u => u.id === (m.ubicacion_destino_id || m.destino_id));
+    const esEntrada = m.tipo?.toUpperCase() === "ENTRADA" || m.tipo?.toUpperCase() === "COMPRA";
+    return { ...m, prod, origen, destino, esEntrada, contraparte: esEntrada ? origen?.nombre : destino?.nombre };
+  });
+
+  const destinos = [...new Set(enriched.filter(m => !m.esEntrada).map(m => m.destino?.nombre).filter(Boolean))].sort();
+
+  const filtrados = enriched.filter(m => {
+    if (tipoFiltro === "entradas" && !m.esEntrada)  return false;
+    if (tipoFiltro === "salidas"  &&  m.esEntrada)  return false;
+    if (destFiltro && m.contraparte !== destFiltro) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      return m.prod?.descripcion?.toLowerCase().includes(q)
+          || m.prod?.codigo?.toLowerCase().includes(q)
+          || m.contraparte?.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Filtros */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-52">
+            <label className="block text-xs text-slate-500 mb-1">Buscar por insumo o código</label>
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Ej: batería, A03, cinta…"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Tipo</label>
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+              {[["todos","Todos"],["entradas","Entradas"],["salidas","Salidas"]].map(([k,l]) => (
+                <button key={k} onClick={() => setTipoFiltro(k)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${tipoFiltro === k ? "bg-white shadow-sm text-slate-800" : "text-slate-500 hover:text-slate-700"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Destino</label>
+            <select value={destFiltro} onChange={e => setDestFiltro(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="">Todos</option>
+              {destinos.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          {(query || destFiltro || tipoFiltro !== "todos") && (
+            <button onClick={() => { setQuery(""); setDestFiltro(""); setTipoFiltro("todos"); }}
+              className="text-xs text-slate-500 hover:text-red-500 px-3 py-2 border border-slate-200 rounded-lg transition">
+              Limpiar
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-xs text-slate-400">
+        {loading ? "Cargando…" : `${filtrados.length} movimiento${filtrados.length !== 1 ? "s" : ""}`}
+      </p>
+
+      {/* Tabla unificada */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+              <th className="text-left px-5 py-2.5">Tipo</th>
+              <th className="text-left px-5 py-2.5">Código</th>
+              <th className="text-left px-5 py-2.5">Insumo</th>
+              <th className="text-right px-5 py-2.5">Cantidad</th>
+              <th className="text-left px-5 py-2.5">Destino / Origen</th>
+              <th className="text-left px-5 py-2.5">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="px-5 py-6 text-slate-400 text-xs">Cargando…</td></tr>
+            ) : filtrados.length === 0 ? (
+              <tr><td colSpan={6} className="px-5 py-6 text-slate-400 text-xs">Sin resultados para los filtros aplicados.</td></tr>
+            ) : filtrados.map((m, i) => (
+              <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-5 py-2.5">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${m.esEntrada ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${m.esEntrada ? "bg-green-500" : "bg-red-500"}`} />
+                    {m.esEntrada ? "ENTRADA" : "SALIDA"}
+                  </span>
+                </td>
+                <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{m.prod?.codigo || "—"}</td>
+                <td className="px-5 py-2.5 font-medium text-slate-700">{m.prod?.descripcion || "—"}</td>
+                <td className={`px-5 py-2.5 text-right font-semibold ${m.esEntrada ? "text-green-600" : "text-red-600"}`}>
+                  {m.esEntrada ? "+" : "-"}{m.cantidad}
+                </td>
+                <td className="px-5 py-2.5 text-slate-500 text-xs">{m.contraparte || "—"}</td>
+                <td className="px-5 py-2.5 text-slate-500 text-xs">{m.fecha ? m.fecha.split("-").reverse().join("/") : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -822,9 +973,10 @@ export default function OficinaStockPage() {
   const tab = searchParams.get("tab") || "actual";
 
   const tabs = [
-    { key: "actual", label: "Actual" },
-    { key: "entradas", label: "Entradas" },
-    { key: "salidas", label: "Salidas" },
+    { key: "actual",   label: "Actual"    },
+    { key: "entradas", label: "Entradas"  },
+    { key: "salidas",  label: "Salidas"   },
+    { key: "busqueda", label: "Búsqueda"  },
   ];
 
   return (
@@ -847,9 +999,10 @@ export default function OficinaStockPage() {
           ))}
         </div>
       </div>
-      {tab === "actual" && <OficinaActual />}
+      {tab === "actual"   && <OficinaActual />}
       {tab === "entradas" && <OficinaEntradas />}
-      {tab === "salidas" && <OficinaSalidas />}
+      {tab === "salidas"  && <OficinaSalidas />}
+      {tab === "busqueda" && <OficinasBusqueda />}
     </div>
   );
 }
