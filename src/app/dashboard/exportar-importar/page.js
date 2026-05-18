@@ -204,17 +204,21 @@ async function exportarProductividad(mes, anio) {
     if (mins != null && mins > 0) horasPorEq[nombre].horas += mins / 60;
   }
 
-  // Servicios realizados por equipo/responsable
+  // Servicios realizados por equipo/responsable con desglose por tipo
   const svcPorResp = {};
+  const tiposPorResp = {};
   for (const s of todosSvcs) {
     if (s.estado !== "REALIZADO") continue;
     const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
     svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
+    if (!tiposPorResp[resp]) tiposPorResp[resp] = { INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
+    if (s.tipo_servicio) tiposPorResp[resp][s.tipo_servicio] = (tiposPorResp[resp][s.tipo_servicio] || 0) + 1;
   }
 
   const tecnicos = Object.keys(horasPorEq).map(nombre => {
     const h = horasPorEq[nombre];
     const svcs = svcPorResp[nombre] || 0;
+    const tipos = tiposPorResp[nombre] || { INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
     return {
       nombre,
       dias_presentes: h.dias,
@@ -223,18 +227,21 @@ async function exportarProductividad(mes, anio) {
       balance: +(h.horas - h.dias * 8).toFixed(2),
       servicios_realizados: svcs,
       servicios_por_dia: h.dias > 0 ? +(svcs / h.dias).toFixed(1) : 0,
+      instalaciones: tipos.INSTALACION,
+      revisiones: tipos.REVISION,
+      desinstalaciones: tipos.DESINSTALACION,
     };
   });
 
   if (!tecnicos.length) throw new Error("Sin datos para el período seleccionado");
 
   const wb = XS.utils.book_new();
-  const rows = [["Equipo", "Días presentes", "Horas trabajadas", "Horas base (8hs×días)", "Balance horas", "Servicios realizados", "Svc/día"]];
+  const rows = [["Equipo", "Días presentes", "Horas trabajadas", "Horas base (8hs×días)", "Balance horas", "Servicios realizados", "Instalaciones", "Revisiones", "Desinstalaciones", "Svc/día"]];
   const subtotalIdxs = [];
 
   for (const t of tecnicos) {
     const balStr = t.balance >= 0 ? `+${t.balance.toFixed(2)}` : t.balance.toFixed(2);
-    rows.push([t.nombre, t.dias_presentes, t.horas_trabajadas, t.horas_base, balStr, t.servicios_realizados, t.servicios_por_dia]);
+    rows.push([t.nombre, t.dias_presentes, t.horas_trabajadas, t.horas_base, balStr, t.servicios_realizados, t.instalaciones, t.revisiones, t.desinstalaciones, t.servicios_por_dia]);
   }
 
   // Totales
@@ -243,13 +250,16 @@ async function exportarProductividad(mes, anio) {
   const totBase  = tecnicos.reduce((s, t) => s + t.horas_base, 0);
   const totBal   = +(totHoras - totBase).toFixed(2);
   const totSvcs  = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
+  const totInst  = tecnicos.reduce((s, t) => s + t.instalaciones, 0);
+  const totRev   = tecnicos.reduce((s, t) => s + t.revisiones, 0);
+  const totDes   = tecnicos.reduce((s, t) => s + t.desinstalaciones, 0);
   subtotalIdxs.push(rows.length);
-  rows.push(["TOTAL", totDias, totHoras, totBase, totBal >= 0 ? `+${totBal.toFixed(2)}` : totBal.toFixed(2), totSvcs, totDias > 0 ? +(totSvcs / totDias).toFixed(1) : 0]);
+  rows.push(["TOTAL", totDias, totHoras, totBase, totBal >= 0 ? `+${totBal.toFixed(2)}` : totBal.toFixed(2), totSvcs, totInst, totRev, totDes, totDias > 0 ? +(totSvcs / totDias).toFixed(1) : 0]);
 
   const ws = makeSheet(rows);
-  setColWidths(ws, [22, 16, 18, 22, 14, 20, 10]);
-  applyRowStyle(ws, 0, 7, S_HEADER);
-  for (const r of subtotalIdxs) applyRowStyle(ws, r, 7, S_TOTAL);
+  setColWidths(ws, [22, 16, 18, 22, 14, 20, 14, 12, 16, 10]);
+  applyRowStyle(ws, 0, 10, S_HEADER);
+  for (const r of subtotalIdxs) applyRowStyle(ws, r, 10, S_TOTAL);
   XS.utils.book_append_sheet(wb, ws, "Productividad");
 
   XS.writeFile(wb, `Productividad_${MESES[mes - 1]}_${anio}.xlsx`);

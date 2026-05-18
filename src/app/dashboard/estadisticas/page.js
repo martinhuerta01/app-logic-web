@@ -969,10 +969,13 @@ function ReporteCruzado() {
         }
 
         const svcPorResp = {};
+        const tiposPorResp = {};
         for (const s of todosSvcs) {
           if (s.estado !== "REALIZADO") continue;
           const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
           svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
+          if (!tiposPorResp[resp]) tiposPorResp[resp] = { INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
+          if (s.tipo_servicio) tiposPorResp[resp][s.tipo_servicio] = (tiposPorResp[resp][s.tipo_servicio] || 0) + 1;
         }
 
         const prevSvcPorResp = {};
@@ -987,6 +990,7 @@ function ReporteCruzado() {
           const svcs = svcPorResp[nombre] || 0;
           const svcsAnt = prevSvcPorResp[nombre] ?? null;
           const vsPct = svcsAnt !== null && svcsAnt > 0 ? +((svcs - svcsAnt) / svcsAnt * 100).toFixed(0) : null;
+          const tipos = tiposPorResp[nombre] || { INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
           return {
             nombre,
             dias_presentes: h.dias,
@@ -999,6 +1003,9 @@ function ReporteCruzado() {
             horas_por_dia: h.dias > 0 ? +(h.horas / h.dias).toFixed(2) : 0,
             svcs_anterior: svcsAnt,
             vs_anterior_pct: vsPct,
+            instalaciones: tipos.INSTALACION,
+            revisiones: tipos.REVISION,
+            desinstalaciones: tipos.DESINSTALACION,
           };
         });
         setTecnicos(lista);
@@ -1134,8 +1141,16 @@ function ReporteCruzado() {
                           </div>
                         </div>
 
+                        {/* Desglose por tipo de servicio */}
+                        <div className="px-5 py-2.5 border-t border-slate-100 flex items-center gap-4">
+                          <span className="text-[11px] text-slate-400 uppercase tracking-wide font-medium mr-1">Tipos:</span>
+                          <span className="text-xs font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">Inst. {t.instalaciones}</span>
+                          <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Rev. {t.revisiones}</span>
+                          <span className="text-xs font-semibold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full">Desinst. {t.desinstalaciones}</span>
+                        </div>
+
                         {/* Barra de eficiencia */}
-                        <div className="px-5 pb-4 pt-1">
+                        <div className="px-5 pb-4 pt-2">
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-xs text-slate-500">
                               Eficiencia: <span className={`font-semibold ${aboveAvg ? "text-green-600" : "text-red-500"}`}>{t.svcs_por_hora} svc/hora</span>
@@ -1177,6 +1192,19 @@ function ReporteCruzado() {
                         {card.sub && <div className="mt-1">{card.sub}</div>}
                       </div>
                     ))}
+                  </div>
+                  {/* Desglose de tipos total */}
+                  <div className="flex items-center justify-center gap-5 mt-4 pt-4 border-t border-slate-200">
+                    <span className="text-[11px] text-slate-400 uppercase tracking-wide font-medium">Tipos:</span>
+                    <span className="text-sm font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
+                      Instalaciones {tecnicos.reduce((s, t) => s + t.instalaciones, 0)}
+                    </span>
+                    <span className="text-sm font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full">
+                      Revisiones {tecnicos.reduce((s, t) => s + t.revisiones, 0)}
+                    </span>
+                    <span className="text-sm font-bold text-violet-700 bg-violet-50 px-3 py-1 rounded-full">
+                      Desinstalaciones {tecnicos.reduce((s, t) => s + t.desinstalaciones, 0)}
+                    </span>
                   </div>
                 </div>
               </div>
