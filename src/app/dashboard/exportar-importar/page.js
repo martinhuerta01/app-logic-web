@@ -19,10 +19,29 @@ function parseMins(hhmm) {
 }
 
 function minsToHHMM(mins) {
-  if (!mins || mins <= 0) return "";
+  if (!mins || mins <= 0) return "0:00";
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${h}:${String(m).padStart(2, "0")}`;
+}
+
+function balanceHHMM(trabajadoMins, esperadoMins) {
+  const diff = trabajadoMins - esperadoMins;
+  const abs = Math.abs(diff);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  const sign = diff >= 0 ? "+" : "-";
+  return `${sign}${h}:${String(m).padStart(2, "0")}`;
+}
+
+function diasHabilesEnMes(mes, anio) {
+  const dias = new Date(anio, mes, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= dias; d++) {
+    const dow = new Date(anio, mes - 1, d).getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
 }
 
 function setColWidths(ws, widths) {
@@ -62,6 +81,10 @@ function makeSheet(rows) {
   return XS.utils.aoa_to_sheet(rows);
 }
 
+// ── Estilos balance ─────────────────────────────────────────────────
+const S_BALANCE_POS = { font: { bold: true, color: { rgb: "166534" }, sz: 11 }, fill: { fgColor: { rgb: "DCFCE7" } }, alignment: { horizontal: "center" } };
+const S_BALANCE_NEG = { font: { bold: true, color: { rgb: "991B1B" }, sz: 11 }, fill: { fgColor: { rgb: "FEE2E2" } }, alignment: { horizontal: "center" } };
+
 // ── Export 1: Horas Trabajadas ──────────────────────────────────────
 async function exportarHoras(mes, anio) {
   const data = await api.get("/movimientos-camioneta/");
@@ -71,6 +94,9 @@ async function exportarHoras(mes, anio) {
   });
   if (!filtered.length) throw new Error("Sin datos para el período seleccionado");
 
+  const diasHabiles = diasHabilesEnMes(mes, anio);
+  const esperadoMins = diasHabiles * 8 * 60; // 8hs por día hábil
+
   const byEquipo = {};
   for (const mov of filtered) {
     const eq = mov.equipos?.nombre || "Sin equipo";
@@ -79,7 +105,7 @@ async function exportarHoras(mes, anio) {
   }
 
   const wb = XS.utils.book_new();
-  const summaryRows = [["Equipo", "Días trabajados", "Total horas", "Promedio hs/día"]];
+  const summaryRows = [["Equipo", "Días trabajados", "Días hábiles del mes", "Total horas", "Horas esperadas (8hs×días)", "Balance"]];
 
   for (const [eq, movs] of Object.entries(byEquipo)) {
     const sorted = [...movs].sort((a, b) => a.fecha.localeCompare(b.fecha));
@@ -93,10 +119,10 @@ async function exportarHoras(mes, anio) {
       if (mins != null && mins > 0) totalMins += mins;
 
       const d = new Date(m.fecha + "T12:00:00Z");
-      const dias = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+      const diasNombres = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
       rows.push([
         fmtFecha(m.fecha),
-        dias[d.getUTCDay()],
+        diasNombres[d.getUTCDay()],
         m.hora_salida || "",
         m.hora_llegada || "",
         mins != null ? minsToHHMM(mins) : "",
@@ -105,22 +131,45 @@ async function exportarHoras(mes, anio) {
       ]);
     }
 
-    rows.push(["TOTAL", "", "", "", minsToHHMM(totalMins), "", ""]);
+    const balance = totalMins - esperadoMins;
+
+    // Filas de resumen al pie
+    rows.push(["Horas trabajadas", "", "", "", minsToHHMM(totalMins), "", ""]);
+    rows.push([`Horas esperadas (8hs × ${diasHabiles} días hábiles)`, "", "", "", minsToHHMM(esperadoMins), "", ""]);
+    rows.push(["BALANCE", "", "", "", balanceHHMM(totalMins, esperadoMins), "", ""]);
 
     const ws = makeSheet(rows);
-    setColWidths(ws, [12, 6, 12, 12, 8, 22, 22]);
+    setColWidths(ws, [38, 6, 12, 12, 10, 22, 22]);
     applyRowStyle(ws, 0, 7, S_HEADER);
-    applyRowStyle(ws, rows.length - 1, 7, S_TOTAL);
+
+    const idxTrab = rows.length - 3;
+    const idxEsp  = rows.length - 2;
+    const idxBal  = rows.length - 1;
+    applyRowStyle(ws, idxTrab, 7, S_TOTAL);
+    applyRowStyle(ws, idxEsp,  7, S_SUBTOTAL);
+    applyRowStyle(ws, idxBal,  7, balance >= 0 ? S_BALANCE_POS : S_BALANCE_NEG);
+
     XS.utils.book_append_sheet(wb, ws, eq.slice(0, 31));
 
-    const hTot = totalMins > 0 ? minsToHHMM(totalMins) : "0:00";
-    const hProm = movs.length > 0 ? minsToHHMM(Math.round(totalMins / movs.length)) : "0:00";
-    summaryRows.push([eq, movs.length, hTot, hProm]);
+    summaryRows.push([
+      eq,
+      movs.length,
+      diasHabiles,
+      minsToHHMM(totalMins),
+      minsToHHMM(esperadoMins),
+      balanceHHMM(totalMins, esperadoMins),
+    ]);
   }
 
   const wsSum = makeSheet(summaryRows);
-  setColWidths(wsSum, [22, 16, 14, 18]);
-  applyRowStyle(wsSum, 0, 4, S_HEADER);
+  setColWidths(wsSum, [22, 16, 20, 14, 26, 12]);
+  applyRowStyle(wsSum, 0, 6, S_HEADER);
+  // Color balance en resumen
+  for (let r = 1; r < summaryRows.length; r++) {
+    const bal = summaryRows[r][5] || "";
+    const ref = XS.utils.encode_cell({ r, c: 5 });
+    if (wsSum[ref]) wsSum[ref].s = bal.startsWith("+") ? S_BALANCE_POS : S_BALANCE_NEG;
+  }
   XS.utils.book_append_sheet(wb, wsSum, "Resumen");
   wb.SheetNames = ["Resumen", ...wb.SheetNames.filter(s => s !== "Resumen")];
 
