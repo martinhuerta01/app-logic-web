@@ -176,49 +176,81 @@ async function exportarHoras(mes, anio) {
 
 // ── Export 2: Productividad ─────────────────────────────────────────
 async function exportarProductividad(mes, anio) {
-  const data = await api.get("/estadisticas/reporte-cruzado", { mes, anio });
-  if (!data.tecnicos?.length) throw new Error("Sin datos para el período seleccionado");
+  const [movs, eqs, svcsEq, svcsInt] = await Promise.all([
+    api.get("/movimientos-camioneta/"),
+    api.get("/equipos/"),
+    api.get("/servicios/", { mes, anio, tipo: "equipos" }),
+    api.get("/servicios/", { mes, anio, tipo: "interior" }),
+  ]);
+
+  const filtMovs = movs.filter(m => {
+    const [y, mo] = (m.fecha || "").split("-");
+    return parseInt(y) === parseInt(anio) && parseInt(mo) === parseInt(mes);
+  });
+  if (!filtMovs.length) throw new Error("Sin datos de movimientos para el período seleccionado");
+
+  const todosSvcs = [...(svcsEq || []), ...(svcsInt || [])];
+
+  // Horas por equipo
+  const horasPorEq = {};
+  for (const m of filtMovs) {
+    const eq = eqs.find(e => String(e.id) === String(m.equipo_id)) || m.equipos;
+    const nombre = eq?.nombre || "—";
+    if (!horasPorEq[nombre]) horasPorEq[nombre] = { dias: 0, horas: 0 };
+    horasPorEq[nombre].dias++;
+    const salidaMins = parseMins(m.hora_salida?.slice(0, 5));
+    const llegadaMins = parseMins(m.hora_llegada?.slice(0, 5));
+    const mins = (salidaMins != null && llegadaMins != null) ? llegadaMins - salidaMins : null;
+    if (mins != null && mins > 0) horasPorEq[nombre].horas += mins / 60;
+  }
+
+  // Servicios realizados por equipo/responsable
+  const svcPorResp = {};
+  for (const s of todosSvcs) {
+    if (s.estado !== "REALIZADO") continue;
+    const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
+    svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
+  }
+
+  const tecnicos = Object.keys(horasPorEq).map(nombre => {
+    const h = horasPorEq[nombre];
+    const svcs = svcPorResp[nombre] || 0;
+    return {
+      nombre,
+      dias_presentes: h.dias,
+      horas_trabajadas: +h.horas.toFixed(2),
+      horas_base: h.dias * 8,
+      balance: +(h.horas - h.dias * 8).toFixed(2),
+      servicios_realizados: svcs,
+      servicios_por_dia: h.dias > 0 ? +(svcs / h.dias).toFixed(1) : 0,
+    };
+  });
+
+  if (!tecnicos.length) throw new Error("Sin datos para el período seleccionado");
 
   const wb = XS.utils.book_new();
-  const rows = [["Técnico", "Equipo", "Días presentes", "Servicios realizados", "Svc/día", "Horas trabajadas", "Balance"]];
+  const rows = [["Equipo", "Días presentes", "Horas trabajadas", "Horas base (8hs×días)", "Balance horas", "Servicios realizados", "Svc/día"]];
+  const subtotalIdxs = [];
 
-  const byEquipo = {};
-  for (const t of data.tecnicos) {
-    const eq = t.equipo || "Sin equipo";
-    if (!byEquipo[eq]) byEquipo[eq] = [];
-    byEquipo[eq].push(t);
+  for (const t of tecnicos) {
+    const balStr = t.balance >= 0 ? `+${t.balance.toFixed(2)}` : t.balance.toFixed(2);
+    rows.push([t.nombre, t.dias_presentes, t.horas_trabajadas, t.horas_base, balStr, t.servicios_realizados, t.servicios_por_dia]);
   }
 
-  const subtotalRows = [];
-  for (const [eq, tecnicos] of Object.entries(byEquipo)) {
-    let eqSvcs = 0, eqHoras = 0, eqDias = 0;
-    for (const t of tecnicos) {
-      rows.push([t.nombre, eq, t.dias_presentes, t.servicios_realizados, t.servicios_por_dia, t.horas_trabajadas, t.balance]);
-      eqSvcs += t.servicios_realizados || 0;
-      eqHoras += t.horas_trabajadas || 0;
-      eqDias += t.dias_presentes || 0;
-    }
-    subtotalRows.push(rows.length);
-    rows.push([`SUBTOTAL ${eq}`, "", eqDias, eqSvcs, eqDias > 0 ? Math.round(eqSvcs / eqDias * 10) / 10 : 0, Math.round(eqHoras * 10) / 10, ""]);
-    rows.push([]);
-  }
+  // Totales
+  const totDias  = tecnicos.reduce((s, t) => s + t.dias_presentes, 0);
+  const totHoras = +tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0).toFixed(2);
+  const totBase  = tecnicos.reduce((s, t) => s + t.horas_base, 0);
+  const totBal   = +(totHoras - totBase).toFixed(2);
+  const totSvcs  = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
+  subtotalIdxs.push(rows.length);
+  rows.push(["TOTAL", totDias, totHoras, totBase, totBal >= 0 ? `+${totBal.toFixed(2)}` : totBal.toFixed(2), totSvcs, totDias > 0 ? +(totSvcs / totDias).toFixed(1) : 0]);
 
   const ws = makeSheet(rows);
-  setColWidths(ws, [24, 18, 16, 20, 10, 18, 12]);
+  setColWidths(ws, [22, 16, 18, 22, 14, 20, 10]);
   applyRowStyle(ws, 0, 7, S_HEADER);
-  for (const r of subtotalRows) applyRowStyle(ws, r, 7, S_SUBTOTAL);
+  for (const r of subtotalIdxs) applyRowStyle(ws, r, 7, S_TOTAL);
   XS.utils.book_append_sheet(wb, ws, "Productividad");
-
-  if (data.dias?.length) {
-    const detRows = [["Fecha", "Equipo", "Técnico", "Servicios", "Horas GR/LCH", "Horas total", "% GR/LCH"]];
-    for (const d of data.dias) {
-      detRows.push([fmtFecha(d.fecha), d.equipo, d.tecnico, d.servicios, d.horas_gr, d.horas_total, d.pct_gr]);
-    }
-    const wsDet = makeSheet(detRows);
-    setColWidths(wsDet, [12, 18, 24, 12, 14, 12, 10]);
-    applyRowStyle(wsDet, 0, 7, S_HEADER);
-    XS.utils.book_append_sheet(wb, wsDet, "Detalle días");
-  }
 
   XS.writeFile(wb, `Productividad_${MESES[mes - 1]}_${anio}.xlsx`);
 }
