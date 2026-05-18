@@ -1066,112 +1066,122 @@ function ReporteCruzado() {
       {/* Productividad */}
       {subTab === "productividad" && (
         <>
-          {(() => {
+          {tecnicos.length === 0 ? (
+            <p className="text-slate-400 text-sm">Sin datos. Seleccioná un período y hacé clic en Calcular.</p>
+          ) : (() => {
             const MESES_SHORT = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-            const prevMesNum = mes ? (parseInt(mes) === 1 ? 12 : parseInt(mes) - 1) : null;
-            const prevLabel = prevMesNum ? MESES_SHORT[prevMesNum - 1] : "Mes ant.";
+            const prevMesNum  = mes ? (parseInt(mes) === 1 ? 12 : parseInt(mes) - 1) : null;
+            const prevLabel   = prevMesNum ? MESES_SHORT[prevMesNum - 1] : "mes ant.";
+            const maxSvc      = Math.max(...tecnicos.map(t => t.svcs_por_hora), 0.01);
+            const avgSvcXHora = tecnicos.reduce((s, t) => s + t.svcs_por_hora, 0) / tecnicos.length;
 
-            // Promedios para colores
-            const avgSvcXHora = tecnicos.length > 0
-              ? tecnicos.reduce((s, t) => s + t.svcs_por_hora, 0) / tecnicos.length : 0;
-
-            // Totales
-            const totDias = tecnicos.reduce((s, t) => s + t.dias_presentes, 0);
-            const totSvcs = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
-            const totHoras = tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0);
+            const totDias    = tecnicos.reduce((s, t) => s + t.dias_presentes, 0);
+            const totSvcs    = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
+            const totHoras   = tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0);
             const totBalance = tecnicos.reduce((s, t) => s + t.balance, 0);
             const totSvcsAnt = tecnicos.every(t => t.svcs_anterior !== null)
               ? tecnicos.reduce((s, t) => s + (t.svcs_anterior || 0), 0) : null;
-            const totVsPct = totSvcsAnt !== null && totSvcsAnt > 0
+            const totVsPct   = totSvcsAnt !== null && totSvcsAnt > 0
               ? +((totSvcs - totSvcsAnt) / totSvcsAnt * 100).toFixed(0) : null;
 
             return (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-                      <th className="text-left px-4 py-3">Equipo</th>
-                      <th className="text-left px-4 py-3">Días</th>
-                      <th className="text-left px-4 py-3">Servicios</th>
-                      <th className="text-left px-4 py-3">Svc/día</th>
-                      <th className="text-left px-4 py-3 text-purple-700 font-semibold">Svc/hora ★</th>
-                      <th className="text-left px-4 py-3">Horas</th>
-                      <th className="text-left px-4 py-3 text-purple-700 font-semibold">Hs/día ★</th>
-                      <th className="text-left px-4 py-3">Balance</th>
-                      <th className="text-left px-4 py-3 text-purple-700 font-semibold">vs {prevLabel} ★</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tecnicos.length === 0 ? (
-                      <tr><td colSpan={9} className="px-4 py-4 text-slate-400 text-xs">Sin datos. Seleccioná un período y hacé clic en Calcular.</td></tr>
-                    ) : tecnicos.map((t, i) => {
-                      const svcXHoraColor = t.svcs_por_hora >= avgSvcXHora ? "text-green-700 font-semibold" : "text-red-600 font-semibold";
-                      const hsPorDiaColor = t.horas_por_dia < 7 ? "text-orange-600 font-medium" : t.horas_por_dia >= 8 ? "text-green-600 font-medium" : "text-slate-700";
-                      return (
-                        <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium">{t.nombre}</td>
-                          <td className="px-4 py-3">{t.dias_presentes}</td>
-                          <td className="px-4 py-3 font-semibold text-blue-700">{t.servicios_realizados}</td>
-                          <td className="px-4 py-3">{t.servicios_por_dia}</td>
-                          <td className="px-4 py-3"><span className={svcXHoraColor}>{t.svcs_por_hora}</span></td>
-                          <td className="px-4 py-3">{fmtHM(t.horas_trabajadas)}</td>
-                          <td className="px-4 py-3"><span className={hsPorDiaColor}>{fmtHM(t.horas_por_dia)}</span></td>
-                          <td className="px-4 py-3">
-                            <span className={`font-semibold ${t.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <div className="space-y-4">
+                {/* Cards por equipo */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {tecnicos.map((t, i) => {
+                    const aboveAvg    = t.svcs_por_hora >= avgSvcXHora;
+                    const barPct      = Math.min((t.svcs_por_hora / maxSvc) * 100, 100);
+                    const hsDiaColor  = t.horas_por_dia < 7
+                      ? "text-orange-500" : t.horas_por_dia >= 8 ? "text-green-600" : "text-slate-600";
+
+                    return (
+                      <div key={i} className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden border-l-4 ${aboveAvg ? "border-l-green-500" : "border-l-red-400"}`}>
+
+                        {/* Cabecera */}
+                        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                          <div>
+                            <h3 className="text-base font-bold text-slate-800">{t.nombre}</h3>
+                            <p className="text-xs text-slate-400 mt-0.5">{t.dias_presentes} días presentes</p>
+                          </div>
+                          {t.vs_anterior_pct !== null && (
+                            <div className={`text-right px-3 py-1.5 rounded-lg ${t.vs_anterior_pct >= 0 ? "bg-green-50" : "bg-red-50"}`}>
+                              <p className={`text-sm font-bold ${t.vs_anterior_pct >= 0 ? "text-green-700" : "text-red-600"}`}>
+                                {t.vs_anterior_pct >= 0 ? "↑" : "↓"} {t.vs_anterior_pct >= 0 ? "+" : ""}{t.vs_anterior_pct}%
+                              </p>
+                              <p className="text-[10px] text-slate-400">{t.svcs_anterior} svcs en {prevLabel}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Métricas principales */}
+                        <div className="grid grid-cols-3 divide-x divide-slate-100">
+                          <div className="px-5 py-4">
+                            <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Servicios</p>
+                            <p className="text-3xl font-bold text-indigo-600">{t.servicios_realizados}</p>
+                            <p className="text-xs text-slate-400 mt-1">{t.servicios_por_dia} por día</p>
+                          </div>
+                          <div className="px-5 py-4">
+                            <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Horas</p>
+                            <p className="text-3xl font-bold text-slate-700">{fmtHM(t.horas_trabajadas)}</p>
+                            <p className={`text-xs mt-1 font-medium ${hsDiaColor}`}>{fmtHM(t.horas_por_dia)} / día</p>
+                          </div>
+                          <div className="px-5 py-4">
+                            <p className="text-[11px] text-slate-400 uppercase tracking-wide mb-1">Balance</p>
+                            <p className={`text-3xl font-bold ${t.balance >= 0 ? "text-green-600" : "text-red-500"}`}>
                               {fmtHM(t.balance, true)}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-1">{t.dias_presentes} × 8h base</p>
+                          </div>
+                        </div>
+
+                        {/* Barra de eficiencia */}
+                        <div className="px-5 pb-4 pt-1">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs text-slate-500">
+                              Eficiencia: <span className={`font-semibold ${aboveAvg ? "text-green-600" : "text-red-500"}`}>{t.svcs_por_hora} svc/hora</span>
                             </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            {t.vs_anterior_pct !== null ? (
-                              <>
-                                <span className={`font-medium ${t.vs_anterior_pct >= 0 ? "text-green-600" : "text-red-500"}`}>
-                                  {t.vs_anterior_pct >= 0 ? "↑" : "↓"} {t.vs_anterior_pct >= 0 ? "+" : ""}{t.vs_anterior_pct}%
-                                </span>
-                                <span className="text-xs text-slate-400 block">{t.svcs_anterior} svcs en {prevLabel}</span>
-                              </>
-                            ) : <span className="text-slate-400 text-xs">—</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {tecnicos.length > 0 && (
-                      <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-xs">
-                        <td className="px-4 py-3 text-slate-700 uppercase tracking-wide">TOTAL</td>
-                        <td className="px-4 py-3 text-slate-700">{totDias}</td>
-                        <td className="px-4 py-3 text-blue-700 text-sm">{totSvcs}</td>
-                        <td className="px-4 py-3 text-slate-600">{totDias > 0 ? +(totSvcs / totDias).toFixed(1) : "—"}</td>
-                        <td className="px-4 py-3 text-slate-600">{totHoras > 0 ? +(totSvcs / totHoras).toFixed(2) : "—"}</td>
-                        <td className="px-4 py-3 text-blue-700">{fmtHM(totHoras)}</td>
-                        <td className="px-4 py-3 text-slate-600">{totDias > 0 ? fmtHM(totHoras / totDias) : "—"}</td>
-                        <td className="px-4 py-3"><span className={totBalance >= 0 ? "text-green-600" : "text-red-600"}>{fmtHM(totBalance, true)}</span></td>
-                        <td className="px-4 py-3">
-                          {totVsPct !== null ? (
-                            <>
-                              <span className={`font-medium ${totVsPct >= 0 ? "text-green-600" : "text-red-500"}`}>
-                                {totVsPct >= 0 ? "↑" : "↓"} {totVsPct >= 0 ? "+" : ""}{totVsPct}%
-                              </span>
-                              <span className="text-slate-400 font-normal block">{totSvcsAnt} svcs en {prevLabel}</span>
-                            </>
-                          ) : <span className="text-slate-400">—</span>}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                            <span className="text-[11px] text-slate-400">promedio {avgSvcXHora.toFixed(2)}</span>
+                          </div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${aboveAvg ? "bg-green-400" : "bg-red-400"}`}
+                              style={{ width: `${barPct}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Totales */}
+                <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+                  <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold mb-3">Total del período</p>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                    {[
+                      { label: "Días totales",   value: totDias,              color: "text-slate-700" },
+                      { label: "Servicios",       value: totSvcs,              color: "text-indigo-600" },
+                      { label: "Horas trabajadas",value: fmtHM(totHoras),      color: "text-slate-700" },
+                      {
+                        label: "Balance total",
+                        value: fmtHM(totBalance, true),
+                        color: totBalance >= 0 ? "text-green-600" : "text-red-500",
+                        sub: totVsPct !== null
+                          ? <span className={`text-xs font-semibold ${totVsPct >= 0 ? "text-green-600" : "text-red-500"}`}>
+                              {totVsPct >= 0 ? "↑" : "↓"} {totVsPct >= 0 ? "+" : ""}{totVsPct}% vs {prevLabel}
+                            </span>
+                          : null,
+                      },
+                    ].map(card => (
+                      <div key={card.label}>
+                        <p className="text-xs text-slate-500 mb-1">{card.label}</p>
+                        <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+                        {card.sub && <div className="mt-1">{card.sub}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             );
           })()}
-          {/* Leyenda */}
-          {tecnicos.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex flex-wrap gap-4 text-xs text-slate-600">
-                <span><span className="font-semibold text-green-700">Verde (Svc/hora)</span> — por encima del promedio del período</span>
-                <span><span className="font-semibold text-red-600">Rojo (Svc/hora)</span> — por debajo del promedio</span>
-                <span><span className="font-semibold text-orange-600">Naranja (Hs/día)</span> — jornada promedio menor a 7h</span>
-                <span><span className="font-semibold text-green-600">Verde (Hs/día)</span> — jornada completa (≥ 8h)</span>
-              </div>
-            </div>
-          )}
           {tecnicos.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
               <h3 className="text-sm font-semibold text-slate-600 mb-3">Servicios vs Horas por Equipo</h3>
