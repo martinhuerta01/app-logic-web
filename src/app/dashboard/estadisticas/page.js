@@ -536,6 +536,19 @@ function TablaEquipoHoras({ nombre, filas }) {
   );
 }
 
+const TIPOS_JUSTIFICADOS = ["Médica", "Vacaciones", "Personal"];
+
+function diasEnRango(desde, hasta, mes, anio) {
+  const d1 = new Date(desde + "T12:00:00Z");
+  const d2 = new Date(hasta + "T12:00:00Z");
+  let count = 0;
+  for (let d = new Date(d1); d <= d2; d.setUTCDate(d.getUTCDate() + 1)) {
+    const f = d.toISOString().slice(0, 10);
+    if (fechaMatch(f, mes, anio)) count++;
+  }
+  return count;
+}
+
 function HorasTrabajadas() {
   const [mes, setMes] = useState("");
   const [anio, setAnio] = useState("2026");
@@ -546,10 +559,11 @@ function HorasTrabajadas() {
   const calcular = async () => {
     setError("");
     try {
-      const [movs, eqs, tecDirectorio] = await Promise.all([
+      const [movs, eqs, tecDirectorio, ausencias] = await Promise.all([
         api.get("/movimientos-camioneta/"),
         api.get("/equipos/"),
         api.get("/directorio/tecnicos"),
+        api.get("/jornadas/ausencias/"),
       ]);
       const filtrados = movs.filter(m => fechaMatch(m.fecha, mes, anio));
       const agrupado = {};
@@ -575,8 +589,6 @@ function HorasTrabajadas() {
         const tjPresentes = (m.tecnicos_jornada || []).filter(t => t.presente);
         const esDiaNormal = tjPresentes.length === 0;
 
-        // Día normal: usar los técnicos por defecto del equipo
-        // Día especial: usar solo los seleccionados
         const presentes = esDiaNormal
           ? (tecsPorEquipo[String(m.equipo_id)] || [])
           : tjPresentes.map(t => t.empleados?.nombre || t.tecnico_id);
@@ -593,10 +605,22 @@ function HorasTrabajadas() {
         });
 
         for (const nombreTec of presentes) {
-          if (!tecMap[nombreTec]) tecMap[nombreTec] = { nombre: nombreTec, dias: 0, minutos: 0 };
+          if (!tecMap[nombreTec]) tecMap[nombreTec] = { nombre: nombreTec, dias: 0, minutos: 0, ausencias: [] };
           tecMap[nombreTec].dias++;
           if (h !== null) tecMap[nombreTec].minutos += Math.round(h * 60);
         }
+      }
+
+      // Acreditar ausencias justificadas
+      for (const aus of ausencias) {
+        if (!TIPOS_JUSTIFICADOS.includes(aus.tipo_licencia)) continue;
+        const nombre = aus.nombre;
+        const dias = diasEnRango(aus.fecha_desde, aus.fecha_hasta, mes, anio);
+        if (!dias) continue;
+        if (!tecMap[nombre]) tecMap[nombre] = { nombre, dias: 0, minutos: 0, ausencias: [] };
+        tecMap[nombre].dias += dias;
+        tecMap[nombre].minutos += dias * 8 * 60;
+        tecMap[nombre].ausencias.push({ tipo: aus.tipo_licencia, dias, desde: aus.fecha_desde, hasta: aus.fecha_hasta });
       }
 
       for (const nombre of Object.keys(agrupado)) {
@@ -628,7 +652,8 @@ function HorasTrabajadas() {
               <thead>
                 <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
                   <th className="text-left px-4 py-3">Técnico</th>
-                  <th className="text-left px-4 py-3">Días presentes</th>
+                  <th className="text-left px-4 py-3">Días efectivos</th>
+                  <th className="text-left px-4 py-3">Aus. justificadas</th>
                   <th className="text-left px-4 py-3">Horas trabajadas</th>
                   <th className="text-left px-4 py-3">Horas base (8h)</th>
                   <th className="text-left px-4 py-3">Balance</th>
@@ -639,10 +664,22 @@ function HorasTrabajadas() {
                   const horas = +(t.minutos / 60).toFixed(1);
                   const base = t.dias * 8;
                   const balance = +(horas - base).toFixed(1);
+                  const diasAus = t.ausencias?.reduce((s, a) => s + a.dias, 0) || 0;
                   return (
                     <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium text-slate-800">{t.nombre}</td>
-                      <td className="px-4 py-3 text-slate-600">{t.dias}</td>
+                      <td className="px-4 py-3 text-slate-600">{t.dias - diasAus}</td>
+                      <td className="px-4 py-3">
+                        {diasAus > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {t.ausencias.map((a, j) => (
+                              <span key={j} className="bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded-full">
+                                {a.tipo} · {a.dias}d
+                              </span>
+                            ))}
+                          </div>
+                        ) : <span className="text-slate-400 text-xs">—</span>}
+                      </td>
                       <td className="px-4 py-3 font-semibold text-blue-700">{fmtHM(horas)}</td>
                       <td className="px-4 py-3 text-slate-400">8:00 × {t.dias}</td>
                       <td className="px-4 py-3">
