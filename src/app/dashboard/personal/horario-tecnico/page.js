@@ -100,8 +100,13 @@ export default function HorarioTecnicoPage() {
   const guardarAusencia = async (e) => {
     e.preventDefault();
     setMsgAus("");
+    const empNombre = empleados.find(e => String(e.id) === String(formAus.empleado_id))?.nombre || "";
     try {
-      await api.post("/jornadas/ausencias/", formAus);
+      await api.post("/jornadas/ausencias/", {
+        ...formAus,
+        nombre: empNombre,
+        tipo: formAus.tipo_licencia,
+      });
       setMsgAus("✓ Ausencia registrada");
       setFormAus(FORM_AUS);
       fetchAusencias();
