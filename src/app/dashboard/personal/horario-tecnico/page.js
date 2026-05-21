@@ -56,7 +56,7 @@ export default function HorarioTecnicoPage() {
 
   useEffect(() => {
     api.get("/equipos/").then(setEquipos).catch(() => setErrorCarga("No se pudieron cargar los equipos."));
-    api.get("/empleados/").then(setEmpleados).catch(() => {});
+    api.get("/directorio/tecnicos").then(setEmpleados).catch(() => {});
     fetchAusencias();
   }, []);
 
