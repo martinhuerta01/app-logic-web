@@ -466,6 +466,7 @@ function TablaEquipoHoras({ nombre, filas }) {
   const totalHoras = +filas.reduce((a, f) => a + (f.horas ?? 0), 0).toFixed(1);
   const totalBase = filas.length * 8;
   const totalBalance = +(totalHoras - totalBase).toFixed(1);
+  const conTecnicos = filas.some(f => f.tecnicos?.length > 0);
 
   return (
     <div>
@@ -480,11 +481,12 @@ function TablaEquipoHoras({ nombre, filas }) {
               <th className="text-left px-4 py-3">Horas trabajadas</th>
               <th className="text-left px-4 py-3">Horas base (8h)</th>
               <th className="text-left px-4 py-3">Balance</th>
+              {conTecnicos && <th className="text-left px-4 py-3">Técnicos</th>}
             </tr>
           </thead>
           <tbody>
             {filas.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-4 text-slate-400 text-xs">Sin movimientos registrados</td></tr>
+              <tr><td colSpan={conTecnicos ? 7 : 6} className="px-4 py-4 text-slate-400 text-xs">Sin movimientos registrados</td></tr>
             ) : (
               <>
                 {filas.map((f, i) => (
@@ -499,6 +501,17 @@ function TablaEquipoHoras({ nombre, filas }) {
                         ? <span className={`font-semibold ${f.balance >= 0 ? "text-green-600" : "text-red-600"}`}>{fmtHM(f.balance, true)}</span>
                         : "—"}
                     </td>
+                    {conTecnicos && (
+                      <td className="px-4 py-2.5">
+                        {f.tecnicos?.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {f.tecnicos.map((n, j) => (
+                              <span key={j} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{n}</span>
+                            ))}
+                          </div>
+                        ) : <span className="text-xs text-slate-400">—</span>}
+                      </td>
+                    )}
                   </tr>
                 ))}
                 <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-xs">
@@ -512,6 +525,7 @@ function TablaEquipoHoras({ nombre, filas }) {
                       {fmtHM(totalBalance, true)}
                     </span>
                   </td>
+                  {conTecnicos && <td className="px-4 py-3"></td>}
                 </tr>
               </>
             )}
@@ -526,6 +540,7 @@ function HorasTrabajadas() {
   const [mes, setMes] = useState("");
   const [anio, setAnio] = useState("2026");
   const [porEquipo, setPorEquipo] = useState({});
+  const [porTecnico, setPorTecnico] = useState({});
   const [error, setError] = useState("");
 
   const calcular = async () => {
@@ -539,11 +554,18 @@ function HorasTrabajadas() {
       const agrupado = {};
       for (const eq of eqs) agrupado[eq.nombre] = [];
 
+      const tecMap = {};
+
       for (const m of filtrados) {
         const eq = eqs.find(e => String(e.id) === String(m.equipo_id)) || m.equipos;
         const nombre = eq?.nombre || "—";
         if (!agrupado[nombre]) agrupado[nombre] = [];
         const h = calcHoras(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5));
+
+        const presentes = (m.tecnicos_jornada || [])
+          .filter(t => t.presente)
+          .map(t => t.empleados?.nombre || t.tecnico_id);
+
         agrupado[nombre].push({
           fecha: m.fecha,
           dia: m.fecha,
@@ -551,16 +573,27 @@ function HorasTrabajadas() {
           hora_llegada: m.hora_llegada?.slice(0, 5) || null,
           horas: h !== null ? +h.toFixed(1) : null,
           balance: h !== null ? +(h - 8).toFixed(1) : null,
+          tecnicos: presentes,
         });
+
+        // Acumular por técnico
+        for (const nombreTec of presentes) {
+          if (!tecMap[nombreTec]) tecMap[nombreTec] = { nombre: nombreTec, dias: 0, minutos: 0 };
+          tecMap[nombreTec].dias++;
+          if (h !== null) tecMap[nombreTec].minutos += Math.round(h * 60);
+        }
       }
+
       for (const nombre of Object.keys(agrupado)) {
         agrupado[nombre].sort((a, b) => a.fecha.localeCompare(b.fecha));
       }
       setPorEquipo(agrupado);
+      setPorTecnico(tecMap);
     } catch { setError("Error al calcular horas. Verificá la conexión con el servidor."); }
   };
 
   const equipos = Object.keys(porEquipo);
+  const tecnicos = Object.values(porTecnico);
 
   return (
     <div className="space-y-6">
@@ -572,6 +605,44 @@ function HorasTrabajadas() {
             <TablaEquipoHoras key={nombre} nombre={nombre} filas={porEquipo[nombre]} />
           ))
       }
+      {tecnicos.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-600 mb-2 uppercase tracking-wide">Resumen por técnico</h2>
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
+                  <th className="text-left px-4 py-3">Técnico</th>
+                  <th className="text-left px-4 py-3">Días presentes</th>
+                  <th className="text-left px-4 py-3">Horas trabajadas</th>
+                  <th className="text-left px-4 py-3">Horas base (8h)</th>
+                  <th className="text-left px-4 py-3">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tecnicos.map((t, i) => {
+                  const horas = +(t.minutos / 60).toFixed(1);
+                  const base = t.dias * 8;
+                  const balance = +(horas - base).toFixed(1);
+                  return (
+                    <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-800">{t.nombre}</td>
+                      <td className="px-4 py-3 text-slate-600">{t.dias}</td>
+                      <td className="px-4 py-3 font-semibold text-blue-700">{fmtHM(horas)}</td>
+                      <td className="px-4 py-3 text-slate-400">8:00 × {t.dias}</td>
+                      <td className="px-4 py-3">
+                        <span className={`font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {fmtHM(balance, true)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
