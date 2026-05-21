@@ -506,7 +506,7 @@ function TablaEquipoHoras({ nombre, filas }) {
                         {f.tecnicos?.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {f.tecnicos.map((n, j) => (
-                              <span key={j} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">{n}</span>
+                              <span key={j} className={`text-xs px-2 py-0.5 rounded-full ${f.esDiaNormal ? "bg-slate-100 text-slate-500" : "bg-indigo-50 text-indigo-700 font-medium"}`}>{n}</span>
                             ))}
                           </div>
                         ) : <span className="text-xs text-slate-400">—</span>}
@@ -546,13 +546,23 @@ function HorasTrabajadas() {
   const calcular = async () => {
     setError("");
     try {
-      const [movs, eqs] = await Promise.all([
+      const [movs, eqs, tecDirectorio] = await Promise.all([
         api.get("/movimientos-camioneta/"),
         api.get("/equipos/"),
+        api.get("/directorio/tecnicos"),
       ]);
       const filtrados = movs.filter(m => fechaMatch(m.fecha, mes, anio));
       const agrupado = {};
       for (const eq of eqs) agrupado[eq.nombre] = [];
+
+      // Mapa equipo_id → nombres de técnicos por defecto
+      const tecsPorEquipo = {};
+      for (const tec of tecDirectorio) {
+        const eqId = String(tec.equipo_id || tec.equipos?.id || "");
+        if (!eqId) continue;
+        if (!tecsPorEquipo[eqId]) tecsPorEquipo[eqId] = [];
+        tecsPorEquipo[eqId].push(tec.nombre);
+      }
 
       const tecMap = {};
 
@@ -562,9 +572,14 @@ function HorasTrabajadas() {
         if (!agrupado[nombre]) agrupado[nombre] = [];
         const h = calcHoras(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5));
 
-        const presentes = (m.tecnicos_jornada || [])
-          .filter(t => t.presente)
-          .map(t => t.empleados?.nombre || t.tecnico_id);
+        const tjPresentes = (m.tecnicos_jornada || []).filter(t => t.presente);
+        const esDiaNormal = tjPresentes.length === 0;
+
+        // Día normal: usar los técnicos por defecto del equipo
+        // Día especial: usar solo los seleccionados
+        const presentes = esDiaNormal
+          ? (tecsPorEquipo[String(m.equipo_id)] || [])
+          : tjPresentes.map(t => t.empleados?.nombre || t.tecnico_id);
 
         agrupado[nombre].push({
           fecha: m.fecha,
@@ -574,9 +589,9 @@ function HorasTrabajadas() {
           horas: h !== null ? +h.toFixed(1) : null,
           balance: h !== null ? +(h - 8).toFixed(1) : null,
           tecnicos: presentes,
+          esDiaNormal,
         });
 
-        // Acumular por técnico
         for (const nombreTec of presentes) {
           if (!tecMap[nombreTec]) tecMap[nombreTec] = { nombre: nombreTec, dias: 0, minutos: 0 };
           tecMap[nombreTec].dias++;
