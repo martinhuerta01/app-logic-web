@@ -100,6 +100,8 @@ export default function HistorialCamionetaPage() {
   const movsEq1 = movimientos.filter(m => !esEquipo2(m));
   const movsEq2 = movimientos.filter(m =>  esEquipo2(m));
 
+  const tecnicosDeMovimiento = (m) => (m.tecnicos_jornada || []).filter(t => t.presente);
+
   // ─── Tabla genérica ───────────────────────────────────────────────────
   const TablaMovimientos = ({ filas, conGR }) => (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
@@ -113,6 +115,7 @@ export default function HistorialCamionetaPage() {
             <th className="text-left px-4 py-3">Fin</th>
             {conGR && <th className="text-left px-4 py-3">Llegada GR/LCH</th>}
             {conGR && <th className="text-left px-4 py-3">Salida GR/LCH</th>}
+            <th className="text-left px-4 py-3">Técnicos</th>
             <th className="text-left px-4 py-3">Observaciones</th>
             <th className="px-4 py-3"></th>
           </tr>
@@ -120,38 +123,54 @@ export default function HistorialCamionetaPage() {
         <tbody>
           {filas.length === 0 ? (
             <tr>
-              <td colSpan={conGR ? 9 : 7} className="px-4 py-4 text-slate-400 text-xs">
+              <td colSpan={conGR ? 10 : 8} className="px-4 py-4 text-slate-400 text-xs">
                 Sin movimientos
               </td>
             </tr>
-          ) : filas.map(m => (
-            <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
-              <td className="px-4 py-2.5 text-xs">{m.fecha}</td>
-              <td className="px-4 py-2.5 text-xs">{m.hora_salida?.slice(0,5)  || "—"}</td>
-              <td className="px-4 py-2.5 text-xs">{m.hora_llegada?.slice(0,5) || "—"}</td>
-              <td className="px-4 py-2.5 text-xs">{m.punto_inicio || "—"}</td>
-              <td className="px-4 py-2.5 text-xs">{m.punto_fin    || "—"}</td>
-              {conGR && <td className="px-4 py-2.5 text-xs">{m.llegada_gr_lch?.slice(0,5) || "—"}</td>}
-              {conGR && <td className="px-4 py-2.5 text-xs">{m.salida_gr_lch?.slice(0,5)  || "—"}</td>}
-              <td className="px-4 py-2.5 text-xs text-slate-600">{m.observaciones || "—"}</td>
-              <td className="px-4 py-2.5">
-                <div className="flex gap-2 items-center">
-                  <button
-                    onClick={() => setEditando({ ...m, equipo_id: m.equipo_id || m.equipos?.id || "" })}
-                    className="text-blue-500 hover:text-blue-700 transition"
-                    title="Editar">
-                    <IconEdit />
-                  </button>
-                  <button
-                    onClick={() => eliminar(m.id)}
-                    className="text-red-400 hover:text-red-600 transition"
-                    title="Eliminar">
-                    <IconTrash />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+          ) : filas.map(m => {
+            const tecnicos = tecnicosDeMovimiento(m);
+            return (
+              <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-4 py-2.5 text-xs">{m.fecha}</td>
+                <td className="px-4 py-2.5 text-xs">{m.hora_salida?.slice(0,5)  || "—"}</td>
+                <td className="px-4 py-2.5 text-xs">{m.hora_llegada?.slice(0,5) || "—"}</td>
+                <td className="px-4 py-2.5 text-xs">{m.punto_inicio || "—"}</td>
+                <td className="px-4 py-2.5 text-xs">{m.punto_fin    || "—"}</td>
+                {conGR && <td className="px-4 py-2.5 text-xs">{m.llegada_gr_lch?.slice(0,5) || "—"}</td>}
+                {conGR && <td className="px-4 py-2.5 text-xs">{m.salida_gr_lch?.slice(0,5)  || "—"}</td>}
+                <td className="px-4 py-2.5">
+                  {tecnicos.length === 0 ? (
+                    <span className="text-xs text-slate-400">—</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {tecnicos.map((t, i) => (
+                        <span key={i} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-full">
+                          {t.empleados?.nombre || t.tecnico_id}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-xs text-slate-600">{m.observaciones || "—"}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex gap-2 items-center">
+                    <button
+                      onClick={() => setEditando({ ...m, equipo_id: m.equipo_id || m.equipos?.id || "" })}
+                      className="text-blue-500 hover:text-blue-700 transition"
+                      title="Editar">
+                      <IconEdit />
+                    </button>
+                    <button
+                      onClick={() => eliminar(m.id)}
+                      className="text-red-400 hover:text-red-600 transition"
+                      title="Eliminar">
+                      <IconTrash />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

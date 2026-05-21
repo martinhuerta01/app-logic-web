@@ -43,6 +43,7 @@ export default function HorarioTecnicoPage() {
 
   // Tab movimiento
   const [form, setForm] = useState(FORM_MOV);
+  const [tecnicosIds, setTecnicosIds] = useState([]);
   const [msgMov, setMsgMov] = useState("");
   const [errorCarga, setErrorCarga] = useState("");
 
@@ -70,15 +71,20 @@ export default function HorarioTecnicoPage() {
   const equipoSeleccionado = equipos.find(e => String(e.id) === String(form.equipo_id));
   const esEquipo2 = equipoSeleccionado?.nombre === "Equipo 2";
 
+  const toggleTecnico = (id) =>
+    setTecnicosIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
   const guardarMovimiento = async (e) => {
     e.preventDefault();
     setMsgMov("");
-    const body = { ...form, cargado_por: user, tecnicos: [] };
+    const tecnicos = tecnicosIds.map(id => ({ tecnico_id: id, presente: true }));
+    const body = { ...form, cargado_por: user, tecnicos };
     if (!esEquipo2) { body.llegada_gr_lch = ""; body.salida_gr_lch = ""; }
     try {
       await api.post("/movimientos-camioneta/", body);
       setMsgMov("✓ Movimiento guardado");
       setForm({ ...FORM_MOV, fecha: form.fecha });
+      setTecnicosIds([]);
     } catch (err) {
       setMsgMov("Error: " + err.message);
     }
@@ -192,8 +198,33 @@ export default function HorarioTecnicoPage() {
             <div>
               <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
               <input type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="Ej: intercambio de equipos, moto propia, etc." />
             </div>
+
+            {empleados.length > 0 && (
+              <div className="border-t border-slate-100 pt-4">
+                <label className="block text-xs text-slate-500 mb-2">Técnicos en jornada</label>
+                <div className="flex flex-wrap gap-2">
+                  {empleados.map(emp => {
+                    const sel = tecnicosIds.includes(String(emp.id));
+                    return (
+                      <button key={emp.id} type="button" onClick={() => toggleTecnico(String(emp.id))}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition ${
+                          sel
+                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
+                            : "bg-white border-slate-300 text-slate-500 hover:border-slate-400"
+                        }`}>
+                        <span className={`w-2 h-2 rounded-full ${sel ? "bg-indigo-500" : "bg-slate-300"}`} />
+                        {emp.nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+                {tecnicosIds.length > 0 && (
+                  <p className="text-xs text-slate-400 mt-2">{tecnicosIds.length} técnico{tecnicosIds.length > 1 ? "s" : ""} seleccionado{tecnicosIds.length > 1 ? "s" : ""}</p>
+                )}
+              </div>
+            )}
 
             {esEquipo2 && (
               <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
