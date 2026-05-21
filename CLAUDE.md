@@ -90,12 +90,21 @@ Token is read from `localStorage` automatically. 401 auto-redirects to `/`.
 
 ## Module Notes
 
+### Personal
+
+**Horario Técnico** (`personal/horario-tecnico/page.js`) — dos tabs:
+- **Movimiento camioneta**: form de carga con selector de técnicos presentes ese día. Técnicos cargados via `/directorio/tecnicos` (solo `tipo=interno`). Los técnicos seleccionados se guardan en `tecnicos_jornada` vía `tecnicos: [{ tecnico_id, presente: true }]`. Si no se selecciona nadie = día normal (estadísticas usan los técnicos por defecto del equipo).
+- **Ausencias**: registrar ausencias por técnico con tipo de licencia. Historial filtrable por mes/año con días calculados. Justificadas (Médica/Vacaciones/Personal) acreditan 8h en estadísticas sin generar déficit.
+
+**Historial Camioneta** (`personal/historial-camioneta/page.js`) — tabla de movimientos con columna **Técnicos** mostrando quiénes salieron cada día (pills desde `tecnicos_jornada`). Días normales en gris, días especiales en indigo.
+
 ### Estadísticas (`estadisticas/page.js`)
-- **5 tabs**: Dashboard, Horas GR/LCH, Servicios por Responsable, Servicios por Cliente, Reporte Cruzado
+- **5 tabs**: Dashboard, Horas Trabajadas, Servicios por Responsable, Servicios por Cliente, Reporte Cruzado
 - **Dashboard tab**: Día/Semana/Mes/Año period selector with ← → navigation, KPIs, bar chart, donut, services table
 - **Semana** = Lun–Vie of the selected week; fetches months that overlap and deduplicates by id
 - **Reporte Cruzado (Productividad)**: cards per equipo showing Servicios, Horas, Balance + breakdown by type (Instalaciones/Revisiones/Desinstalaciones). Data built client-side from `/movimientos-camioneta/` + `/servicios/` — NOT from `/estadisticas/reporte-cruzado`
 - **GR/LCH chart**: ComposedChart with bars (horas trabajadas + horas GR/LCH) + Line (% GR/LCH). Color logic: >70% GR/LCH = green (positive), <55% = red
+- **Horas Trabajadas**: tabla día a día por equipo + **Resumen por técnico** al final. Lógica: si movimiento sin `tecnicos_jornada` → horas se atribuyen a los técnicos por defecto del equipo (desde `/directorio/tecnicos`). Si tiene selección → solo a los presentes. Ausencias justificadas del período acreditan 8h/día y aparecen como pills en columna "Aus. justificadas".
 
 ### Exportar (`exportar-importar/page.js`)
 - Uses `xlsx-js-style` (not plain `xlsx`) for cell styling support
@@ -144,10 +153,13 @@ POST /               create work day entry
 GET  /               list (filter: mes, anio, empleado_id)
 GET  /{id}           get one
 DELETE /{id}         delete
-POST /ausencias/     create absence
-GET  /ausencias/     list absences
+POST /ausencias/     create absence (fields: empleado_id, nombre, tipo, fecha_desde, fecha_hasta, tipo_licencia)
+GET  /ausencias/     list absences (filter: empleado_id)
+DELETE /ausencias/{id}  delete absence
 GET  /reporte_cruzado/  hours + services summary
 ```
+Tipos de licencia: `Médica`, `Vacaciones`, `Personal`, `Sin aviso`, `Otro`
+Justificadas (acreditan 8h en estadísticas): `Médica`, `Vacaciones`, `Personal`
 
 ### Stock (`/stock`)
 ```
@@ -183,7 +195,7 @@ GET/POST/PUT standard CRUD
 
 ### Movimientos Camioneta (`/movimientos-camioneta`)
 ```
-GET    /             list (filter: equipo_id, mes, anio)
+GET    /             list (filter: equipo_id, mes, anio) — includes tecnicos_jornada(*, empleados(nombre)) inline
 POST   /             create with technician assignments
 PUT    /{id}         full update
 PATCH  /{id}         partial update
@@ -191,6 +203,7 @@ DELETE /{id}         delete (cascades tecnicos_jornada)
 GET    /{id}/tecnicos list technicians for movement
 ```
 Fields include: equipo_id, fecha, hora_salida, hora_llegada, punto_inicio, punto_fin, observaciones, cargado_por
+`tecnicos` array on POST: `[{ tecnico_id, presente: true }]` — populates `tecnicos_jornada`
 
 ### Directorio (`/directorio`)
 ```
@@ -254,10 +267,10 @@ DELETE /completaciones/       remove completion
 | Table | Key fields |
 |-------|-----------|
 | `usuarios` | nombre, password_hash, rol (admin\|usuario), modulos[], activo |
-| `empleados` | nombre, telefono, dni, zona, vehiculo, patente, activo |
+| `empleados` | nombre, telefono, dni, zona, vehiculo, patente, activo, tipo (interno\|...), equipo_id |
 | `equipos` | nombre, patente, activo |
 | `jornadas` | empleado_id, fecha, tipo_asistencia, horas, instalaciones, desinstalaciones |
-| `ausencias` | empleado_id, fecha_desde, fecha_hasta, tipo_licencia |
+| `ausencias` | empleado_id, nombre, tipo, fecha_desde, fecha_hasta, tipo_licencia, motivo, cargado_por |
 | `servicios` | fecha, equipo_id, responsable, cliente, tipo_servicio (INSTALACION\|REVISION\|DESINSTALACION), dispositivo, patente, estado |
 | `movimientos_camioneta` | equipo_id, fecha, hora_salida, hora_llegada, punto_inicio, punto_fin, observaciones, cargado_por |
 | `tecnicos_jornada` | movimiento_id, tecnico_id, presente, motivo_ausencia |
@@ -287,5 +300,6 @@ All dates use `America/Argentina/Buenos_Aires` timezone throughout the app.
 
 ## Version History
 
+- **v1.4** (2026-05-21): Módulo Personal renovado — Ausencias (tab en Horario Técnico con tipos de licencia, historial filtrable, DELETE backend), Técnicos por movimiento (selección en formulario, columna en Historial Camioneta), Estadísticas Horas con resumen individual por técnico (día normal = equipo completo, día especial = solo seleccionados, ausencias justificadas acreditan 8h sin generar déficit)
 - **v1.3** (2026-05-18): Dashboard tab en estadísticas, Reporte Cruzado cards con tipos de servicio, Stock Oficina tab Búsqueda, Exportar rediseñado (5 exports con xlsx-js-style, sin Importar), Tareas rediseñado (tabs Hoy/Todas)
 - **v1.2**: Tareas recurrentes con lógica de días hábiles, ubicaciones simplificadas (OFICINA/CD/GENERAL), fix timezone Argentina
