@@ -43,6 +43,7 @@ function ModalDia({ fecha, svcEquipos, svcInterior, equipos, onClose }) {
           <th className="text-left px-4 py-2">Hora</th>
           <th className="text-left px-4 py-2">Cliente</th>
           <th className="text-left px-4 py-2">Tipo</th>
+          <th className="text-left px-4 py-2">Dispositivo</th>
           <th className="text-left px-4 py-2">Patente</th>
           <th className="text-left px-4 py-2">Estado</th>
           <th className="text-left px-4 py-2">Observaciones</th>
@@ -58,6 +59,7 @@ function ModalDia({ fecha, svcEquipos, svcInterior, equipos, onClose }) {
                 : s.cliente}
             </td>
             <td className="px-4 py-2 text-blue-700 font-medium">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
+            <td className="px-4 py-2 text-slate-600">{s.dispositivo || "—"}</td>
             <td className="px-4 py-2 font-mono">{s.patente || "—"}</td>
             <td className="px-4 py-2">
               <span className={`px-2 py-0.5 rounded font-medium ${ESTADO_COLOR[s.estado] || "bg-slate-100 text-slate-600"}`}>
