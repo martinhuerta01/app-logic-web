@@ -531,25 +531,28 @@ function OficinaEntradas() {
 
 /* ───────── OFICINA — SALIDAS ───────── */
 
-function OficinaSalidas() {
-  const [productos, setProductos] = useState([]);
-  const [ubicaciones, setUbicaciones] = useState([]);
-  const [oficina, setOficina] = useState(null);
-  const [form, setForm] = useState({
-    destino: "",
-    codigo: "",
-    cantidad: "",
-    fecha: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }),
-  });
-  const [msg, setMsg] = useState("");
-  const [historial, setHistorial] = useState([]);
-  const [editandoMov, setEditandoMov] = useState(null);
-  const [editFormMov, setEditFormMov] = useState({});
-  const [busqueda, setBusqueda] = useState("");
+const filaVacia = () => ({ _id: Math.random(), codigo: "", cantidad: "" });
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+function OficinaSalidas() {
+  const [productos,   setProductos]   = useState([]);
+  const [ubicaciones, setUbicaciones] = useState([]);
+  const [oficina,     setOficina]     = useState(null);
+
+  // — cabecera del bloque —
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+  const [destino, setDestino] = useState("");
+  const [fecha,   setFecha]   = useState(hoy);
+  // — filas de insumos —
+  const [filas,   setFilas]   = useState([filaVacia()]);
+
+  const [msg,          setMsg]          = useState("");
+  const [guardando,    setGuardando]    = useState(false);
+  const [historial,    setHistorial]    = useState([]);
+  const [editandoMov,  setEditandoMov]  = useState(null);
+  const [editFormMov,  setEditFormMov]  = useState({});
+  const [busqueda,     setBusqueda]     = useState("");
+
+  useEffect(() => { cargarDatos(); }, []);
 
   const cargarDatos = async () => {
     try {
@@ -559,31 +562,77 @@ function OficinaSalidas() {
       ]);
       setProductos(prods);
       setUbicaciones(ubics);
-      const ofic = ubics.find(
-        (u) => u.nombre.toLowerCase() === "oficina" || u.tipo === "oficina"
-      );
+      const ofic = ubics.find(u => u.nombre.toLowerCase() === "oficina" || u.tipo === "oficina");
       setOficina(ofic);
       if (ofic) {
         const movs = await api.get("/stock/movimientos/");
-        const salidas = movs.filter(
-          (m) =>
-            (m.ubicacion_origen_id === ofic.id || m.origen_id === ofic.id) &&
-            (m.tipo?.toUpperCase() === "TRANSFERENCIA" || m.tipo?.toUpperCase() === "SALIDA")
+        const salidas = movs.filter(m =>
+          (m.ubicacion_origen_id === ofic.id || m.origen_id === ofic.id) &&
+          (m.tipo?.toUpperCase() === "TRANSFERENCIA" || m.tipo?.toUpperCase() === "SALIDA")
         );
-        setHistorial(salidas.sort((a,b) => (b.fecha||"").localeCompare(a.fecha||"")));
+        setHistorial(salidas.sort((a, b) => (b.fecha || "").localeCompare(a.fecha || "")));
       }
     } catch { setMsg("Error al cargar datos. Verificá la conexión con el servidor."); }
   };
 
+  // ── helpers filas ──
+  const actualizarFila = (idx, campo, valor) =>
+    setFilas(fs => fs.map((f, i) => i === idx ? { ...f, [campo]: valor } : f));
+
+  const agregarFila = () => setFilas(fs => [...fs, filaVacia()]);
+
+  const eliminarFila = (idx) =>
+    setFilas(fs => fs.length === 1 ? [filaVacia()] : fs.filter((_, i) => i !== idx));
+
+  // Enter en Cantidad → nueva fila
+  const onCantidadKeyDown = (e, idx) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (idx === filas.length - 1) agregarFila();
+    }
+  };
+
+  // ── guardar bloque ──
+  const guardar = async (e) => {
+    e.preventDefault();
+    setMsg("");
+    const filasValidas = filas.filter(f => f.codigo && String(f.cantidad).trim() !== "");
+    if (!destino)              { setMsg("Error: seleccioná el destino"); return; }
+    if (!filasValidas.length)  { setMsg("Error: agregá al menos un insumo con cantidad"); return; }
+    const destUbic = ubicaciones.find(u => u.nombre === destino);
+    if (!destUbic || !oficina) { setMsg("Error: destino no encontrado"); return; }
+
+    setGuardando(true);
+    try {
+      for (const fila of filasValidas) {
+        const prod = productos.find(p => p.codigo === fila.codigo);
+        if (!prod) continue;
+        await api.post("/stock/transferencias/", {
+          producto_id:          prod.id,
+          ubicacion_origen_id:  oficina.id,
+          ubicacion_destino_id: destUbic.id,
+          cantidad: parseInt(fila.cantidad),
+          fecha,
+        });
+      }
+      setMsg(`✓ ${filasValidas.length} salida${filasValidas.length > 1 ? "s" : ""} registrada${filasValidas.length > 1 ? "s" : ""} correctamente`);
+      setFilas([filaVacia()]);
+      setDestino("");
+      cargarDatos();
+    } catch (err) {
+      setMsg("Error: " + err.message);
+    }
+    setGuardando(false);
+  };
+
+  // ── historial ──
   const eliminarMov = async (m) => {
     if (!window.confirm("¿Eliminar este movimiento? Se ajustará el stock automáticamente.")) return;
     try {
       await api.delete(`/stock/movimientos/${m.id}/`);
       setMsg("Movimiento eliminado");
       cargarDatos();
-    } catch (err) {
-      setMsg("Error: " + err.message);
-    }
+    } catch (err) { setMsg("Error: " + err.message); }
   };
 
   const guardarEditMov = async (m) => {
@@ -594,135 +643,101 @@ function OficinaSalidas() {
       setEditandoMov(null);
       setMsg("Movimiento actualizado");
       cargarDatos();
-    } catch (err) {
-      setMsg("Error: " + err.message);
-    }
-  };
-
-  const prodSeleccionado = productos.find((p) => p.codigo === form.codigo);
-
-  const guardar = async (e) => {
-    e.preventDefault();
-    setMsg("");
-    if (!prodSeleccionado || !oficina) {
-      setMsg("Error: seleccione un producto válido");
-      return;
-    }
-    const destUbic = ubicaciones.find((u) => u.nombre === form.destino);
-    if (!destUbic) {
-      setMsg("Error: destino no encontrado en ubicaciones");
-      return;
-    }
-    try {
-      await api.post("/stock/transferencias/", {
-        producto_id: prodSeleccionado.id,
-        ubicacion_origen_id: oficina.id,
-        ubicacion_destino_id: destUbic.id,
-        cantidad: parseInt(form.cantidad),
-        fecha: form.fecha,
-      });
-      setMsg("Salida registrada correctamente");
-      setForm({ ...form, destino: "", codigo: "", cantidad: "" });
-      cargarDatos();
-    } catch (err) {
-      setMsg("Error: " + err.message);
-    }
+    } catch (err) { setMsg("Error: " + err.message); }
   };
 
   return (
     <div className="space-y-6">
-      <form
-        onSubmit={guardar}
-        className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4 max-w-3xl"
-      >
+
+      {/* ── FORMULARIO BLOQUE ── */}
+      <form onSubmit={guardar}
+        className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+
         <h3 className="font-semibold text-slate-700">Registrar salida de Oficina</h3>
-        <div className="grid grid-cols-5 gap-3">
-          <div>
+
+        {/* Cabecera: Destino + Fecha */}
+        <div className="flex gap-4 flex-wrap items-end">
+          <div className="min-w-[200px]">
             <label className="block text-xs text-slate-500 mb-1">Destino</label>
-            <select
-              value={form.destino}
-              onChange={(e) => setForm({ ...form, destino: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              required
-            >
+            <select value={destino} onChange={e => setDestino(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
               <option value="">Seleccionar</option>
               {ubicaciones.filter(u => u.tipo === "cd").length > 0 && (
                 <optgroup label="La Serenísima">
-                  {ubicaciones.filter(u => u.tipo === "cd").map(u => (
-                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
-                  ))}
+                  {ubicaciones.filter(u => u.tipo === "cd").map(u =>
+                    <option key={u.id} value={u.nombre}>{u.nombre}</option>)}
                 </optgroup>
               )}
               {ubicaciones.filter(u => u.tipo !== "oficina" && u.tipo !== "cd").length > 0 && (
                 <optgroup label="General">
-                  {ubicaciones.filter(u => u.tipo !== "oficina" && u.tipo !== "cd").map(u => (
-                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
-                  ))}
+                  {ubicaciones.filter(u => u.tipo !== "oficina" && u.tipo !== "cd").map(u =>
+                    <option key={u.id} value={u.nombre}>{u.nombre}</option>)}
                 </optgroup>
               )}
             </select>
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Código</label>
-            <select
-              value={form.codigo}
-              onChange={(e) => setForm({ ...form, codigo: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              required
-            >
-              <option value="">Seleccionar</option>
-              {productos.map((p) => (
-                <option key={p.id} value={p.codigo}>
-                  {p.codigo}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Insumo</label>
-            <input
-              type="text"
-              value={prodSeleccionado ? prodSeleccionado.descripcion : ""}
-              readOnly
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-600"
-              placeholder="(automático)"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Cantidad</label>
-            <input
-              type="number"
-              min="1"
-              value={form.cantidad}
-              onChange={(e) => setForm({ ...form, cantidad: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              required
-            />
-          </div>
-          <div>
             <label className="block text-xs text-slate-500 mb-1">Fecha</label>
-            <input
-              type="date"
-              value={form.fecha}
-              onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              required
-            />
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm" required />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            className="bg-red-600 hover:bg-red-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition"
-          >
-            Registrar salida
+
+        {/* Grid de insumos */}
+        <div>
+          <div className="grid grid-cols-[160px_1fr_100px_36px] gap-2 mb-1.5 px-1">
+            <span className="text-xs font-medium text-slate-500">Código</span>
+            <span className="text-xs font-medium text-slate-500">Insumo</span>
+            <span className="text-xs font-medium text-slate-500">Cantidad</span>
+            <span />
+          </div>
+
+          <div className="space-y-2">
+            {filas.map((fila, idx) => {
+              const prod = productos.find(p => p.codigo === fila.codigo);
+              return (
+                <div key={fila._id} className="grid grid-cols-[160px_1fr_100px_36px] gap-2 items-center">
+                  <select value={fila.codigo} onChange={e => actualizarFila(idx, "codigo", e.target.value)}
+                    className="border border-slate-300 rounded-lg px-2 py-2 text-sm">
+                    <option value="">Seleccionar</option>
+                    {productos.map(p => <option key={p.id} value={p.codigo}>{p.codigo}</option>)}
+                  </select>
+                  <input type="text" value={prod ? prod.descripcion : ""} readOnly
+                    placeholder="(automático)"
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 text-slate-600" />
+                  <input type="number" min="1" value={fila.cantidad}
+                    onChange={e => actualizarFila(idx, "cantidad", e.target.value)}
+                    onKeyDown={e => onCantidadKeyDown(e, idx)}
+                    placeholder="0"
+                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-center" />
+                  <button type="button" onClick={() => eliminarFila(idx)}
+                    className="text-slate-300 hover:text-red-500 transition flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <button type="button" onClick={agregarFila}
+            className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 transition">
+            <span className="text-lg leading-none">+</span> Agregar insumo
           </button>
+          <p className="text-xs text-slate-400 mt-1">
+            Tip: presioná <kbd className="bg-slate-100 border border-slate-200 rounded px-1 text-[10px]">Enter</kbd> en Cantidad para agregar la siguiente fila.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <button type="submit" disabled={guardando}
+            className="bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
+            {guardando ? "Guardando…" : "Registrar salidas"}
+          </button>
+          <span className="text-xs text-slate-400">{filas.filter(f => f.codigo && f.cantidad).length} insumo{filas.filter(f => f.codigo && f.cantidad).length !== 1 ? "s" : ""} listo{filas.filter(f => f.codigo && f.cantidad).length !== 1 ? "s" : ""}</span>
           {msg && (
-            <span
-              className={`text-sm ${
-                msg.startsWith("Error") ? "text-red-600" : "text-green-600"
-              }`}
-            >
+            <span className={`text-sm font-medium ${msg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
               {msg}
             </span>
           )}
