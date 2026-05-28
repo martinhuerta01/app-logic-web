@@ -432,6 +432,97 @@ async function exportarClienteResponsable(mes, anio) {
   XS.writeFile(wb, `Clientes_vs_Responsables_${MESES[mes - 1]}_${anio}.xlsx`);
 }
 
+// ── Export 6: Servicios por Cliente ────────────────────────────────
+async function exportarPorCliente(clienteNombre, anio, mes) {
+  if (!clienteNombre?.trim()) throw new Error("Ingresá el nombre del cliente");
+
+  const params = { anio };
+  if (mes && mes !== "0") params.mes = mes;
+
+  const [eq, int] = await Promise.all([
+    api.get("/servicios/", { ...params, tipo: "equipos" }),
+    api.get("/servicios/", { ...params, tipo: "interior" }),
+  ]);
+
+  const todos = [...(eq || []), ...(int || [])];
+  const q = clienteNombre.trim().toLowerCase();
+  const filtrados = todos
+    .filter(s => (s.cliente || "").toLowerCase().includes(q))
+    .sort((a, b) => {
+      const f = (a.fecha || "").localeCompare(b.fecha || "");
+      return f !== 0 ? f : (a.hora_programada || "").localeCompare(b.hora_programada || "");
+    });
+
+  if (!filtrados.length) throw new Error(`Sin servicios para "${clienteNombre}"`);
+
+  const wb = XS.utils.book_new();
+
+  // ── Hoja principal: listado completo ──
+  const cols = ["Fecha", "Hora", "Cliente", "Responsable", "Tipo", "Dispositivo", "Patente", "Localidad", "Estado", "Observaciones"];
+  const rows = [cols];
+  for (const s of filtrados) {
+    rows.push([
+      fmtFecha(s.fecha),
+      s.hora_programada || "",
+      s.cliente || "",
+      s.responsable || "",
+      s.tipo_servicio || "",
+      s.dispositivo || "",
+      s.patente || "",
+      s.localidad || "",
+      s.estado || "",
+      s.observaciones || "",
+    ]);
+  }
+  const ws = makeSheet(rows);
+  setColWidths(ws, [12, 8, 28, 20, 14, 18, 10, 20, 12, 35]);
+  applyRowStyle(ws, 0, cols.length, S_HEADER);
+  XS.utils.book_append_sheet(wb, ws, "Servicios");
+
+  // ── Hoja resumen ──
+  const byTipo   = {};
+  const byEstado = {};
+  const byMes    = {};
+  for (const s of filtrados) {
+    const tipo   = s.tipo_servicio || "Sin tipo";
+    const estado = s.estado || "Sin estado";
+    const mesNum = s.fecha ? parseInt(s.fecha.split("-")[1]) : 0;
+    const mesNom = mesNum ? MESES[mesNum - 1] : "Sin fecha";
+    byTipo[tipo]     = (byTipo[tipo] || 0) + 1;
+    byEstado[estado] = (byEstado[estado] || 0) + 1;
+    byMes[mesNom]    = (byMes[mesNom] || 0) + 1;
+  }
+
+  const sumRows = [["Concepto", "Cantidad"]];
+  sumRows.push(["Total servicios", filtrados.length]);
+  sumRows.push(["", ""]);
+  sumRows.push(["— Por tipo de servicio —", ""]);
+  for (const [tipo, count] of Object.entries(byTipo)) sumRows.push([tipo, count]);
+  sumRows.push(["", ""]);
+  sumRows.push(["— Por estado —", ""]);
+  for (const [estado, count] of Object.entries(byEstado)) sumRows.push([estado, count]);
+  if (mes === "0") {
+    sumRows.push(["", ""]);
+    sumRows.push(["— Por mes —", ""]);
+    for (const [m, count] of Object.entries(byMes)) sumRows.push([m, count]);
+  }
+
+  const wsSum = makeSheet(sumRows);
+  setColWidths(wsSum, [28, 12]);
+  applyRowStyle(wsSum, 0, 2, S_HEADER);
+  // Negrita en filas de sección
+  for (let r = 1; r < sumRows.length; r++) {
+    if (String(sumRows[r][0]).startsWith("—")) {
+      applyRowStyle(wsSum, r, 2, S_SUBTOTAL);
+    }
+  }
+  XS.utils.book_append_sheet(wb, wsSum, "Resumen");
+
+  const label     = mes && mes !== "0" ? `${MESES[mes - 1]}_${anio}` : String(anio);
+  const safeName  = clienteNombre.trim().replace(/[^\w\sáéíóúÁÉÍÓÚñÑ]/g, "").trim().replace(/\s+/g, "_");
+  XS.writeFile(wb, `Servicios_${safeName}_${label}.xlsx`);
+}
+
 // ── Página principal ────────────────────────────────────────────────
 
 const EXPORTS = [
@@ -474,10 +565,15 @@ const EXPORTS = [
 
 export default function ExportarPage() {
   const now = new Date();
-  const [mes, setMes] = useState(now.getMonth() + 1);
+  const [mes,  setMes]  = useState(now.getMonth() + 1);
   const [anio, setAnio] = useState(2026);
   const [loading, setLoading] = useState({});
-  const [msgs, setMsgs] = useState({});
+  const [msgs,    setMsgs]    = useState({});
+
+  // — Filtros del export por cliente —
+  const [clienteExport,    setClienteExport]    = useState("");
+  const [mesExportCliente, setMesExportCliente] = useState("0");
+  const [anioExportCliente, setAnioExportCliente] = useState(2026);
 
   const run = async (key, fn) => {
     setLoading(l => ({ ...l, [key]: true }));
@@ -489,6 +585,18 @@ export default function ExportarPage() {
       setMsgs(m => ({ ...m, [key]: { ok: false, text: e.message || "Error al exportar" } }));
     }
     setLoading(l => ({ ...l, [key]: false }));
+  };
+
+  const runCliente = async () => {
+    setLoading(l => ({ ...l, cliente: true }));
+    setMsgs(m => ({ ...m, cliente: null }));
+    try {
+      await exportarPorCliente(clienteExport, anioExportCliente, mesExportCliente);
+      setMsgs(m => ({ ...m, cliente: { ok: true, text: "Archivo descargado" } }));
+    } catch (e) {
+      setMsgs(m => ({ ...m, cliente: { ok: false, text: e.message || "Error al exportar" } }));
+    }
+    setLoading(l => ({ ...l, cliente: false }));
   };
 
   return (
@@ -540,6 +648,58 @@ export default function ExportarPage() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* Export por cliente */}
+      <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 space-y-3 hover:border-indigo-200 transition">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🏢</span>
+          <div>
+            <p className="font-semibold text-slate-800">Servicios por Cliente</p>
+            <p className="text-xs text-slate-400 mt-0.5">Todos los servicios de un cliente específico. Podés filtrar por año completo o solo un mes.</p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 flex-wrap items-end">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Cliente</label>
+            <input
+              type="text"
+              placeholder="Ej: La Serenísima, Enel..."
+              value={clienteExport}
+              onChange={e => setClienteExport(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && runCliente()}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Mes</label>
+            <select value={mesExportCliente} onChange={e => setMesExportCliente(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option value="0">Todos los meses</option>
+              {MESES.map((m, i) => <option key={i + 1} value={String(i + 1)}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Año</label>
+            <select value={anioExportCliente} onChange={e => setAnioExportCliente(+e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+              <option>2025</option><option>2026</option><option>2027</option>
+            </select>
+          </div>
+          <button
+            onClick={runCliente}
+            disabled={loading["cliente"]}
+            className="shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
+            {loading["cliente"] ? "Exportando…" : "⬇ Descargar"}
+          </button>
+        </div>
+
+        {msgs["cliente"] && (
+          <p className={`text-xs font-medium ${msgs["cliente"].ok ? "text-green-600" : "text-red-600"}`}>
+            {msgs["cliente"].ok ? "✓ " : "✕ "}{msgs["cliente"].text}
+          </p>
+        )}
       </div>
     </div>
   );
