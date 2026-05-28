@@ -251,7 +251,9 @@ export default function HistorialPage() {
   const [diaSeleccionado, setDiaSeleccionado] = useState(null);
   const [textoBusqueda, setTextoBusqueda] = useState("");
   const [busquedaActiva, setBusquedaActiva] = useState("");
+  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [cargandoBusqueda, setCargandoBusqueda] = useState(false);
   const [error,    setError]    = useState("");
 
   const buscar = async (mes = filtroMes, anio = filtroAnio) => {
@@ -269,6 +271,35 @@ export default function HistorialPage() {
       setSvcInterior(int);
     } catch { setError("Error al buscar servicios. Verificá la conexión con el servidor."); }
     finally  { setCargando(false); }
+  };
+
+  const buscarTexto = async (texto) => {
+    if (!texto.trim()) return;
+    setBusquedaActiva(texto);
+    setCargandoBusqueda(true);
+    setError("");
+    try {
+      // Busca en todo el año seleccionado (sin filtro de mes)
+      const params = { anio: filtroAnio };
+      const [eq, int] = await Promise.all([
+        api.get("/servicios/", { ...params, tipo: "equipos" }),
+        api.get("/servicios/", { ...params, tipo: "interior" }),
+      ]);
+      const todos = [...(eq || []), ...(int || [])];
+      const q = texto.toLowerCase();
+      const filtrados = todos.filter(s =>
+        [s.patente, s.cliente, s.responsable, s.tipo_servicio, s.dispositivo, s.observaciones, s.estado]
+          .some(v => v?.toLowerCase().includes(q))
+      ).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+      setResultadosBusqueda(filtrados);
+    } catch { setError("Error al buscar. Verificá la conexión con el servidor."); }
+    finally  { setCargandoBusqueda(false); }
+  };
+
+  const limpiarBusqueda = () => {
+    setBusquedaActiva("");
+    setTextoBusqueda("");
+    setResultadosBusqueda([]);
   };
 
   useEffect(() => {
@@ -318,15 +349,15 @@ export default function HistorialPage() {
           placeholder="Buscar por patente, cliente, responsable, tipo..."
           value={textoBusqueda}
           onChange={e => setTextoBusqueda(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && setBusquedaActiva(textoBusqueda)}
+          onKeyDown={e => e.key === "Enter" && buscarTexto(textoBusqueda)}
           className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
         />
-        <button onClick={() => setBusquedaActiva(textoBusqueda)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
-          Buscar
+        <button onClick={() => buscarTexto(textoBusqueda)} disabled={cargandoBusqueda}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          {cargandoBusqueda ? "Buscando…" : "Buscar"}
         </button>
         {busquedaActiva && (
-          <button onClick={() => { setBusquedaActiva(""); setTextoBusqueda(""); }}
+          <button onClick={limpiarBusqueda}
             className="text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm border border-slate-300 transition">
             Limpiar
           </button>
@@ -335,13 +366,6 @@ export default function HistorialPage() {
 
       {/* Resultados de búsqueda o Calendario */}
       {busquedaActiva ? (() => {
-        const q = busquedaActiva.toLowerCase();
-        const todos = [...svcEquipos, ...svcInterior];
-        const resultados = todos.filter(s =>
-          [s.patente, s.cliente, s.responsable, s.tipo_servicio, s.dispositivo, s.observaciones, s.estado]
-            .some(v => v?.toLowerCase().includes(q))
-        ).sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
-
         const ESTADO_COLOR = {
           REALIZADO:  "bg-green-100 text-green-700",
           CONFIRMADO: "bg-blue-100 text-blue-700",
@@ -354,10 +378,17 @@ export default function HistorialPage() {
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-700">
                 Resultados para &quot;{busquedaActiva}&quot;
-                <span className="ml-2 text-xs font-normal text-slate-400">{resultados.length} encontrado{resultados.length !== 1 ? "s" : ""}</span>
+                {!cargandoBusqueda && (
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    {resultadosBusqueda.length} encontrado{resultadosBusqueda.length !== 1 ? "s" : ""}
+                    <span className="ml-1 text-slate-300">— año {filtroAnio}</span>
+                  </span>
+                )}
               </h2>
             </div>
-            {resultados.length === 0 ? (
+            {cargandoBusqueda ? (
+              <div className="px-5 py-8 text-center text-slate-400 text-sm">Buscando en todos los meses…</div>
+            ) : resultadosBusqueda.length === 0 ? (
               <div className="px-5 py-8 text-center text-slate-400 text-sm">Sin resultados</div>
             ) : (
               <div className="overflow-x-auto">
@@ -375,7 +406,7 @@ export default function HistorialPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {resultados.map((s, i) => (
+                    {resultadosBusqueda.map((s, i) => (
                       <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="px-4 py-2.5 font-mono">{s.fecha?.split("-").reverse().join("/")}</td>
                         <td className="px-4 py-2.5 font-medium">{s.equipos?.nombre || s.responsable || "Interior"}</td>
