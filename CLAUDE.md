@@ -300,6 +300,7 @@ All dates use `America/Argentina/Buenos_Aires` timezone throughout the app.
 
 ## Version History
 
+- **v1.5** (2026-05-29): Búsqueda de historial cross-month (todo el año, sin filtrar por mes), Export "Servicios por Cliente" (filtro por nombre parcial + año/mes opcional, Excel con listado + resumen), Stock Oficina Salidas en bloque (Destino y Fecha fijos, múltiples filas de insumos con Enter para agregar fila)
 - **v1.4** (2026-05-21): Módulo Personal renovado — Ausencias (tab en Horario Técnico con tipos de licencia, historial filtrable, DELETE backend), Técnicos por movimiento (selección en formulario, columna en Historial Camioneta), Estadísticas Horas con resumen individual por técnico (día normal = equipo completo, día especial = solo seleccionados, ausencias justificadas acreditan 8h sin generar déficit)
 - **v1.3** (2026-05-18): Dashboard tab en estadísticas, Reporte Cruzado cards con tipos de servicio, Stock Oficina tab Búsqueda, Exportar rediseñado (5 exports con xlsx-js-style, sin Importar), Tareas rediseñado (tabs Hoy/Todas)
 - **v1.2**: Tareas recurrentes con lógica de días hábiles, ubicaciones simplificadas (OFICINA/CD/GENERAL), fix timezone Argentina
