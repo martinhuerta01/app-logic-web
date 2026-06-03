@@ -1834,24 +1834,31 @@ function mesesEnRango(dias) {
   return meses;
 }
 
+const TIPO_CONFIG = {
+  INSTALACION:   { label: "Instalación",   color: "bg-green-100 text-green-700 border-green-200",  dot: "bg-green-500"  },
+  REVISION:      { label: "Revisión",      color: "bg-blue-100 text-blue-700 border-blue-200",     dot: "bg-blue-500"   },
+  DESINSTALACION:{ label: "Desinstalación",color: "bg-red-100 text-red-700 border-red-200",        dot: "bg-red-500"    },
+};
+
 function RevisionesFrecuentes() {
-  const [rango, setRango] = useState(90);
+  const [rango, setRango] = useState(180);
   const [servicios, setServicios] = useState(null);
   const [loading, setLoading] = useState(false);
   const [expandido, setExpandido] = useState(null);
+  const [filtro, setFiltro] = useState("todas"); // "todas" | "frecuentes"
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
     setLoading(true);
     setServicios(null);
+    setExpandido(null);
     const meses = mesesEnRango(rango);
     const fetches = meses.flatMap(({ mes, anio }) => [
       api.get("/servicios/", { mes, anio, tipo: "equipos" }),
       api.get("/servicios/", { mes, anio, tipo: "interior" }),
     ]);
     Promise.all(fetches).then((results) => {
-      const todos = results.flat();
-      // dedup por id
-      const map = new Map(todos.map((s) => [s.id, s]));
+      const map = new Map(results.flat().map((s) => [s.id, s]));
       setServicios([...map.values()]);
       setLoading(false);
     });
@@ -1859,33 +1866,43 @@ function RevisionesFrecuentes() {
 
   const desde = addDays(HOY, -rango);
 
-  // Filtrar revisiones en el rango
-  const revisiones = (servicios || []).filter(
-    (s) => s.tipo_servicio === "REVISION" && s.fecha >= desde && s.fecha <= HOY
+  // Todos los servicios con patente en el rango
+  const conPatente = (servicios || []).filter(
+    (s) => getPatente(s) && s.fecha >= desde && s.fecha <= HOY
   );
 
   // Agrupar por patente
   const porPatente = {};
-  for (const s of revisiones) {
+  for (const s of conPatente) {
     const pat = getPatente(s);
-    if (!pat) continue;
-    if (!porPatente[pat]) porPatente[pat] = { patente: pat, cliente: s.cliente, revs: [] };
-    porPatente[pat].revs.push(s);
+    if (!porPatente[pat]) porPatente[pat] = { patente: pat, cliente: s.cliente, eventos: [] };
+    porPatente[pat].eventos.push(s);
   }
 
-  // Ordenar revisiones dentro de cada patente y calcular pares cercanos
-  const resultados = Object.values(porPatente)
-    .map((g) => {
-      const revs = g.revs.sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
-      const pares = parcesCercanos(revs, 30);
-      return { ...g, revs, pares };
-    })
-    .filter((g) => g.pares.length > 0)
-    .sort((a, b) => b.pares.length - a.pares.length || b.revs.length - a.revs.length);
+  // Calcular métricas por grupo
+  const grupos = Object.values(porPatente).map((g) => {
+    const eventos = g.eventos.sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
+    const revisiones = eventos.filter((e) => e.tipo_servicio === "REVISION");
+    const pares = parcesCercanos(revisiones, 30);
+    return { ...g, eventos, revisiones, pares, tieneFrecuente: pares.length > 0 };
+  });
 
-  const totalRevisiones = revisiones.length;
-  const patentesUnicas = Object.keys(porPatente).length;
-  const patentesFrecuentes = resultados.length;
+  // Filtros
+  const gruposFiltrados = grupos
+    .filter((g) => filtro === "todas" || g.tieneFrecuente)
+    .filter((g) =>
+      !busqueda ||
+      g.patente.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (g.cliente || "").toLowerCase().includes(busqueda.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (a.tieneFrecuente !== b.tieneFrecuente) return a.tieneFrecuente ? -1 : 1;
+      return b.eventos.length - a.eventos.length;
+    });
+
+  const totalPatentes   = grupos.length;
+  const totalFrecuentes = grupos.filter((g) => g.tieneFrecuente).length;
+  const totalRevisiones = grupos.reduce((s, g) => s + g.revisiones.length, 0);
 
   const fmtFecha = (f) =>
     new Date(f + "T12:00:00Z").toLocaleDateString("es-AR", {
@@ -1897,13 +1914,13 @@ function RevisionesFrecuentes() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Revisiones frecuentes por patente</h2>
+          <h2 className="text-lg font-semibold text-slate-800">Historial de patentes</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Patentes con más de una revisión en un período de 30 días
+            Ciclo completo por patente: instalación, revisiones y desinstalación
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-slate-500 text-xs">Buscar en los últimos:</span>
+        <div className="flex items-center gap-2">
+          <span className="text-slate-500 text-xs">Período:</span>
           {[
             { label: "90 días",  val: 90  },
             { label: "180 días", val: 180 },
@@ -1913,9 +1930,7 @@ function RevisionesFrecuentes() {
               key={val}
               onClick={() => setRango(val)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                rango === val
-                  ? "bg-slate-800 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                rango === val ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
               {label}
@@ -1926,28 +1941,57 @@ function RevisionesFrecuentes() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Revisiones en el período", value: loading ? "…" : totalRevisiones, color: "text-slate-800" },
-          { label: "Patentes revisadas",        value: loading ? "…" : patentesUnicas,  color: "text-slate-800" },
-          { label: "Con revisión doble <30d",   value: loading ? "…" : patentesFrecuentes, color: patentesFrecuentes > 0 ? "text-amber-600 font-bold" : "text-green-700" },
-        ].map((c) => (
-          <div key={c.label} className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
-            <p className="text-xs text-slate-400 mb-1">{c.label}</p>
-            <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
-          </div>
-        ))}
+        <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+          <p className="text-xs text-slate-400 mb-1">Patentes con actividad</p>
+          <p className="text-2xl font-bold text-slate-800">{loading ? "…" : totalPatentes}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+          <p className="text-xs text-slate-400 mb-1">Revisiones realizadas</p>
+          <p className="text-2xl font-bold text-slate-800">{loading ? "…" : totalRevisiones}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+          <p className="text-xs text-slate-400 mb-1">Con revisión doble &lt;30d</p>
+          <p className={`text-2xl font-bold ${loading ? "text-slate-400" : totalFrecuentes > 0 ? "text-amber-600" : "text-green-700"}`}>
+            {loading ? "…" : totalFrecuentes}
+          </p>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          placeholder="Buscar patente o cliente…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300 w-56"
+        />
+        <div className="flex gap-1.5">
+          {[
+            { val: "todas",     label: "Todas" },
+            { val: "frecuentes", label: "⚠️ Rev. doble <30d" },
+          ].map(({ val, label }) => (
+            <button
+              key={val}
+              onClick={() => setFiltro(val)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                filtro === val ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tabla */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="px-5 py-10 text-sm text-slate-400 text-center">Cargando revisiones…</div>
-        ) : resultados.length === 0 ? (
+          <div className="px-5 py-10 text-sm text-slate-400 text-center">Cargando historial…</div>
+        ) : gruposFiltrados.length === 0 ? (
           <div className="px-5 py-10 text-center">
-            <p className="text-2xl mb-2">✅</p>
-            <p className="text-sm font-medium text-slate-600">
-              Sin revisiones duplicadas en los últimos {rango} días
-            </p>
+            <p className="text-2xl mb-2">🔍</p>
+            <p className="text-sm font-medium text-slate-600">Sin resultados para los filtros aplicados</p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -1955,63 +1999,67 @@ function RevisionesFrecuentes() {
               <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
                 <th className="text-left px-5 py-2.5">Patente</th>
                 <th className="text-left px-5 py-2.5">Cliente</th>
-                <th className="text-center px-5 py-2.5">Revisiones</th>
-                <th className="text-center px-5 py-2.5">Pares &lt;30d</th>
-                <th className="text-center px-5 py-2.5">Menor intervalo</th>
+                <th className="text-center px-4 py-2.5">Inst.</th>
+                <th className="text-center px-4 py-2.5">Revs.</th>
+                <th className="text-center px-4 py-2.5">Desinst.</th>
+                <th className="text-center px-4 py-2.5">Rev. &lt;30d</th>
                 <th className="px-5 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
-              {resultados.map((g) => {
-                const minDias = Math.min(...g.pares.map((p) => p.dias));
+              {gruposFiltrados.map((g) => {
                 const isOpen = expandido === g.patente;
+                const nInst  = g.eventos.filter((e) => e.tipo_servicio === "INSTALACION").length;
+                const nRev   = g.revisiones.length;
+                const nDes   = g.eventos.filter((e) => e.tipo_servicio === "DESINSTALACION").length;
                 return (
                   <>
                     <tr
                       key={g.patente}
-                      className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer"
+                      className={`border-b border-slate-50 hover:bg-slate-50 cursor-pointer ${g.tieneFrecuente ? "bg-amber-50/40" : ""}`}
                       onClick={() => setExpandido(isOpen ? null : g.patente)}
                     >
                       <td className="px-5 py-3 font-mono font-semibold text-slate-800 text-sm">
                         {g.patente}
+                        {g.tieneFrecuente && (
+                          <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">!</span>
+                        )}
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-600">{g.cliente || "—"}</td>
-                      <td className="px-5 py-3 text-center text-xs text-slate-700">{g.revs.length}</td>
-                      <td className="px-5 py-3 text-center">
-                        <span className="inline-block bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded-full">
-                          {g.pares.length}
-                        </span>
+                      <td className="px-4 py-3 text-center text-xs font-medium text-green-700">{nInst || "—"}</td>
+                      <td className="px-4 py-3 text-center text-xs font-medium text-blue-700">{nRev || "—"}</td>
+                      <td className="px-4 py-3 text-center text-xs font-medium text-red-600">{nDes || "—"}</td>
+                      <td className="px-4 py-3 text-center">
+                        {g.pares.length > 0 ? (
+                          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                            {g.pares.length} par{g.pares.length > 1 ? "es" : ""}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
                       </td>
-                      <td className="px-5 py-3 text-center">
-                        <span className={`text-xs font-semibold ${minDias <= 7 ? "text-red-600" : minDias <= 14 ? "text-amber-600" : "text-slate-600"}`}>
-                          {minDias} días
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-xs text-slate-400 text-right">
-                        {isOpen ? "▲" : "▼"}
-                      </td>
+                      <td className="px-5 py-3 text-xs text-slate-400 text-right">{isOpen ? "▲" : "▼"}</td>
                     </tr>
+
                     {isOpen && (
-                      <tr key={g.patente + "_detail"} className="bg-slate-50 border-b border-slate-100">
-                        <td colSpan={6} className="px-5 py-3">
-                          <p className="text-xs font-semibold text-slate-500 mb-2">Revisiones registradas:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {g.revs.map((r, i) => {
-                              const siguiente = g.revs[i + 1];
-                              const dias = siguiente ? diffDays(r.fecha, siguiente.fecha) : null;
-                              const cercano = dias != null && dias <= 30;
+                      <tr key={g.patente + "_det"} className="border-b border-slate-100">
+                        <td colSpan={7} className="px-5 py-4 bg-slate-50">
+                          <p className="text-xs font-semibold text-slate-500 mb-3">Línea de tiempo:</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {g.eventos.map((e, i) => {
+                              const cfg = TIPO_CONFIG[e.tipo_servicio] || {};
+                              const siguiente = g.eventos[i + 1];
+                              const dias = siguiente ? diffDays(e.fecha, siguiente.fecha) : null;
+                              const esPar = e.tipo_servicio === "REVISION" && siguiente?.tipo_servicio === "REVISION" && dias != null && dias <= 30;
                               return (
-                                <div key={r.id} className="flex items-center gap-1.5">
-                                  <span className={`text-xs px-2.5 py-1 rounded-lg border ${
-                                    cercano
-                                      ? "bg-amber-50 border-amber-200 text-amber-700 font-medium"
-                                      : "bg-white border-slate-200 text-slate-600"
-                                  }`}>
-                                    {fmtFecha(r.fecha)}
-                                  </span>
+                                <div key={e.id} className="flex items-center gap-1.5">
+                                  <div className={`text-xs px-2.5 py-1.5 rounded-lg border ${cfg.color}`}>
+                                    <span className="font-semibold">{cfg.label}</span>
+                                    <span className="ml-1.5 opacity-75">{fmtFecha(e.fecha)}</span>
+                                  </div>
                                   {dias != null && (
-                                    <span className={`text-xs ${cercano ? "text-amber-500 font-semibold" : "text-slate-400"}`}>
-                                      → {dias}d →
+                                    <span className={`text-xs font-medium ${esPar ? "text-amber-500" : "text-slate-300"}`}>
+                                      {esPar ? `⚠️ ${dias}d` : `→ ${dias}d →`}
                                     </span>
                                   )}
                                 </div>
