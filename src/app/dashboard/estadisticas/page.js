@@ -1868,7 +1868,7 @@ function RevisionesFrecuentes() {
 
   // Todos los servicios con patente en el rango
   const conPatente = (servicios || []).filter(
-    (s) => getPatente(s) && s.fecha >= desde && s.fecha <= HOY
+    (s) => getPatente(s) && s.estado === "REALIZADO" && s.fecha >= desde && s.fecha <= HOY
   );
 
   // Agrupar por patente
