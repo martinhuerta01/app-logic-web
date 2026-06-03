@@ -49,7 +49,7 @@ export default function HistorialCamionetaPage() {
         data = data.filter(m => {
           if (!m.fecha) return false;
           const [y, mo] = m.fecha.split("-");
-          if (anio && y !== anio) return false;
+          if (anio && parseInt(y) !== parseInt(anio)) return false;
           if (mes  && parseInt(mo) !== parseInt(mes)) return false;
           return true;
         });
