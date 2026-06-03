@@ -46,6 +46,7 @@ const MODULOS_BASE = [
       { href: "/dashboard/estadisticas?tab=clientes",    label: "Servicios por Cliente" },
       { href: "/dashboard/estadisticas?tab=cruzado",     label: "Reporte cruzado" },
       { href: "/dashboard/estadisticas?tab=stock",       label: "Stock KPI" },
+      { href: "/dashboard/estadisticas?tab=patentes",   label: "Revisiones frecuentes" },
     ],
   },
   {

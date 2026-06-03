@@ -1800,6 +1800,238 @@ function StockKPI() {
   );
 }
 
+// ─── REVISIONES FRECUENTES ────────────────────────────────────────
+
+function getPatente(s) {
+  return s.patente || s.equipos?.patente || null;
+}
+
+// Dado un array de revisiones ordenadas por fecha (asc),
+// devuelve los pares que están a ≤ ventana días entre sí
+function parcesCercanos(revisiones, ventana = 30) {
+  const pares = [];
+  for (let i = 0; i < revisiones.length - 1; i++) {
+    const d = diffDays(revisiones[i].fecha, revisiones[i + 1].fecha);
+    if (d <= ventana) {
+      pares.push({ a: revisiones[i], b: revisiones[i + 1], dias: d });
+    }
+  }
+  return pares;
+}
+
+// Devuelve los meses (como [{mes, anio}]) cubiertos por los últimos N días
+function mesesEnRango(dias) {
+  const meses = [];
+  const seen = new Set();
+  for (let i = 0; i <= dias; i++) {
+    const d = toUTC(addDays(HOY, -i));
+    const key = `${d.getUTCMonth() + 1}-${d.getUTCFullYear()}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      meses.push({ mes: d.getUTCMonth() + 1, anio: d.getUTCFullYear() });
+    }
+  }
+  return meses;
+}
+
+function RevisionesFrecuentes() {
+  const [rango, setRango] = useState(90);
+  const [servicios, setServicios] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [expandido, setExpandido] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setServicios(null);
+    const meses = mesesEnRango(rango);
+    const fetches = meses.flatMap(({ mes, anio }) => [
+      api.get("/servicios/", { mes, anio, tipo: "equipos" }),
+      api.get("/servicios/", { mes, anio, tipo: "interior" }),
+    ]);
+    Promise.all(fetches).then((results) => {
+      const todos = results.flat();
+      // dedup por id
+      const map = new Map(todos.map((s) => [s.id, s]));
+      setServicios([...map.values()]);
+      setLoading(false);
+    });
+  }, [rango]);
+
+  const desde = addDays(HOY, -rango);
+
+  // Filtrar revisiones en el rango
+  const revisiones = (servicios || []).filter(
+    (s) => s.tipo_servicio === "REVISION" && s.fecha >= desde && s.fecha <= HOY
+  );
+
+  // Agrupar por patente
+  const porPatente = {};
+  for (const s of revisiones) {
+    const pat = getPatente(s);
+    if (!pat) continue;
+    if (!porPatente[pat]) porPatente[pat] = { patente: pat, cliente: s.cliente, revs: [] };
+    porPatente[pat].revs.push(s);
+  }
+
+  // Ordenar revisiones dentro de cada patente y calcular pares cercanos
+  const resultados = Object.values(porPatente)
+    .map((g) => {
+      const revs = g.revs.sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
+      const pares = parcesCercanos(revs, 30);
+      return { ...g, revs, pares };
+    })
+    .filter((g) => g.pares.length > 0)
+    .sort((a, b) => b.pares.length - a.pares.length || b.revs.length - a.revs.length);
+
+  const totalRevisiones = revisiones.length;
+  const patentesUnicas = Object.keys(porPatente).length;
+  const patentesFrecuentes = resultados.length;
+
+  const fmtFecha = (f) =>
+    new Date(f + "T12:00:00Z").toLocaleDateString("es-AR", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Revisiones frecuentes por patente</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Patentes con más de una revisión en un período de 30 días
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-500 text-xs">Buscar en los últimos:</span>
+          {[
+            { label: "90 días",  val: 90  },
+            { label: "180 días", val: 180 },
+            { label: "365 días", val: 365 },
+          ].map(({ label, val }) => (
+            <button
+              key={val}
+              onClick={() => setRango(val)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                rango === val
+                  ? "bg-slate-800 text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Revisiones en el período", value: loading ? "…" : totalRevisiones, color: "text-slate-800" },
+          { label: "Patentes revisadas",        value: loading ? "…" : patentesUnicas,  color: "text-slate-800" },
+          { label: "Con revisión doble <30d",   value: loading ? "…" : patentesFrecuentes, color: patentesFrecuentes > 0 ? "text-amber-600 font-bold" : "text-green-700" },
+        ].map((c) => (
+          <div key={c.label} className="bg-white rounded-2xl border border-slate-200 px-5 py-4">
+            <p className="text-xs text-slate-400 mb-1">{c.label}</p>
+            <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabla */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="px-5 py-10 text-sm text-slate-400 text-center">Cargando revisiones…</div>
+        ) : resultados.length === 0 ? (
+          <div className="px-5 py-10 text-center">
+            <p className="text-2xl mb-2">✅</p>
+            <p className="text-sm font-medium text-slate-600">
+              Sin revisiones duplicadas en los últimos {rango} días
+            </p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                <th className="text-left px-5 py-2.5">Patente</th>
+                <th className="text-left px-5 py-2.5">Cliente</th>
+                <th className="text-center px-5 py-2.5">Revisiones</th>
+                <th className="text-center px-5 py-2.5">Pares &lt;30d</th>
+                <th className="text-center px-5 py-2.5">Menor intervalo</th>
+                <th className="px-5 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {resultados.map((g) => {
+                const minDias = Math.min(...g.pares.map((p) => p.dias));
+                const isOpen = expandido === g.patente;
+                return (
+                  <>
+                    <tr
+                      key={g.patente}
+                      className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer"
+                      onClick={() => setExpandido(isOpen ? null : g.patente)}
+                    >
+                      <td className="px-5 py-3 font-mono font-semibold text-slate-800 text-sm">
+                        {g.patente}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-slate-600">{g.cliente || "—"}</td>
+                      <td className="px-5 py-3 text-center text-xs text-slate-700">{g.revs.length}</td>
+                      <td className="px-5 py-3 text-center">
+                        <span className="inline-block bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                          {g.pares.length}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <span className={`text-xs font-semibold ${minDias <= 7 ? "text-red-600" : minDias <= 14 ? "text-amber-600" : "text-slate-600"}`}>
+                          {minDias} días
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-xs text-slate-400 text-right">
+                        {isOpen ? "▲" : "▼"}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr key={g.patente + "_detail"} className="bg-slate-50 border-b border-slate-100">
+                        <td colSpan={6} className="px-5 py-3">
+                          <p className="text-xs font-semibold text-slate-500 mb-2">Revisiones registradas:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {g.revs.map((r, i) => {
+                              const siguiente = g.revs[i + 1];
+                              const dias = siguiente ? diffDays(r.fecha, siguiente.fecha) : null;
+                              const cercano = dias != null && dias <= 30;
+                              return (
+                                <div key={r.id} className="flex items-center gap-1.5">
+                                  <span className={`text-xs px-2.5 py-1 rounded-lg border ${
+                                    cercano
+                                      ? "bg-amber-50 border-amber-200 text-amber-700 font-medium"
+                                      : "bg-white border-slate-200 text-slate-600"
+                                  }`}>
+                                    {fmtFecha(r.fecha)}
+                                  </span>
+                                  {dias != null && (
+                                    <span className={`text-xs ${cercano ? "text-amber-500 font-semibold" : "text-slate-400"}`}>
+                                      → {dias}d →
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────
 
 export default function EstadisticasPage() {
@@ -1813,6 +2045,7 @@ export default function EstadisticasPage() {
     clientes:    "Servicios por Cliente",
     cruzado:     "Reporte Cruzado",
     stock:       "Stock KPI",
+    patentes:    "Revisiones Frecuentes",
   };
 
   return (
@@ -1824,6 +2057,7 @@ export default function EstadisticasPage() {
       {tab === "clientes"    && <ServiciosCliente />}
       {tab === "cruzado"     && <ReporteCruzado />}
       {tab === "stock"       && <StockKPI />}
+      {tab === "patentes"    && <RevisionesFrecuentes />}
     </div>
   );
 }
