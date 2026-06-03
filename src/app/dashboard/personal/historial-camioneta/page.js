@@ -22,8 +22,8 @@ const IconTrash = () => (
 export default function HistorialCamionetaPage() {
   const [equipos,     setEquipos]     = useState([]);
   const [movimientos, setMovimientos] = useState([]);
-  const [filtroMes,   setFiltroMes]   = useState("");
-  const [filtroAnio,  setFiltroAnio]  = useState("");
+  const [filtroMes,   setFiltroMes]   = useState(new Date().getMonth() + 1);
+  const [filtroAnio,  setFiltroAnio]  = useState(new Date().getFullYear());
   const [filtroEquipo,setFiltroEquipo]= useState("");
   const [editando,    setEditando]    = useState(null);
   const [msgEdit,     setMsgEdit]     = useState("");
@@ -32,10 +32,10 @@ export default function HistorialCamionetaPage() {
   useEffect(() => {
     api.get("/equipos/").then(eqs => {
       setEquipos(eqs);
-      fetchMovimientos("", "");
+      fetchMovimientos("", new Date().getMonth() + 1, new Date().getFullYear());
     }).catch(() => {
       setError("No se pudieron cargar los equipos.");
-      fetchMovimientos("", "");
+      fetchMovimientos("", new Date().getMonth() + 1, new Date().getFullYear());
     });
   }, []);
 
