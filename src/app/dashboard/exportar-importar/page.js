@@ -62,6 +62,51 @@ function diasHabilesEnMes(mes, anio) {
   return count;
 }
 
+// ── Helpers para Informe de Personal ────────────────────────────────
+const TIPOS_JUSTIFICADOS_EXP = ["Médica", "Vacaciones", "Personal"];
+
+function calcHorasExp(salida, llegada) {
+  const s = parseMins(salida);
+  const l = parseMins(llegada);
+  if (s == null || l == null) return null;
+  const diff = l - s;
+  return diff > 0 ? +(diff / 60).toFixed(2) : null;
+}
+
+function fmtHHMM(h) {
+  if (h === null || h === undefined || isNaN(h)) return "";
+  const neg = h < 0;
+  const abs = Math.abs(h);
+  const hh = Math.floor(abs);
+  const mm = Math.round((abs - hh) * 60);
+  return `${neg ? "-" : ""}${hh}:${String(mm).padStart(2, "0")}`;
+}
+
+function fmtBalanceHHMM(h) {
+  const s = fmtHHMM(h);
+  return s ? (h >= 0 ? "+" : "") + s : "";
+}
+
+function fechaMatchExp(fecha, mes, anio) {
+  if (!fecha) return false;
+  const [y, mo] = fecha.split("-");
+  if (anio && parseInt(y) !== parseInt(anio)) return false;
+  if (mes && parseInt(mo) !== parseInt(mes)) return false;
+  return true;
+}
+
+function diasEnRangoExp(desde, hasta, mes, anio) {
+  if (!desde) return 0;
+  const d1 = new Date(desde + "T12:00:00Z");
+  const d2 = new Date((hasta || desde) + "T12:00:00Z");
+  let count = 0;
+  for (let d = new Date(d1); d <= d2; d.setUTCDate(d.getUTCDate() + 1)) {
+    const f = d.toISOString().slice(0, 10);
+    if (fechaMatchExp(f, mes, anio)) count++;
+  }
+  return count;
+}
+
 function setColWidths(ws, widths) {
   ws["!cols"] = widths.map(w => ({ wch: w }));
 }
@@ -103,231 +148,186 @@ function makeSheet(rows) {
 const S_BALANCE_POS = { font: { bold: true, color: { rgb: "166534" }, sz: 11 }, fill: { fgColor: { rgb: "DCFCE7" } }, alignment: { horizontal: "center" } };
 const S_BALANCE_NEG = { font: { bold: true, color: { rgb: "991B1B" }, sz: 11 }, fill: { fgColor: { rgb: "FEE2E2" } }, alignment: { horizontal: "center" } };
 
-// ── Export 1: Horas Trabajadas ──────────────────────────────────────
+// ── Export 1: Informe de Personal (Horas + Productividad) ──────────
 async function exportarHoras(mes, anio) {
-  const data = await api.get("/movimientos-camioneta/");
-  const filtered = data.filter(m => {
-    const [y, mo] = (m.fecha || "").split("-");
-    return parseInt(y) === parseInt(anio) && parseInt(mo) === parseInt(mes);
-  });
-  if (!filtered.length) throw new Error("Sin datos para el período seleccionado");
-
-  const byEquipo = {};
-  for (const mov of filtered) {
-    const eq = mov.equipos?.nombre || "Sin equipo";
-    if (!byEquipo[eq]) byEquipo[eq] = [];
-    byEquipo[eq].push(mov);
-  }
-
-  const wb = XS.utils.book_new();
-  const summaryRows = [["Equipo", "Días cargados", "Total horas", "Horas esperadas (8hs×días)", "Balance"]];
-
-  for (const [eq, movs] of Object.entries(byEquipo)) {
-    const sorted = [...movs].sort((a, b) => a.fecha.localeCompare(b.fecha));
-    const rows = [["Fecha", "Día", "Hora salida", "Hora llegada", "Horas", "Punto inicio", "Punto fin", "Observaciones"]];
-    let totalMins = 0;
-
-    for (const m of sorted) {
-      const salidaMins = parseMins(m.hora_salida);
-      const llegadaMins = parseMins(m.hora_llegada);
-      const mins = (salidaMins != null && llegadaMins != null) ? llegadaMins - salidaMins : null;
-      if (mins != null && mins > 0) totalMins += mins;
-
-      const d = new Date(m.fecha + "T12:00:00Z");
-      const diasNombres = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
-      rows.push([
-        fmtFecha(m.fecha),
-        diasNombres[d.getUTCDay()],
-        m.hora_salida || "",
-        m.hora_llegada || "",
-        mins != null ? minsToHHMM(mins) : "",
-        m.punto_inicio || "",
-        m.punto_fin || "",
-        m.observaciones || "",
-      ]);
-    }
-
-    // Esperado = días cargados × 8hs
-    const diasCargados = movs.length;
-    const esperadoMins = diasCargados * 8 * 60;
-    const balance = totalMins - esperadoMins;
-
-    rows.push(["Horas trabajadas", "", "", "", minsToHHMM(totalMins), "", "", ""]);
-    rows.push([`Horas esperadas (8hs × ${diasCargados} días cargados)`, "", "", "", minsToHHMM(esperadoMins), "", "", ""]);
-    rows.push(["BALANCE", "", "", "", balanceHHMM(totalMins, esperadoMins), "", "", ""]);
-
-    const ws = makeSheet(rows);
-    setColWidths(ws, [38, 6, 12, 12, 10, 22, 22, 30]);
-    applyRowStyle(ws, 0, 8, S_HEADER);
-
-    const idxTrab = rows.length - 3;
-    const idxEsp  = rows.length - 2;
-    const idxBal  = rows.length - 1;
-    applyRowStyle(ws, idxTrab, 8, S_TOTAL);
-    applyRowStyle(ws, idxEsp,  8, S_SUBTOTAL);
-    applyRowStyle(ws, idxBal,  8, balance >= 0 ? S_BALANCE_POS : S_BALANCE_NEG);
-
-    XS.utils.book_append_sheet(wb, ws, eq.slice(0, 31));
-
-    summaryRows.push([
-      eq,
-      diasCargados,
-      minsToHHMM(totalMins),
-      minsToHHMM(esperadoMins),
-      balanceHHMM(totalMins, esperadoMins),
-    ]);
-  }
-
-  const wsSum = makeSheet(summaryRows);
-  setColWidths(wsSum, [22, 14, 14, 26, 12]);
-  applyRowStyle(wsSum, 0, 5, S_HEADER);
-  for (let r = 1; r < summaryRows.length; r++) {
-    const bal = summaryRows[r][4] || "";
-    const ref = XS.utils.encode_cell({ r, c: 4 });
-    if (wsSum[ref]) wsSum[ref].s = bal.startsWith("+") ? S_BALANCE_POS : S_BALANCE_NEG;
-  }
-  XS.utils.book_append_sheet(wb, wsSum, "Resumen");
-  wb.SheetNames = ["Resumen", ...wb.SheetNames.filter(s => s !== "Resumen")];
-
-  XS.writeFile(wb, `Horas_Trabajadas_${MESES[mes - 1]}_${anio}.xlsx`);
-}
-
-// ── Export 2: Productividad ─────────────────────────────────────────
-async function exportarProductividad(mes, anio) {
-  const [movs, eqs, svcsEq, svcsInt] = await Promise.all([
+  const svcParams = mes ? { mes, anio } : { anio };
+  const [movs, eqs, tecDirectorio, ausencias, svcsEq, svcsInt] = await Promise.all([
     api.get("/movimientos-camioneta/"),
     api.get("/equipos/"),
-    api.get("/servicios/", { mes, anio, tipo: "equipos" }),
-    api.get("/servicios/", { mes, anio, tipo: "interior" }),
+    api.get("/directorio/tecnicos"),
+    api.get("/jornadas/ausencias/"),
+    api.get("/servicios/", { ...svcParams, tipo: "equipos" }),
+    api.get("/servicios/", { ...svcParams, tipo: "interior" }),
   ]);
 
-  const filtMovs = movs.filter(m => {
-    const [y, mo] = (m.fecha || "").split("-");
-    return parseInt(y) === parseInt(anio) && parseInt(mo) === parseInt(mes);
-  });
-  if (!filtMovs.length) throw new Error("Sin datos de movimientos para el período seleccionado");
+  const filtrados = movs.filter(m => fechaMatchExp(m.fecha, mes, anio));
+  if (!filtrados.length) throw new Error("Sin datos para el período seleccionado");
 
-  const todosSvcs = [...(svcsEq || []), ...(svcsInt || [])];
+  // Técnicos por equipo (para días normales sin jornada cargada)
+  const tecsPorEquipo = {};
+  for (const tec of tecDirectorio) {
+    const eqId = String(tec.equipo_id || tec.equipos?.id || "");
+    if (!eqId) continue;
+    if (!tecsPorEquipo[eqId]) tecsPorEquipo[eqId] = [];
+    tecsPorEquipo[eqId].push(tec.nombre);
+  }
 
-  // Horas por equipo
-  const horasPorEq = {};
-  for (const m of filtMovs) {
+  const agrupado = {};
+  for (const eq of eqs) agrupado[eq.nombre] = { id: String(eq.id), dias: [] };
+
+  const tecMap = {};
+  const DIAS_NOMBRES = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+  for (const m of filtrados) {
     const eq = eqs.find(e => String(e.id) === String(m.equipo_id)) || m.equipos;
     const nombre = eq?.nombre || "—";
-    if (!horasPorEq[nombre]) horasPorEq[nombre] = { dias: 0, horas: 0 };
-    horasPorEq[nombre].dias++;
-    const salidaMins = parseMins(m.hora_salida?.slice(0, 5));
-    const llegadaMins = parseMins(m.hora_llegada?.slice(0, 5));
-    const mins = (salidaMins != null && llegadaMins != null) ? llegadaMins - salidaMins : null;
-    if (mins != null && mins > 0) horasPorEq[nombre].horas += mins / 60;
+    if (!agrupado[nombre]) agrupado[nombre] = { id: String(m.equipo_id), dias: [] };
+
+    const h = calcHorasExp(m.hora_salida?.slice(0, 5), m.hora_llegada?.slice(0, 5));
+    const tjPresentes = (m.tecnicos_jornada || []).filter(t => t.presente);
+    const presentes = tjPresentes.length === 0
+      ? (tecsPorEquipo[String(m.equipo_id)] || [])
+      : tjPresentes.map(t => t.empleados?.nombre || t.tecnico_id);
+
+    agrupado[nombre].dias.push({ fecha: m.fecha, hora_salida: m.hora_salida?.slice(0,5) || "", hora_llegada: m.hora_llegada?.slice(0,5) || "", horas: h, tecnicos: presentes });
+
+    for (const nombreTec of presentes) {
+      if (!tecMap[nombreTec]) tecMap[nombreTec] = { nombre: nombreTec, dias: 0, minutos: 0, ausencias: [] };
+      tecMap[nombreTec].dias++;
+      if (h !== null) tecMap[nombreTec].minutos += Math.round(h * 60);
+    }
   }
 
-  // Servicios realizados por equipo/responsable con desglose por tipo
-  const svcPorResp = {};
-  const tiposPorResp = {};
+  // Ausencias justificadas
+  for (const aus of ausencias) {
+    if (!TIPOS_JUSTIFICADOS_EXP.includes(aus.tipo_licencia)) continue;
+    const nombre = aus.nombre;
+    const dias = diasEnRangoExp(aus.fecha_desde, aus.fecha_hasta, mes, anio);
+    if (!dias) continue;
+    if (!tecMap[nombre]) tecMap[nombre] = { nombre, dias: 0, minutos: 0, ausencias: [] };
+    tecMap[nombre].dias += dias;
+    tecMap[nombre].minutos += dias * 8 * 60;
+    tecMap[nombre].ausencias.push({ tipo: aus.tipo_licencia, dias });
+  }
+
+  // Servicios por técnico
+  const todosSvcs = [...(svcsEq || []), ...(svcsInt || [])];
+  const svcMap = {};
   for (const s of todosSvcs) {
     if (s.estado !== "REALIZADO") continue;
-    const resp = s.responsable || eqs.find(e => e.id === s.equipo_id)?.nombre || "Sin asignar";
-    svcPorResp[resp] = (svcPorResp[resp] || 0) + 1;
-    if (!tiposPorResp[resp]) tiposPorResp[resp] = { INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
-    if (s.tipo_servicio) tiposPorResp[resp][s.tipo_servicio] = (tiposPorResp[resp][s.tipo_servicio] || 0) + 1;
+    const resp = s.responsable || eqs.find(e => String(e.id) === String(s.equipo_id))?.nombre || "Sin asignar";
+    if (!svcMap[resp]) svcMap[resp] = { total: 0, INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
+    svcMap[resp].total++;
+    if (s.tipo_servicio) svcMap[resp][s.tipo_servicio] = (svcMap[resp][s.tipo_servicio] || 0) + 1;
   }
-
-  const tecnicos = Object.keys(horasPorEq).map(nombre => {
-    const h = horasPorEq[nombre];
-    const svcs = svcPorResp[nombre] || 0;
-    const tipos = tiposPorResp[nombre] || { INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
-    return {
-      nombre,
-      dias_presentes: h.dias,
-      horas_trabajadas: +h.horas.toFixed(2),
-      horas_base: h.dias * 8,
-      balance: +(h.horas - h.dias * 8).toFixed(2),
-      servicios_realizados: svcs,
-      servicios_por_dia: h.dias > 0 ? +(svcs / h.dias).toFixed(1) : 0,
-      instalaciones: tipos.INSTALACION,
-      revisiones: tipos.REVISION,
-      desinstalaciones: tipos.DESINSTALACION,
-    };
-  });
-
-  if (!tecnicos.length) throw new Error("Sin datos para el período seleccionado");
 
   const wb = XS.utils.book_new();
-  const rows = [["Equipo", "Días presentes", "Horas trabajadas", "Horas base (8hs×días)", "Balance horas", "Servicios realizados", "Instalaciones", "Revisiones", "Desinstalaciones", "Svc/día"]];
-  const subtotalIdxs = [];
+
+  // ── Hoja 1: Resumen técnicos (horas + productividad) ──
+  const tecnicos = Object.values(tecMap);
+  const COLS_SUM = ["Técnico", "Días efectivos", "Aus. justificadas", "Horas trabajadas", "Horas base (8hs)", "Balance", "Servicios", "Inst.", "Rev.", "Desinst.", "Svc/día"];
+  const sumRows = [COLS_SUM];
+  let totDias = 0, totMins = 0, totSvcs = 0, totInst = 0, totRev = 0, totDes = 0, totDiasBase = 0;
 
   for (const t of tecnicos) {
-    rows.push([t.nombre, t.dias_presentes, horasDecToHHMM(t.horas_trabajadas), horasDecToHHMM(t.horas_base), balanceDecToHHMM(t.balance), t.servicios_realizados, t.instalaciones, t.revisiones, t.desinstalaciones, t.servicios_por_dia]);
+    const horas = t.minutos / 60;
+    const diasAus = t.ausencias?.reduce((s, a) => s + a.dias, 0) || 0;
+    const diasEf = t.dias - diasAus;
+    const base = t.dias * 8;
+    const bal = horas - base;
+    const sv = svcMap[t.nombre] || { total: 0, INSTALACION: 0, REVISION: 0, DESINSTALACION: 0 };
+    sumRows.push([t.nombre, diasEf, diasAus || "", fmtHHMM(horas), fmtHHMM(base), fmtBalanceHHMM(bal), sv.total || "", sv.INSTALACION || "", sv.REVISION || "", sv.DESINSTALACION || "", t.dias > 0 ? +(sv.total / t.dias).toFixed(1) : ""]);
+    totDias += diasEf; totMins += t.minutos; totSvcs += sv.total;
+    totInst += sv.INSTALACION; totRev += sv.REVISION; totDes += sv.DESINSTALACION;
+    totDiasBase += t.dias;
   }
 
-  // Totales
-  const totDias  = tecnicos.reduce((s, t) => s + t.dias_presentes, 0);
-  const totHoras = tecnicos.reduce((s, t) => s + t.horas_trabajadas, 0);
-  const totBase  = tecnicos.reduce((s, t) => s + t.horas_base, 0);
-  const totBal   = totHoras - totBase;
-  const totSvcs  = tecnicos.reduce((s, t) => s + t.servicios_realizados, 0);
-  const totInst  = tecnicos.reduce((s, t) => s + t.instalaciones, 0);
-  const totRev   = tecnicos.reduce((s, t) => s + t.revisiones, 0);
-  const totDes   = tecnicos.reduce((s, t) => s + t.desinstalaciones, 0);
-  subtotalIdxs.push(rows.length);
-  rows.push(["TOTAL", totDias, horasDecToHHMM(totHoras), horasDecToHHMM(totBase), balanceDecToHHMM(totBal), totSvcs, totInst, totRev, totDes, totDias > 0 ? +(totSvcs / totDias).toFixed(1) : 0]);
+  const totH = totMins / 60;
+  const totBase = totDiasBase * 8;
+  sumRows.push(["TOTAL", totDias, "", fmtHHMM(totH), fmtHHMM(totBase), fmtBalanceHHMM(totH - totBase), totSvcs, totInst, totRev, totDes, totDiasBase > 0 ? +(totSvcs / totDiasBase).toFixed(1) : ""]);
 
-  const ws = makeSheet(rows);
-  setColWidths(ws, [22, 16, 18, 22, 14, 20, 14, 12, 16, 10]);
-  applyRowStyle(ws, 0, 10, S_HEADER);
-  for (const r of subtotalIdxs) applyRowStyle(ws, r, 10, S_TOTAL);
-  XS.utils.book_append_sheet(wb, ws, "Productividad");
+  const wsSum = makeSheet(sumRows);
+  setColWidths(wsSum, [22, 15, 18, 17, 17, 12, 12, 8, 8, 10, 10]);
+  applyRowStyle(wsSum, 0, COLS_SUM.length, S_HEADER);
+  applyRowStyle(wsSum, sumRows.length - 1, COLS_SUM.length, S_TOTAL);
+  for (let r = 1; r < sumRows.length; r++) {
+    const bal = sumRows[r][5];
+    if (typeof bal === "string" && bal) {
+      const ref = XS.utils.encode_cell({ r, c: 5 });
+      if (wsSum[ref]) wsSum[ref].s = bal.startsWith("+") ? S_BALANCE_POS : S_BALANCE_NEG;
+    }
+  }
+  XS.utils.book_append_sheet(wb, wsSum, "Resumen técnicos");
 
-  XS.writeFile(wb, `Productividad_${MESES[mes - 1]}_${anio}.xlsx`);
+  // ── Hojas por equipo ──
+  for (const [nombre, { dias }] of Object.entries(agrupado)) {
+    if (!dias.length) continue;
+    const sorted = [...dias].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    const rows = [["Fecha", "Día", "Hora salida", "Hora llegada", "Horas", "Balance", "Técnicos"]];
+    let totalMins = 0;
+
+    for (const d of sorted) {
+      if (d.horas !== null && d.horas > 0) totalMins += Math.round(d.horas * 60);
+      const dow = new Date(d.fecha + "T12:00:00Z").getUTCDay();
+      rows.push([fmtFecha(d.fecha), DIAS_NOMBRES[dow], d.hora_salida, d.hora_llegada, d.horas !== null ? fmtHHMM(d.horas) : "", d.horas !== null ? fmtBalanceHHMM(d.horas - 8) : "", d.tecnicos.join(", ")]);
+    }
+
+    const totH2 = totalMins / 60;
+    const espH = dias.length * 8;
+    rows.push(["Horas trabajadas", "", "", "", fmtHHMM(totH2), "", ""]);
+    rows.push([`Horas esperadas (8hs × ${dias.length} días)`, "", "", "", fmtHHMM(espH), "", ""]);
+    rows.push(["BALANCE", "", "", "", "", fmtBalanceHHMM(totH2 - espH), ""]);
+
+    const ws = makeSheet(rows);
+    setColWidths(ws, [14, 6, 13, 13, 10, 10, 25]);
+    applyRowStyle(ws, 0, 7, S_HEADER);
+    applyRowStyle(ws, rows.length - 3, 7, S_SUBTOTAL);
+    applyRowStyle(ws, rows.length - 2, 7, S_SUBTOTAL);
+    applyRowStyle(ws, rows.length - 1, 7, (totH2 - espH) >= 0 ? S_BALANCE_POS : S_BALANCE_NEG);
+    for (let r = 1; r < rows.length - 3; r++) {
+      const bal = rows[r][5];
+      if (typeof bal === "string" && bal) {
+        const ref = XS.utils.encode_cell({ r, c: 5 });
+        if (ws[ref]) ws[ref].s = bal.startsWith("+") ? S_BALANCE_POS : S_BALANCE_NEG;
+      }
+    }
+    XS.utils.book_append_sheet(wb, ws, nombre.slice(0, 31));
+  }
+
+  wb.SheetNames = ["Resumen técnicos", ...wb.SheetNames.filter(s => s !== "Resumen técnicos")];
+  const label = mes ? `${MESES[mes - 1]}_${anio}` : String(anio);
+  XS.writeFile(wb, `Informe_Personal_${label}.xlsx`);
 }
 
-// ── Export 3: Stock Actual ──────────────────────────────────────────
+// ── Export 3: Stock Actual (solo Oficina) ───────────────────────────
 async function exportarStock() {
   const data = await api.get("/stock/actual/");
   if (!data?.length) throw new Error("No hay datos de stock");
 
-  const byUbic = {};
-  for (const item of data) {
-    const ub = item.ubicaciones?.nombre || "Sin ubicación";
-    if (!byUbic[ub]) byUbic[ub] = [];
-    byUbic[ub].push(item);
-  }
+  // Solo la ubicación de tipo "oficina"
+  const oficina = data.filter(item => item.ubicaciones?.tipo === "oficina");
+  if (!oficina.length) throw new Error("No hay datos de stock para la oficina");
+
+  const sorted = [...oficina].sort((a, b) => {
+    const cat = (a.productos?.categoria || "").localeCompare(b.productos?.categoria || "");
+    return cat !== 0 ? cat : (a.productos?.codigo || "").localeCompare(b.productos?.codigo || "");
+  });
 
   const wb = XS.utils.book_new();
-
-  const sortedAll = [...data].sort((a, b) => {
-    const ub = (a.ubicaciones?.nombre || "").localeCompare(b.ubicaciones?.nombre || "");
-    return ub !== 0 ? ub : (a.productos?.codigo || "").localeCompare(b.productos?.codigo || "");
-  });
-  const allRows = [["Ubicación", "Código", "Descripción", "Categoría", "Cantidad"]];
-  for (const item of sortedAll) {
-    allRows.push([item.ubicaciones?.nombre || "", item.productos?.codigo || "", item.productos?.descripcion || "", item.productos?.categoria || "", item.cantidad]);
+  const rows = [["Código", "Descripción", "Categoría", "Cantidad"]];
+  for (const item of sorted) {
+    rows.push([item.productos?.codigo || "", item.productos?.descripcion || "", item.productos?.categoria || "", item.cantidad]);
   }
-  const wsAll = makeSheet(allRows);
-  setColWidths(wsAll, [20, 12, 38, 18, 10]);
-  applyRowStyle(wsAll, 0, 5, S_HEADER);
-  XS.utils.book_append_sheet(wb, wsAll, "Todo");
+  rows.push(["", "", "TOTAL", sorted.reduce((s, i) => s + (i.cantidad || 0), 0)]);
 
-  for (const [ub, items] of Object.entries(byUbic)) {
-    const sorted = [...items].sort((a, b) => {
-      const cat = (a.productos?.categoria || "").localeCompare(b.productos?.categoria || "");
-      return cat !== 0 ? cat : (a.productos?.codigo || "").localeCompare(b.productos?.codigo || "");
-    });
-    const rows = [["Código", "Descripción", "Categoría", "Cantidad"]];
-    for (const item of sorted) {
-      rows.push([item.productos?.codigo || "", item.productos?.descripcion || "", item.productos?.categoria || "", item.cantidad]);
-    }
-    rows.push(["", "", "TOTAL", sorted.reduce((s, i) => s + (i.cantidad || 0), 0)]);
-    const ws = makeSheet(rows);
-    setColWidths(ws, [12, 38, 18, 10]);
-    applyRowStyle(ws, 0, 4, S_HEADER);
-    applyRowStyle(ws, rows.length - 1, 4, S_TOTAL);
-    XS.utils.book_append_sheet(wb, ws, ub.slice(0, 31));
-  }
+  const ws = makeSheet(rows);
+  setColWidths(ws, [12, 38, 20, 10]);
+  applyRowStyle(ws, 0, 4, S_HEADER);
+  applyRowStyle(ws, rows.length - 1, 4, S_TOTAL);
+  XS.utils.book_append_sheet(wb, ws, "Stock Oficina");
 
   const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: TZ });
-  XS.writeFile(wb, `Stock_Actual_${hoy}.xlsx`);
+  XS.writeFile(wb, `Stock_Oficina_${hoy}.xlsx`);
 }
 
 // ── Export 4: Servicios ─────────────────────────────────────────────
@@ -529,28 +529,21 @@ const EXPORTS = [
   {
     key: "horas",
     icon: "🕐",
-    title: "Horas Trabajadas",
-    desc: "Detalle diario por equipo + resumen. Una hoja por equipo.",
+    title: "Informe de Personal",
+    desc: "Horas trabajadas por equipo + resumen por técnico con ausencias, balance y productividad (servicios/día).",
     fn: (mes, anio) => exportarHoras(mes, anio),
-  },
-  {
-    key: "productividad",
-    icon: "📊",
-    title: "Productividad",
-    desc: "Servicios, horas y balance por técnico y equipo.",
-    fn: (mes, anio) => exportarProductividad(mes, anio),
   },
   {
     key: "stock",
     icon: "📦",
-    title: "Stock Actual",
-    desc: "Stock de todas las ubicaciones. Una hoja por ubicación + hoja resumen.",
+    title: "Stock Oficina",
+    desc: "Stock actual de la oficina ordenado por categoría.",
     fn: () => exportarStock(),
   },
   {
     key: "servicios",
     icon: "📋",
-    title: "Servicios del mes",
+    title: "Servicios del período",
     desc: "Todos los servicios ordenados por fecha + resumen por responsable.",
     fn: (mes, anio) => exportarServicios(mes, anio),
   },
@@ -566,7 +559,7 @@ const EXPORTS = [
 export default function ExportarPage() {
   const now = new Date();
   const [mes,  setMes]  = useState(now.getMonth() + 1);
-  const [anio, setAnio] = useState(2026);
+  const [anio, setAnio] = useState(now.getFullYear());
   const [loading, setLoading] = useState({});
   const [msgs,    setMsgs]    = useState({});
 
@@ -610,8 +603,9 @@ export default function ExportarPage() {
       <div className="flex items-end gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4">
         <div>
           <label className="block text-xs font-medium text-slate-500 mb-1">Mes</label>
-          <select value={mes} onChange={e => setMes(+e.target.value)}
+          <select value={mes} onChange={e => setMes(e.target.value === "" ? "" : +e.target.value)}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm min-w-[140px]">
+            <option value="">Todos los meses</option>
             {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
         </div>
