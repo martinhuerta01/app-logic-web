@@ -249,7 +249,7 @@ export default function Sidebar() {
           className="text-sm text-indigo-300 hover:text-red-400 transition text-left">
           Cerrar sesión
         </button>
-        <span className="text-xs text-indigo-500">v1.3</span>
+        <span className="text-xs text-indigo-500">v1.4</span>
       </div>
     </aside>
   );
