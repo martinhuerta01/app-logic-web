@@ -1,9 +1,166 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
+import * as XLSX from "xlsx";
 
 const PUNTOS = ["Oficina", "Casa Maxi", "Casa Hugo"];
+
+// ── Configuración geocercas por patente ──────────────────────────
+const GEOCERCA_CONFIG = {
+  "AH453YE": { base: ["Casa Hugo", "Chutro"], gr_lch: ["LA SE - GENERAL RODRIGUEZ"] },
+  "AB887CX": { base: ["Casa Maxi", "Chutro"], gr_lch: ["LA SE - LONGCHAMPS"] },
+};
+
+function geocercaToPunto(msg) {
+  if (msg.includes("Casa Hugo")) return "Casa Hugo";
+  if (msg.includes("Casa Maxi")) return "Casa Maxi";
+  if (msg.includes("Chutro"))    return "Oficina";
+  return "";
+}
+
+function parsearFechaExcel(raw) {
+  if (!raw) return "";
+  // Número serial de Excel
+  if (typeof raw === "number") {
+    const info = XLSX.SSF.parse_date_code(raw);
+    return `${info.y}-${String(info.m).padStart(2,"0")}-${String(info.d).padStart(2,"0")}`;
+  }
+  // Texto "2/6/2026 10:50" o "2/6/2026"
+  const str = String(raw).split(" ")[0];
+  const parts = str.split("/");
+  if (parts.length === 3) {
+    return `${parts[2]}-${String(parts[1]).padStart(2,"0")}-${String(parts[0]).padStart(2,"0")}`;
+  }
+  return "";
+}
+
+function parsearReporteGeocercas(workbook, equipos) {
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+  // Buscar fila de encabezados (donde col 0 = "Vehículo")
+  let hi = rows.findIndex(r => String(r[0]).trim() === "Vehículo");
+  if (hi === -1) return [];
+
+  const headers = rows[hi].map(h => String(h).trim());
+  const col = {
+    vehiculo: headers.indexOf("Vehículo"),
+    fecha:    headers.indexOf("Fecha"),
+    mensaje:  headers.indexOf("Mensaje"),
+    horaEve:  headers.indexOf("Hora de Eve"),
+  };
+
+  // Leer eventos relevantes
+  const events = [];
+  for (let i = hi + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const vehiculo = String(row[col.vehiculo] || "").trim();
+    const mensaje  = String(row[col.mensaje]  || "").trim();
+    const horaRaw  = String(row[col.horaEve]  || "").trim();
+    if (!vehiculo || !mensaje.startsWith("GeoCerca") || !horaRaw) continue;
+    const hora  = horaRaw.slice(0, 5); // "HH:MM"
+    const fecha = parsearFechaExcel(row[col.fecha]);
+    if (!fecha) continue;
+    events.push({ vehiculo, fecha, mensaje, hora });
+  }
+
+  // Agrupar por vehículo + fecha
+  const groups = {};
+  for (const ev of events) {
+    const key = `${ev.vehiculo}|${ev.fecha}`;
+    if (!groups[key]) groups[key] = { vehiculo: ev.vehiculo, fecha: ev.fecha, events: [] };
+    groups[key].events.push(ev);
+  }
+
+  const resultados = [];
+  for (const group of Object.values(groups)) {
+    const config = GEOCERCA_CONFIG[group.vehiculo];
+    if (!config) continue;
+    const equipo = equipos.find(e => e.patente === group.vehiculo);
+    if (!equipo) continue;
+
+    const isBase  = m => config.base.some(b => m.includes(b));
+    const isGrLch = m => config.gr_lch.some(g => m.includes(g));
+    const isSal   = m => m.includes("Salida");
+    const isEnt   = m => m.includes("Entrada");
+
+    // Solo geocercas relevantes, ordenadas por hora
+    const rel = group.events
+      .filter(e => isBase(e.mensaje) || isGrLch(e.mensaje))
+      .sort((a, b) => a.hora.localeCompare(b.hora));
+
+    let hora_salida = "", punto_inicio = "";
+    let hora_llegada = "", punto_fin = "";
+    let llegada_gr_lch = "", salida_gr_lch = "";
+    const obs = [];
+
+    // 1. Primera salida de base → hora salida
+    for (const e of rel) {
+      if (isBase(e.mensaje) && isSal(e.mensaje)) {
+        hora_salida = e.hora;
+        punto_inicio = geocercaToPunto(e.mensaje);
+        break;
+      }
+    }
+    // 2. Primera entrada GR/LCH
+    for (const e of rel) {
+      if (isGrLch(e.mensaje) && isEnt(e.mensaje)) { llegada_gr_lch = e.hora; break; }
+    }
+    // 3. Última salida GR/LCH
+    for (const e of [...rel].reverse()) {
+      if (isGrLch(e.mensaje) && isSal(e.mensaje)) { salida_gr_lch = e.hora; break; }
+    }
+    // 4. Primera entrada a base DESPUÉS de última salida GR/LCH (o de salida si no hay GR)
+    const refTime = salida_gr_lch || hora_salida;
+    for (const e of rel) {
+      if (e.hora > refTime && isBase(e.mensaje) && isEnt(e.mensaje)) {
+        hora_llegada = e.hora;
+        punto_fin    = geocercaToPunto(e.mensaje);
+        break;
+      }
+    }
+    // Si no hay GR/LCH, tomar primera entrada a base
+    if (!hora_llegada) {
+      for (const e of rel) {
+        if (isBase(e.mensaje) && isEnt(e.mensaje)) {
+          hora_llegada = e.hora;
+          punto_fin    = geocercaToPunto(e.mensaje);
+          break;
+        }
+      }
+    }
+    // 5. Salida posterior a hora_llegada → uso indebido
+    if (hora_llegada) {
+      for (const e of rel) {
+        if (e.hora > hora_llegada && isBase(e.mensaje) && isSal(e.mensaje)) {
+          let retorno = "";
+          for (const e2 of rel) {
+            if (e2.hora > e.hora && isBase(e2.mensaje) && isEnt(e2.mensaje)) {
+              retorno = e2.hora; break;
+            }
+          }
+          obs.push(`Uso indebido: salida ${e.hora}${retorno ? `, retorno ${retorno}` : ""}`);
+        }
+      }
+    }
+
+    resultados.push({
+      vehiculo:      group.vehiculo,
+      fecha:         group.fecha,
+      equipo_id:     String(equipo.id),
+      equipo_nombre: equipo.nombre,
+      hora_salida, hora_llegada,
+      punto_inicio, punto_fin,
+      llegada_gr_lch, salida_gr_lch,
+      observaciones: obs.join("; "),
+    });
+  }
+
+  return resultados.sort((a, b) =>
+    a.fecha.localeCompare(b.fecha) || a.equipo_nombre.localeCompare(b.equipo_nombre)
+  );
+}
 const TIPOS_LICENCIA = ["Médica", "Vacaciones", "Personal", "Sin aviso", "Otro"];
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
@@ -46,6 +203,11 @@ export default function HorarioTecnicoPage() {
   const [tecnicosIds, setTecnicosIds] = useState([]);
   const [msgMov, setMsgMov] = useState("");
   const [errorCarga, setErrorCarga] = useState("");
+
+  // Reporte semanal
+  const [reporteSemana, setReporteSemana] = useState([]);
+  const [reporteNombre, setReporteNombre] = useState("");
+  const fileInputRef = useRef(null);
 
   // Tab ausencias
   const [formAus, setFormAus] = useState(FORM_AUS);
@@ -135,6 +297,44 @@ export default function HorarioTecnicoPage() {
 
   const aniosDisponibles = [-1, 0, 1].map(d => new Date().getFullYear() + d);
 
+  // ── Reporte semanal ───────────────────────────────────────────────
+  const cargarArchivoReporte = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setReporteNombre(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: "array" });
+      const resultados = parsearReporteGeocercas(wb, equipos);
+      setReporteSemana(resultados);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
+  };
+
+  const aplicarDia = (r) => {
+    setForm({
+      equipo_id:      r.equipo_id,
+      fecha:          r.fecha,
+      hora_salida:    r.hora_salida,
+      hora_llegada:   r.hora_llegada,
+      punto_inicio:   r.punto_inicio,
+      punto_fin:      r.punto_fin,
+      llegada_gr_lch: r.llegada_gr_lch,
+      salida_gr_lch:  r.salida_gr_lch,
+      observaciones:  r.observaciones,
+    });
+    setTecnicosIds([]);
+    setMsgMov("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+  const fmtDia = (fechaStr) => {
+    const d = new Date(fechaStr + "T12:00:00Z");
+    return `${DIAS[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth()+1}`;
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-800">Horario Técnico</h1>
@@ -156,6 +356,63 @@ export default function HorarioTecnicoPage() {
           {errorCarga && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>
           )}
+
+          {/* Panel reporte semanal */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700">Cargar desde reporte semanal</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Subí el Excel exportado de LogicTracker — se pre-llena el formulario al elegir el día
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {reporteNombre && (
+                  <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg truncate max-w-[180px]">
+                    {reporteNombre}
+                  </span>
+                )}
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv"
+                  className="hidden" onChange={cargarArchivoReporte} />
+                <button type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 text-xs font-medium bg-slate-800 text-white px-3 py-2 rounded-lg hover:bg-slate-700 transition">
+                  📂 {reporteSemana.length > 0 ? "Cambiar archivo" : "Seleccionar archivo"}
+                </button>
+              </div>
+            </div>
+
+            {reporteSemana.length > 0 && (
+              <div>
+                <p className="text-xs text-slate-500 mb-2">
+                  {reporteSemana.length} registro{reporteSemana.length > 1 ? "s" : ""} encontrado{reporteSemana.length > 1 ? "s" : ""} — clic para pre-llenar:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {reporteSemana.map((r, i) => {
+                    const tieneObs = !!r.observaciones;
+                    const activo   = form.equipo_id === r.equipo_id && form.fecha === r.fecha;
+                    return (
+                      <button key={i} type="button" onClick={() => aplicarDia(r)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition ${
+                          activo
+                            ? "bg-indigo-600 text-white border-indigo-600"
+                            : tieneObs
+                            ? "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
+                            : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}>
+                        {fmtDia(r.fecha)} · {r.equipo_nombre}
+                        {tieneObs && <span className="ml-1">⚠️</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  ⚠️ = uso indebido detectado · Los chips azules indican el día activo en el formulario
+                </p>
+              </div>
+            )}
+          </div>
+
           <form onSubmit={guardarMovimiento} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
             <h2 className="text-base font-semibold text-slate-700 border-b border-slate-100 pb-2">Cargar movimiento camioneta</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
