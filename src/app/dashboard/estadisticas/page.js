@@ -1495,6 +1495,309 @@ function ReporteCruzado() {
   );
 }
 
+// ─── STOCK KPI ────────────────────────────────────────────────────
+
+const LS_KEY = "stock_kpi_watched_v1";
+const HOY = toStr(new Date());
+
+function diffDays(a, b) {
+  return Math.round((toUTC(b) - toUTC(a)) / 86400000);
+}
+
+function calcStockStats(movimientos, stockActual) {
+  const entradas = movimientos
+    .filter((m) => m.tipo === "ENTRADA" || m.tipo === "COMPRA")
+    .sort((a, b) => (a.fecha > b.fecha ? 1 : -1));
+
+  const lotes = entradas.map((entry, i) => {
+    const nextFecha = entradas[i + 1]?.fecha ?? HOY;
+    const dias = diffDays(entry.fecha, nextFecha);
+    const activo = i === entradas.length - 1;
+    return { fecha: entry.fecha, cantidad: entry.cantidad, dias, activo };
+  });
+
+  const lotesConDuracion = lotes.slice(0, -1); // excluye el activo para promediar
+  const avgDias =
+    lotesConDuracion.length > 0
+      ? Math.round(lotesConDuracion.reduce((s, l) => s + l.dias, 0) / lotesConDuracion.length)
+      : null;
+
+  const avgCantidad =
+    lotesConDuracion.length > 0
+      ? Math.round(lotesConDuracion.reduce((s, l) => s + l.cantidad, 0) / lotesConDuracion.length)
+      : (entradas[0]?.cantidad ?? null);
+
+  const consumoDiario = avgDias && avgCantidad ? +(avgCantidad / avgDias).toFixed(2) : null;
+  const diasRestantes =
+    consumoDiario && stockActual != null
+      ? Math.round(stockActual / consumoDiario)
+      : null;
+  const fechaCompra =
+    diasRestantes != null
+      ? addDays(HOY, Math.max(0, diasRestantes - 3)) // aviso 3 días antes
+      : null;
+
+  return { lotes, avgDias, consumoDiario, diasRestantes, fechaCompra };
+}
+
+function ProductoKPICard({ productoId, productos, onRemove }) {
+  const [movimientos, setMovimientos] = useState(null);
+  const [stockActual, setStockActual] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const prod = productos.find((p) => p.id === productoId);
+
+  useEffect(() => {
+    if (!productoId) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`/stock/movimientos/?producto_id=${productoId}`),
+      api.get(`/stock/actual/`),
+    ]).then(([movs, actual]) => {
+      setMovimientos(movs);
+      const registros = actual.filter((r) => r.producto_id === productoId);
+      const total = registros.reduce((s, r) => s + (r.cantidad || 0), 0);
+      setStockActual(total);
+      setLoading(false);
+    });
+  }, [productoId]);
+
+  if (!prod) return null;
+
+  const { lotes, avgDias, consumoDiario, diasRestantes, fechaCompra } =
+    movimientos ? calcStockStats(movimientos, stockActual) : {};
+
+  const urgencia =
+    diasRestantes != null
+      ? diasRestantes <= 5
+        ? "text-red-600 font-bold"
+        : diasRestantes <= 10
+        ? "text-amber-600 font-semibold"
+        : "text-green-700"
+      : "text-slate-400";
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">📦</span>
+          <div>
+            <p className="font-semibold text-slate-800 text-sm">{prod.descripcion}</p>
+            <p className="text-xs text-slate-400">{prod.codigo}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {stockActual != null && (
+            <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full">
+              Stock actual: {stockActual}
+            </span>
+          )}
+          <button
+            onClick={() => onRemove(productoId)}
+            className="text-slate-300 hover:text-red-400 transition-colors text-lg leading-none"
+            title="Quitar del seguimiento"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="px-5 py-6 text-sm text-slate-400">Cargando movimientos…</div>
+      ) : !lotes || lotes.length === 0 ? (
+        <div className="px-5 py-6 text-sm text-slate-400">Sin entradas registradas para este insumo.</div>
+      ) : (
+        <>
+          {/* Tabla de lotes */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-xs">
+                  <th className="text-left px-5 py-2.5">Fecha entrada</th>
+                  <th className="text-right px-5 py-2.5">Cantidad</th>
+                  <th className="text-right px-5 py-2.5">Días que duró</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...lotes].reverse().map((l, i) => (
+                  <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
+                    <td className="px-5 py-2.5 text-xs text-slate-700">
+                      {new Date(l.fecha + "T12:00:00Z").toLocaleDateString("es-AR", {
+                        day: "numeric", month: "short", year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-5 py-2.5 text-xs text-right font-medium text-slate-700">
+                      {l.cantidad}
+                    </td>
+                    <td className="px-5 py-2.5 text-xs text-right">
+                      {l.activo ? (
+                        <span className="text-blue-500 font-medium">
+                          {l.dias} días (activo)
+                        </span>
+                      ) : (
+                        <span className="text-slate-600">{l.dias} días</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Resumen */}
+          <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Prom. entre reposiciones</p>
+              <p className="text-sm font-semibold text-slate-700">
+                {avgDias != null ? `~${avgDias} días` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Consumo diario estimado</p>
+              <p className="text-sm font-semibold text-slate-700">
+                {consumoDiario != null ? `${consumoDiario} u/día` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Días restantes</p>
+              <p className={`text-sm ${urgencia}`}>
+                {diasRestantes != null ? `~${diasRestantes} días` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-0.5">Compra sugerida</p>
+              <p className="text-sm font-semibold text-slate-700">
+                {fechaCompra
+                  ? new Date(fechaCompra + "T12:00:00Z").toLocaleDateString("es-AR", {
+                      day: "numeric", month: "short", year: "numeric",
+                    })
+                  : "—"}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StockKPI() {
+  const [watchedIds, setWatchedIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+    catch { return []; }
+  });
+  const [productos, setProductos] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    api.get("/stock/productos/").then(setProductos);
+  }, []);
+
+  function saveWatched(ids) {
+    setWatchedIds(ids);
+    localStorage.setItem(LS_KEY, JSON.stringify(ids));
+  }
+
+  function addProducto(id) {
+    if (!watchedIds.includes(id)) saveWatched([...watchedIds, id]);
+    setShowModal(false);
+    setSearch("");
+  }
+
+  function removeProducto(id) {
+    saveWatched(watchedIds.filter((w) => w !== id));
+  }
+
+  const disponibles = productos.filter(
+    (p) =>
+      !watchedIds.includes(p.id) &&
+      (p.descripcion.toLowerCase().includes(search.toLowerCase()) ||
+        p.codigo.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-800">Insumos en seguimiento</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Seguí los insumos clave para planificar reposiciones a tiempo
+          </p>
+        </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-1.5 text-sm font-medium bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors"
+        >
+          <span className="text-base leading-none">+</span> Agregar insumo
+        </button>
+      </div>
+
+      {watchedIds.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 px-6 py-12 text-center">
+          <p className="text-2xl mb-2">📦</p>
+          <p className="text-sm font-medium text-slate-600">No hay insumos en seguimiento</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Hacé clic en &quot;Agregar insumo&quot; para empezar a monitorear un producto
+          </p>
+        </div>
+      )}
+
+      {watchedIds.map((id) => (
+        <ProductoKPICard
+          key={id}
+          productoId={id}
+          productos={productos}
+          onRemove={removeProducto}
+        />
+      ))}
+
+      {/* Modal agregar */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800">Seleccioná un insumo</h3>
+              <button
+                onClick={() => { setShowModal(false); setSearch(""); }}
+                className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-5 py-3 border-b border-slate-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Buscar por nombre o código…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+              {disponibles.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">Sin resultados</p>
+              ) : (
+                disponibles.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => addProducto(p.id)}
+                    className="w-full text-left px-5 py-3 hover:bg-slate-50 transition-colors"
+                  >
+                    <p className="text-sm font-medium text-slate-700">{p.descripcion}</p>
+                    <p className="text-xs text-slate-400">{p.codigo}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────
 
 export default function EstadisticasPage() {
@@ -1507,6 +1810,7 @@ export default function EstadisticasPage() {
     responsable: "Servicios por Responsable",
     clientes:    "Servicios por Cliente",
     cruzado:     "Reporte Cruzado",
+    stock:       "Stock KPI",
   };
 
   return (
@@ -1517,6 +1821,7 @@ export default function EstadisticasPage() {
       {tab === "responsable" && <ServiciosResponsable />}
       {tab === "clientes"    && <ServiciosCliente />}
       {tab === "cruzado"     && <ReporteCruzado />}
+      {tab === "stock"       && <StockKPI />}
     </div>
   );
 }
