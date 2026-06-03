@@ -1555,7 +1555,9 @@ function ProductoKPICard({ productoId, productos, onRemove }) {
       api.get(`/stock/actual/`),
     ]).then(([movs, actual]) => {
       setMovimientos(movs);
-      const registros = actual.filter((r) => r.producto_id === productoId);
+      const registros = actual.filter(
+        (r) => r.producto_id === productoId && r.ubicaciones?.tipo === "oficina"
+      );
       const total = registros.reduce((s, r) => s + (r.cantidad || 0), 0);
       setStockActual(total);
       setLoading(false);
