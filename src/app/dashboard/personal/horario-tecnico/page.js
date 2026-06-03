@@ -8,8 +8,8 @@ const PUNTOS = ["Oficina", "Casa Maxi", "Casa Hugo"];
 
 // ── Configuración geocercas por patente ──────────────────────────
 const GEOCERCA_CONFIG = {
-  "AH453YE": { base: ["Casa Hugo", "Chutro"], gr_lch: ["LA SE - GENERAL RODRIGUEZ"] },
-  "AB887CX": { base: ["Casa Maxi", "Chutro"], gr_lch: ["LA SE - LONGCHAMPS"] },
+  "AH453YE": { base: ["Casa Hugo", "Chutro"], gr_lch: ["GENERAL RODRIGUEZ"] },
+  "AB887CX": { base: ["Casa Maxi", "Chutro"], gr_lch: ["LONGCHAMPS"] },
 };
 
 function geocercaToPunto(msg) {
@@ -26,10 +26,11 @@ function parsearFechaExcel(raw) {
     const info = XLSX.SSF.parse_date_code(raw);
     return `${info.y}-${String(info.m).padStart(2,"0")}-${String(info.d).padStart(2,"0")}`;
   }
-  // Texto "2/6/2026 10:50" o "2/6/2026"
+  // Texto "2/6/2026" (ya sin la parte de hora, que se separa antes de llamar)
   const str = String(raw).split(" ")[0];
   const parts = str.split("/");
   if (parts.length === 3) {
+    // Formato d/m/yyyy (Argentina)
     return `${parts[2]}-${String(parts[1]).padStart(2,"0")}-${String(parts[0]).padStart(2,"0")}`;
   }
   return "";
@@ -44,11 +45,12 @@ function parsearReporteGeocercas(workbook, equipos) {
   if (hi === -1) return [];
 
   const headers = rows[hi].map(h => String(h).trim());
+  // Buscar columnas por nombre flexible (tolera encoding)
+  const findCol = (keyword) => headers.findIndex(h => h.toLowerCase().includes(keyword.toLowerCase()));
   const col = {
-    vehiculo: headers.indexOf("Vehículo"),
-    fecha:    headers.indexOf("Fecha"),
-    mensaje:  headers.indexOf("Mensaje"),
-    horaEve:  headers.indexOf("Hora de Eve"),
+    vehiculo: 0, // siempre la primera columna
+    fecha:    findCol("fecha"),
+    mensaje:  findCol("mensaje"),
   };
 
   // Leer eventos relevantes
@@ -57,11 +59,15 @@ function parsearReporteGeocercas(workbook, equipos) {
     const row = rows[i];
     const vehiculo = String(row[col.vehiculo] || "").trim();
     const mensaje  = String(row[col.mensaje]  || "").trim();
-    const horaRaw  = String(row[col.horaEve]  || "").trim();
-    if (!vehiculo || !mensaje.startsWith("GeoCerca") || !horaRaw) continue;
-    const hora  = horaRaw.slice(0, 5); // "HH:MM"
-    const fecha = parsearFechaExcel(row[col.fecha]);
-    if (!fecha) continue;
+    const fechaRaw = row[col.fecha];
+    if (!vehiculo || !mensaje.startsWith("GeoCerca") || !fechaRaw) continue;
+
+    // Fecha viene como "2/6/2026 08:51:55" — extraer fecha y hora juntas
+    const fechaStr = String(fechaRaw);
+    const [partesFecha, partesHora] = fechaStr.split(" ");
+    const hora  = partesHora ? partesHora.slice(0, 5) : ""; // "HH:MM"
+    const fecha = parsearFechaExcel(partesFecha);            // "YYYY-MM-DD"
+    if (!fecha || !hora) continue;
     events.push({ vehiculo, fecha, mensaje, hora });
   }
 
