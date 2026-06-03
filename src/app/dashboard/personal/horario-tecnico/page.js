@@ -39,8 +39,8 @@ function parsearReporteGeocercas(workbook, equipos) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-  // Buscar fila de encabezados (donde col 0 = "Vehículo")
-  let hi = rows.findIndex(r => String(r[0]).trim() === "Vehículo");
+  // Buscar fila de encabezados (donde col 0 contiene "eh" + "culo" — tolera encoding del acento)
+  let hi = rows.findIndex(r => String(r[0]).trim().toLowerCase().includes("eh") && String(r[0]).trim().toLowerCase().includes("culo"));
   if (hi === -1) return [];
 
   const headers = rows[hi].map(h => String(h).trim());
@@ -302,13 +302,23 @@ export default function HorarioTecnicoPage() {
     const file = e.target.files[0];
     if (!file) return;
     setReporteNombre(file.name);
+    const esCsv = file.name.toLowerCase().endsWith(".csv");
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const wb = XLSX.read(ev.target.result, { type: "array" });
+      let wb;
+      if (esCsv) {
+        // CSV: leer como texto y detectar separador (coma o punto y coma)
+        const texto = ev.target.result;
+        const sep = texto.indexOf(";") !== -1 ? ";" : ",";
+        wb = XLSX.read(texto, { type: "string", FS: sep });
+      } else {
+        wb = XLSX.read(ev.target.result, { type: "array" });
+      }
       const resultados = parsearReporteGeocercas(wb, equipos);
       setReporteSemana(resultados);
     };
-    reader.readAsArrayBuffer(file);
+    if (esCsv) reader.readAsText(file, "UTF-8");
+    else        reader.readAsArrayBuffer(file);
     e.target.value = "";
   };
 
