@@ -5,40 +5,88 @@ import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 const TODOS_MODULOS = [
-  { key: "servicios",    label: "Servicios" },
-  { key: "personal",     label: "Personal" },
-  { key: "contactos",    label: "Contactos" },
-  { key: "estadisticas", label: "Estadísticas" },
+  { key: "servicios",    label: "Servicios", subs: [
+    { key: "carga-dia",  label: "Carga del día" },
+    { key: "vista-dia",  label: "Vista del día" },
+    { key: "historial",  label: "Historial" },
+  ]},
+  { key: "personal",     label: "Personal", subs: [
+    { key: "horario-tecnico",     label: "Horario Técnico" },
+    { key: "historial-camioneta", label: "Historial camioneta" },
+  ]},
+  { key: "contactos",    label: "Contactos", subs: [
+    { key: "clientes",          label: "Clientes" },
+    { key: "proveedores",       label: "Proveedores" },
+    { key: "tecnicos-talleres", label: "Técnicos / Talleres" },
+  ]},
+  { key: "estadisticas", label: "Estadísticas", subs: [
+    { key: "dashboard",   label: "Dashboard" },
+    { key: "horas",       label: "Horas trabajadas" },
+    { key: "responsable", label: "Por Responsable" },
+    { key: "clientes",    label: "Por Cliente" },
+    { key: "cruzado",     label: "Reporte cruzado" },
+    { key: "stock-kpi",   label: "Stock KPI" },
+    { key: "patentes",    label: "Revisiones frecuentes" },
+  ]},
   { key: "stock",        label: "Stock" },
   { key: "tareas",       label: "Tareas" },
   { key: "configuracion",label: "Configuración" },
   { key: "exportar",     label: "Exportar / Importar" },
 ];
 
-const FORM_VACIO = { nombre: "", password: "", rol: "usuario", modulos: [], acceso_total: false };
+const FORM_VACIO = { nombre: "", password: "", rol: "usuario", modulos: [], submodulos: {}, acceso_total: false };
 
 function ModalUsuario({ usuario, onClose, onGuardado }) {
   const esNuevo = !usuario;
   const [form, setForm] = useState(() => {
     if (esNuevo) return FORM_VACIO;
     return {
-      nombre: usuario.nombre,
-      password: "",
-      rol: usuario.rol || "usuario",
-      modulos: usuario.modulos || [],
+      nombre:      usuario.nombre,
+      password:    "",
+      rol:         usuario.rol || "usuario",
+      modulos:     usuario.modulos || [],
+      submodulos:  usuario.submodulos || {},
       acceso_total: !usuario.modulos,
     };
   });
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState("");
+  const [guardando,       setGuardando]       = useState(false);
+  const [error,           setError]           = useState("");
+  const [expandidos,      setExpandidos]      = useState({});
 
   const toggleModulo = (key) => {
-    setForm(f => ({
-      ...f,
-      modulos: f.modulos.includes(key)
-        ? f.modulos.filter(m => m !== key)
-        : [...f.modulos, key],
-    }));
+    setForm(f => {
+      const yaActivo = f.modulos.includes(key);
+      const nuevosModulos = yaActivo ? f.modulos.filter(m => m !== key) : [...f.modulos, key];
+      // Si se desactiva el módulo, limpiar sus submodulos
+      const nuevosSubmodulos = { ...f.submodulos };
+      if (yaActivo) delete nuevosSubmodulos[key];
+      return { ...f, modulos: nuevosModulos, submodulos: nuevosSubmodulos };
+    });
+  };
+
+  const isSubEnabled = (moduloKey, subKey) => {
+    if (!form.submodulos[moduloKey]) return true;
+    return form.submodulos[moduloKey].includes(subKey);
+  };
+
+  const toggleSubmodulo = (moduloKey, subKey) => {
+    setForm(f => {
+      const modDef   = TODOS_MODULOS.find(m => m.key === moduloKey);
+      const allSubs  = modDef?.subs?.map(s => s.key) || [];
+      const current  = f.submodulos[moduloKey];
+      // Si no había restricción, restringir a todos menos este
+      const newList  = current
+        ? current.includes(subKey) ? current.filter(k => k !== subKey) : [...current, subKey]
+        : allSubs.filter(k => k !== subKey);
+      const nuevosSubmodulos = { ...f.submodulos };
+      // Si quedan todos seleccionados, eliminar restricción
+      if (newList.length === allSubs.length) {
+        delete nuevosSubmodulos[moduloKey];
+      } else {
+        nuevosSubmodulos[moduloKey] = newList;
+      }
+      return { ...f, submodulos: nuevosSubmodulos };
+    });
   };
 
   const guardar = async () => {
@@ -47,10 +95,12 @@ function ModalUsuario({ usuario, onClose, onGuardado }) {
     setError("");
     setGuardando(true);
     try {
+      const submodulosGuardar = Object.keys(form.submodulos).length > 0 ? form.submodulos : null;
       const payload = {
-        nombre:   form.nombre.trim(),
-        rol:      form.rol,
-        modulos:  form.acceso_total ? null : form.modulos,
+        nombre:     form.nombre.trim(),
+        rol:        form.rol,
+        modulos:    form.acceso_total ? null : form.modulos,
+        submodulos: form.acceso_total ? null : submodulosGuardar,
       };
       if (form.password.trim()) payload.password = form.password.trim();
 
@@ -128,16 +178,51 @@ function ModalUsuario({ usuario, onClose, onGuardado }) {
               </label>
             </div>
             {!form.acceso_total && (
-              <div className="grid grid-cols-2 gap-2">
-                {TODOS_MODULOS.map(m => (
-                  <label key={m.key} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                    <input type="checkbox"
-                      checked={form.modulos.includes(m.key)}
-                      onChange={() => toggleModulo(m.key)}
-                      className="rounded border-slate-300 text-indigo-600" />
-                    {m.label}
-                  </label>
-                ))}
+              <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                {TODOS_MODULOS.map(m => {
+                  const activo    = form.modulos.includes(m.key);
+                  const expandido = expandidos[m.key];
+                  const tieneRestricciones = activo && m.subs?.length > 1 && form.submodulos[m.key];
+                  return (
+                    <div key={m.key}>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox"
+                          checked={activo}
+                          onChange={() => toggleModulo(m.key)}
+                          className="rounded border-slate-300 text-indigo-600 shrink-0" />
+                        <span
+                          className={`text-sm flex-1 ${activo ? "text-slate-700" : "text-slate-400"}`}>
+                          {m.label}
+                          {tieneRestricciones && (
+                            <span className="ml-1.5 text-[10px] text-amber-600 font-medium">
+                              ({form.submodulos[m.key].length}/{m.subs.length})
+                            </span>
+                          )}
+                        </span>
+                        {activo && m.subs?.length > 1 && (
+                          <button type="button"
+                            onClick={() => setExpandidos(e => ({ ...e, [m.key]: !e[m.key] }))}
+                            className="text-slate-400 hover:text-indigo-500 text-xs px-1">
+                            {expandido ? "▲" : "▼"}
+                          </button>
+                        )}
+                      </div>
+                      {activo && expandido && m.subs?.length > 1 && (
+                        <div className="ml-6 mt-1 space-y-1 border-l-2 border-indigo-100 pl-3 pb-1">
+                          {m.subs.map(s => (
+                            <label key={s.key} className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                              <input type="checkbox"
+                                checked={isSubEnabled(m.key, s.key)}
+                                onChange={() => toggleSubmodulo(m.key, s.key)}
+                                className="rounded border-slate-300 text-indigo-500" />
+                              {s.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {form.acceso_total && (

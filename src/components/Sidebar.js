@@ -11,9 +11,9 @@ const MODULOS_BASE = [
     nombre: "Servicios",
     icon: "📋",
     subs: [
-      { href: "/dashboard/carga-dia",  label: "Carga del día" },
-      { href: "/dashboard/vista-dia",  label: "Vista del día" },
-      { href: "/dashboard/historial",  label: "Historial" },
+      { key: "carga-dia",  href: "/dashboard/carga-dia",  label: "Carga del día" },
+      { key: "vista-dia",  href: "/dashboard/vista-dia",  label: "Vista del día" },
+      { key: "historial",  href: "/dashboard/historial",  label: "Historial" },
     ],
   },
   {
@@ -21,8 +21,8 @@ const MODULOS_BASE = [
     nombre: "Personal",
     icon: "👷",
     subs: [
-      { href: "/dashboard/personal/horario-tecnico",    label: "Horario Técnico" },
-      { href: "/dashboard/personal/historial-camioneta", label: "Historial" },
+      { key: "horario-tecnico",    href: "/dashboard/personal/horario-tecnico",     label: "Horario Técnico" },
+      { key: "historial-camioneta", href: "/dashboard/personal/historial-camioneta", label: "Historial" },
     ],
   },
   {
@@ -30,9 +30,9 @@ const MODULOS_BASE = [
     nombre: "Contactos",
     icon: "📒",
     subs: [
-      { href: "/dashboard/contactos/clientes",          label: "Clientes" },
-      { href: "/dashboard/contactos/proveedores",       label: "Proveedores" },
-      { href: "/dashboard/contactos/tecnicos-talleres", label: "Técnicos / Talleres" },
+      { key: "clientes",          href: "/dashboard/contactos/clientes",          label: "Clientes" },
+      { key: "proveedores",       href: "/dashboard/contactos/proveedores",       label: "Proveedores" },
+      { key: "tecnicos-talleres", href: "/dashboard/contactos/tecnicos-talleres", label: "Técnicos / Talleres" },
     ],
   },
   {
@@ -40,13 +40,13 @@ const MODULOS_BASE = [
     nombre: "Estadísticas",
     icon: "📊",
     subs: [
-      { href: "/dashboard/estadisticas?tab=dashboard",   label: "Dashboard" },
-      { href: "/dashboard/estadisticas?tab=horas",       label: "Horas trabajadas" },
-      { href: "/dashboard/estadisticas?tab=responsable", label: "Servicios por Responsable" },
-      { href: "/dashboard/estadisticas?tab=clientes",    label: "Servicios por Cliente" },
-      { href: "/dashboard/estadisticas?tab=cruzado",     label: "Reporte cruzado" },
-      { href: "/dashboard/estadisticas?tab=stock",       label: "Stock KPI" },
-      { href: "/dashboard/estadisticas?tab=patentes",   label: "Revisiones frecuentes" },
+      { key: "dashboard",   href: "/dashboard/estadisticas?tab=dashboard",   label: "Dashboard" },
+      { key: "horas",       href: "/dashboard/estadisticas?tab=horas",       label: "Horas trabajadas" },
+      { key: "responsable", href: "/dashboard/estadisticas?tab=responsable", label: "Servicios por Responsable" },
+      { key: "clientes",    href: "/dashboard/estadisticas?tab=clientes",    label: "Servicios por Cliente" },
+      { key: "cruzado",     href: "/dashboard/estadisticas?tab=cruzado",     label: "Reporte cruzado" },
+      { key: "stock-kpi",   href: "/dashboard/estadisticas?tab=stock",       label: "Stock KPI" },
+      { key: "patentes",    href: "/dashboard/estadisticas?tab=patentes",    label: "Revisiones frecuentes" },
     ],
   },
   {
@@ -60,7 +60,7 @@ const MODULOS_BASE = [
     nombre: "Tareas",
     icon: "✅",
     subs: [
-      { href: "/dashboard/tareas", label: "Tareas" },
+      { key: "tareas", href: "/dashboard/tareas", label: "Tareas" },
     ],
   },
   {
@@ -68,7 +68,7 @@ const MODULOS_BASE = [
     nombre: "Configuración",
     icon: "⚙️",
     subs: [
-      { href: "/dashboard/configuracion", label: "Equipos, Ubicaciones, Productos" },
+      { key: "configuracion", href: "/dashboard/configuracion", label: "Equipos, Ubicaciones, Productos" },
     ],
   },
   {
@@ -76,7 +76,7 @@ const MODULOS_BASE = [
     nombre: "Exportar",
     icon: "📥",
     subs: [
-      { href: "/dashboard/exportar-importar", label: "Exportar" },
+      { key: "exportar", href: "/dashboard/exportar-importar", label: "Exportar" },
     ],
   },
 ];
@@ -116,7 +116,7 @@ function buildStockGrupos(ubicaciones) {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, rol, modulos, logout } = useAuth();
+  const { user, rol, modulos, submodulos, logout } = useAuth();
 
   const [stockGrupos, setStockGrupos] = useState([
     { nombre: "Oficina", subs: [
@@ -137,7 +137,12 @@ export default function Sidebar() {
   // Filtrar módulos según permisos (null = acceso total)
   const modulosVisibles = MODULOS_BASE
     .map(mod => mod.isDynamic ? { ...mod, grupos: stockGrupos } : mod)
-    .filter(mod => !modulos || modulos.includes(mod.key));
+    .filter(mod => !modulos || modulos.includes(mod.key))
+    .map(mod => {
+      if (!submodulos || !submodulos[mod.key] || !mod.subs) return mod;
+      const permitidos = submodulos[mod.key];
+      return { ...mod, subs: mod.subs.filter(s => permitidos.includes(s.key)) };
+    });
 
   // Admin ve todo + sección Administración
   const todosModulos = rol === "admin"
