@@ -57,10 +57,11 @@ const MODULOS_BASE = [
   },
   {
     key: "tareas",
-    nombre: "Tareas",
-    icon: "✅",
+    nombre: "Tickets",
+    icon: "🎫",
     subs: [
-      { key: "tareas", href: "/dashboard/tareas", label: "Tareas" },
+      { key: "tickets",   href: "/dashboard/tareas",           label: "Tickets" },
+      { key: "historial", href: "/dashboard/tareas/historial", label: "Historial" },
     ],
   },
   {

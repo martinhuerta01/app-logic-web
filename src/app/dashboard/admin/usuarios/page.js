@@ -29,7 +29,10 @@ const TODOS_MODULOS = [
     { key: "patentes",    label: "Revisiones frecuentes" },
   ]},
   { key: "stock",        label: "Stock" },
-  { key: "tareas",       label: "Tareas" },
+  { key: "tareas",       label: "Tickets", subs: [
+    { key: "tickets",   label: "Tickets" },
+    { key: "historial", label: "Historial" },
+  ]},
   { key: "configuracion",label: "Configuración" },
   { key: "exportar",     label: "Exportar / Importar" },
 ];
