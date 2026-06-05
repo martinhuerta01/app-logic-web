@@ -2,421 +2,468 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { hoyAR, mesAR, anioAR } from "@/lib/date";
 
-const PRIORIDAD_STYLE = {
-  alta:  "bg-red-100 text-red-700 border-red-200",
-  media: "bg-amber-100 text-amber-700 border-amber-200",
-  baja:  "bg-green-100 text-green-700 border-green-200",
+// ── Constantes ────────────────────────────────────────────────────────
+const TIPOS = {
+  tarea:         { label: "Tarea",         color: "bg-slate-100 text-slate-600 border-slate-200" },
+  investigacion: { label: "Investigación", color: "bg-blue-100 text-blue-700 border-blue-200" },
+  bug:           { label: "Bug",           color: "bg-red-100 text-red-700 border-red-200" },
+  mejora:        { label: "Mejora",        color: "bg-violet-100 text-violet-700 border-violet-200" },
 };
 
-const ESTADO_STYLE = {
+const PRIORIDADES = {
+  alta:  { label: "Alta",  color: "bg-red-100 text-red-700" },
+  media: { label: "Media", color: "bg-amber-100 text-amber-700" },
+  baja:  { label: "Baja",  color: "bg-green-100 text-green-700" },
+};
+
+const ESTADOS = [
+  { key: "pendiente",   label: "Pendiente",   dot: "bg-slate-400" },
+  { key: "en_progreso", label: "En Progreso", dot: "bg-blue-500"  },
+  { key: "completada",  label: "Resuelto",    dot: "bg-green-500" },
+];
+const ESTADO_IDX = { pendiente: 0, en_progreso: 1, completada: 2 };
+const ESTADO_COLOR = {
   pendiente:   "bg-slate-100 text-slate-600",
   en_progreso: "bg-blue-100 text-blue-700",
   completada:  "bg-green-100 text-green-700",
 };
-
-const ESTADO_LABELS = {
-  pendiente: "Pendiente",
-  en_progreso: "En progreso",
-  completada: "Completada",
-};
-
-const FREQ_LABELS = { diaria: "Diaria", semanal: "Semanal", quincenal: "Quincenal", mensual: "Mensual" };
-const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const DIAS_SEMANA = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-const DIAS_LARGO = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
-
-function diasVencimiento(fecha) {
-  if (!fecha) return 999;
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const venc = new Date(fecha + "T00:00:00");
-  return Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
-}
-
-function ajustarADiaHabil(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  return d.toISOString().split("T")[0];
-}
-
-function prevDiaHabil(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
-  return d.toISOString().split("T")[0];
-}
-
-function debeMostrar(t, hoy) {
-  const fechaInicio = t.fecha_vencimiento || hoy;
-  const inicioDate = new Date(fechaInicio + "T00:00:00");
-  const hoyDate   = new Date(hoy + "T00:00:00");
-  if (hoyDate < inicioDate) return false;
-  const dow = hoyDate.getDay();
-  if (t.frecuencia === "diaria") return dow !== 0 && dow !== 6;
-  if (t.frecuencia === "semanal") {
-    if (dow === 0 || dow === 6) return false;
-    const inicioAjustado = new Date(ajustarADiaHabil(fechaInicio) + "T00:00:00");
-    return dow === inicioAjustado.getDay();
-  }
-  if (t.frecuencia === "quincenal") {
-    const current = new Date(inicioDate);
-    while (current <= hoyDate) {
-      if (ajustarADiaHabil(current.toISOString().split("T")[0]) === hoy) return true;
-      current.setDate(current.getDate() + 15);
-    }
-    return false;
-  }
-  if (t.frecuencia === "mensual") {
-    const current = new Date(inicioDate);
-    while (current <= hoyDate) {
-      if (ajustarADiaHabil(current.toISOString().split("T")[0]) === hoy) return true;
-      current.setMonth(current.getMonth() + 1);
-    }
-    return false;
-  }
-  return true;
-}
 
 function fmtFecha(str) {
   if (!str) return "";
   return str.split("-").reverse().join("/");
 }
 
-function CheckIcon() {
-  return (
-    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-    </svg>
-  );
+function diasVenc(fecha) {
+  if (!fecha) return 999;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.ceil((new Date(fecha + "T00:00:00") - hoy) / 86400000);
 }
 
-function IconEdit({ onClick }) {
-  return (
-    <button onClick={onClick} className="text-slate-300 hover:text-indigo-500 transition p-1 rounded hover:bg-indigo-50">
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
-    </button>
-  );
+function numStr(n) {
+  return n != null ? `#${String(n).padStart(3, "0")}` : "#---";
 }
 
-function IconDelete({ onClick }) {
-  return (
-    <button onClick={onClick} className="text-slate-300 hover:text-red-500 transition p-1 rounded hover:bg-red-50">
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
-          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-      </svg>
-    </button>
-  );
-}
 
-// ── Modal ────────────────────────────────────────────────────────────
-function ModalTarea({ tarea, onClose, onSave }) {
+// ── Modal crear / editar ──────────────────────────────────────────────
+function ModalTicket({ ticket, onClose, onSave }) {
   const { user } = useAuth();
   const [form, setForm] = useState({
-    titulo: tarea?.titulo || "",
-    descripcion: tarea?.descripcion || "",
-    fecha_vencimiento: tarea?.fecha_vencimiento || hoyAR(),
-    prioridad: tarea?.prioridad || "media",
-    estado: tarea?.estado || "pendiente",
-    asignado_a: tarea?.asignado_a || "",
-    es_recurrente: tarea?.es_recurrente || false,
-    frecuencia: tarea?.frecuencia || "diaria",
+    titulo:            ticket?.titulo            || "",
+    descripcion:       ticket?.descripcion       || "",
+    tipo:              ticket?.tipo              || "tarea",
+    categoria:         ticket?.categoria         || "",
+    prioridad:         ticket?.prioridad         || "media",
+    estado:            ticket?.estado            || "pendiente",
+    asignado_a:        ticket?.asignado_a        || "",
+    fecha_vencimiento: ticket?.fecha_vencimiento || "",
   });
+  const [guardando, setGuardando] = useState(false);
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const guardar = async () => {
     if (!form.titulo.trim()) return;
-    const body = { ...form };
-    if (!form.es_recurrente) body.frecuencia = null;
-    if (form.es_recurrente) {
-      body.fecha_vencimiento = tarea?.fecha_vencimiento || hoyAR();
-      body.estado = "pendiente";
-    }
-    if (!tarea) body.cargado_por = user;
-    const ok = await onSave(tarea?.id, body);
+    setGuardando(true);
+    const body = {
+      ...form,
+      fecha_vencimiento: form.fecha_vencimiento || null,
+      categoria:         form.categoria.trim()  || null,
+      asignado_a:        form.asignado_a.trim() || null,
+    };
+    if (!ticket) body.cargado_por = user;
+    const ok = await onSave(ticket?.id, body);
     if (ok) onClose();
+    setGuardando(false);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="px-6 py-5 border-b border-slate-100">
-          <h3 className="text-base font-semibold text-slate-800">{tarea ? "Editar tarea" : "Nueva tarea"}</h3>
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-800">
+            {ticket ? `Editar ${numStr(ticket.numero)}` : "Nuevo ticket"}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
         </div>
+
         <div className="px-6 py-5 space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Título *</label>
-            <input type="text" value={form.titulo} onChange={e => setForm({ ...form, titulo: e.target.value })}
+            <input type="text" value={form.titulo} onChange={e => set("titulo", e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Descripción</label>
-            <textarea value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" rows={2} />
-          </div>
 
-          <div className="flex items-center gap-3 py-2 border-t border-b border-slate-100">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.es_recurrente}
-                onChange={e => setForm({ ...form, es_recurrente: e.target.checked })}
-                className="w-4 h-4 rounded accent-indigo-600" />
-              <span className="text-sm font-medium text-slate-700">Tarea recurrente</span>
-            </label>
-            {form.es_recurrente && (
-              <select value={form.frecuencia} onChange={e => setForm({ ...form, frecuencia: e.target.value })}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
-                <option value="diaria">Diaria</option>
-                <option value="semanal">Semanal</option>
-                <option value="quincenal">Quincenal</option>
-                <option value="mensual">Mensual</option>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Tipo</label>
+              <select value={form.tipo} onChange={e => set("tipo", e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
-            )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Categoría</label>
+              <input type="text" value={form.categoria} onChange={e => set("categoria", e.target.value)}
+                placeholder="GPS, Stock, Sistema…"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            {!form.es_recurrente && (
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Vencimiento</label>
-                <input type="date" value={form.fecha_vencimiento} onChange={e => setForm({ ...form, fecha_vencimiento: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-            )}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Prioridad</label>
-              <select value={form.prioridad} onChange={e => setForm({ ...form, prioridad: e.target.value })}
+              <select value={form.prioridad} onChange={e => set("prioridad", e.target.value)}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                <option value="alta">Alta</option>
-                <option value="media">Media</option>
-                <option value="baja">Baja</option>
+                {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </div>
-            {!form.es_recurrente && (
-              <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
-                <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="pendiente">Pendiente</option>
-                  <option value="en_progreso">En progreso</option>
-                  <option value="completada">Completada</option>
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+              <select value={form.estado} onChange={e => set("estado", e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                {ESTADOS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Vencimiento</label>
+              <input type="date" value={form.fecha_vencimiento} onChange={e => set("fecha_vencimiento", e.target.value)}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            </div>
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Descripción</label>
+            <textarea value={form.descripcion} onChange={e => set("descripcion", e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none" rows={3} />
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Asignado a</label>
-            <input type="text" value={form.asignado_a} onChange={e => setForm({ ...form, asignado_a: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="Nombre (opcional)" />
+            <input type="text" value={form.asignado_a} onChange={e => set("asignado_a", e.target.value)}
+              placeholder="Nombre (opcional)"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>
+
         <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-          <button onClick={guardar} className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition font-medium">Guardar</button>
+          <button onClick={guardar} disabled={guardando || !form.titulo.trim()}
+            className="px-5 py-2 text-sm bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white rounded-lg font-medium transition disabled:opacity-60">
+            {guardando ? "Guardando…" : "Guardar"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Tab HOY ──────────────────────────────────────────────────────────
-function TabHoy({ tareas, completaciones, onToggle, onEdit, onDelete, onEstado }) {
-  const [fecha, setFecha] = useState(hoyAR());
-  const hoy = hoyAR();
-  const esHoy = fecha === hoy;
 
-  const recurrentes = tareas.filter(t => t.es_recurrente && debeMostrar(t, fecha));
+// ── Panel de detalle (slide-over derecho) ─────────────────────────────
+function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
+  const { user } = useAuth();
+  const [notas,        setNotas]        = useState([]);
+  const [nuevaNota,    setNuevaNota]    = useState("");
+  const [guardandoN,   setGuardandoN]   = useState(false);
+  const [cargandoN,    setCargandoN]    = useState(false);
 
-  const urgentes = tareas.filter(t => {
-    if (t.es_recurrente || t.estado === "completada") return false;
-    const d = diasVencimiento(t.fecha_vencimiento);
-    return d <= 2;
-  }).sort((a, b) => diasVencimiento(a.fecha_vencimiento) - diasVencimiento(b.fecha_vencimiento));
+  useEffect(() => {
+    if (ticket?.id) cargarNotas();
+  }, [ticket?.id]);
 
-  const estaCompletada = (tareaId) =>
-    completaciones.some(c => c.tarea_id === tareaId && c.fecha === fecha);
-
-  const navFecha = (delta) => {
-    const d = new Date(fecha + "T12:00:00Z");
-    d.setUTCDate(d.getUTCDate() + delta);
-    setFecha(d.toISOString().split("T")[0]);
+  const cargarNotas = async () => {
+    setCargandoN(true);
+    try {
+      const data = await api.get(`/tareas/${ticket.id}/notas/`);
+      setNotas(data || []);
+    } catch {}
+    setCargandoN(false);
   };
 
-  const [anio, mes, dia] = fecha.split("-").map(Number);
-  const dow = new Date(fecha + "T12:00:00Z").getUTCDay();
-  const fechaLabel = `${DIAS_LARGO[dow].charAt(0).toUpperCase() + DIAS_LARGO[dow].slice(1)} ${dia} de ${MESES[mes - 1]}`;
+  const agregarNota = async () => {
+    if (!nuevaNota.trim()) return;
+    setGuardandoN(true);
+    try {
+      await api.post(`/tareas/${ticket.id}/notas/`, { texto: nuevaNota.trim(), cargado_por: user });
+      setNuevaNota("");
+      cargarNotas();
+    } catch {}
+    setGuardandoN(false);
+  };
+
+  const eliminarNota = async (id) => {
+    try {
+      await api.delete(`/tareas/${ticket.id}/notas/${id}`);
+      cargarNotas();
+    } catch {}
+  };
+
+  const tipo     = TIPOS[ticket.tipo]           || TIPOS.tarea;
+  const prio     = PRIORIDADES[ticket.prioridad] || PRIORIDADES.media;
+  const estadoObj = ESTADOS[ESTADO_IDX[ticket.estado]] || ESTADOS[0];
+  const idx      = ESTADO_IDX[ticket.estado] ?? 0;
+  const dias     = diasVenc(ticket.fecha_vencimiento);
 
   return (
-    <div className="space-y-5">
-      {/* Navegador de fecha */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navFecha(-1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <span className="text-sm font-semibold text-slate-700 min-w-[200px] text-center">
-          {fechaLabel}
-          {esHoy && <span className="ml-2 text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-medium">Hoy</span>}
-        </span>
-        <button onClick={() => navFecha(1)} disabled={esHoy} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition disabled:opacity-30">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-        {!esHoy && (
-          <button onClick={() => setFecha(hoy)} className="text-xs text-indigo-600 hover:underline ml-1">Volver a hoy</button>
-        )}
-      </div>
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200">
 
-      {/* Recurrentes del día */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-700">Tareas del día</h2>
-          <span className="text-xs text-slate-400">{recurrentes.length} tarea{recurrentes.length !== 1 ? "s" : ""}</span>
-        </div>
-        {recurrentes.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-slate-400">
-            {dow === 0 || dow === 6 ? "Fin de semana — sin tareas recurrentes" : "No hay tareas recurrentes para este día"}
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-slate-200 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-xs font-bold text-slate-400">{numStr(ticket.numero)}</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${tipo.color}`}>{tipo.label}</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${prio.color}`}>{prio.label}</span>
+            </div>
+            <h2 className="text-base font-bold text-slate-800 leading-tight">{ticket.titulo}</h2>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {recurrentes.map(t => {
-              const hecha = estaCompletada(t.id);
-              const ultimoDiaHabil = prevDiaHabil(fecha);
-              const noHechaAntes = t.frecuencia === "diaria" && esHoy &&
-                !completaciones.some(c => c.tarea_id === t.id && c.fecha === ultimoDiaHabil) && !hecha;
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0 mt-1">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-              return (
-                <div key={t.id} className={`flex items-center gap-4 px-5 py-3.5 transition ${noHechaAntes ? "bg-red-50/50" : ""}`}>
-                  <button onClick={() => onToggle(t.id, fecha)}
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
-                      hecha ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-indigo-400"
-                    }`}>
-                    {hecha && <CheckIcon />}
+        {/* Cuerpo scrolleable */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Metadata */}
+          <div className="px-5 py-4 space-y-3 border-b border-slate-100">
+
+            {/* Estado + botones mover */}
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${ESTADO_COLOR[ticket.estado]}`}>
+                {estadoObj.label}
+              </span>
+              <div className="flex gap-1 ml-auto">
+                {idx > 0 && (
+                  <button onClick={() => onMover(ticket.id, ESTADOS[idx - 1].key)}
+                    className="text-xs px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition">
+                    ← {ESTADOS[idx - 1].label}
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-medium ${hecha ? "line-through text-slate-400" : "text-slate-800"}`}>
-                        {t.titulo}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 font-medium">
-                        {FREQ_LABELS[t.frecuencia]}
-                      </span>
-                      {noHechaAntes && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-bold">
-                          No completada ayer
-                        </span>
-                      )}
-                    </div>
-                    {t.descripcion && <p className="text-xs text-slate-400 mt-0.5">{t.descripcion}</p>}
-                  </div>
-                  <div className="flex gap-0.5 shrink-0">
-                    <IconEdit onClick={() => onEdit(t)} />
-                    <IconDelete onClick={() => onDelete(t.id)} />
-                  </div>
+                )}
+                {idx < 2 && (
+                  <button onClick={() => onMover(ticket.id, ESTADOS[idx + 1].key)}
+                    className="text-xs px-2.5 py-1 border border-indigo-200 bg-indigo-50 rounded-lg hover:bg-indigo-100 text-indigo-700 font-medium transition">
+                    {ESTADOS[idx + 1].label} →
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Campos meta */}
+            <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-500">
+              {ticket.categoria && (
+                <div><span className="font-semibold text-slate-600">Categoría:</span> {ticket.categoria}</div>
+              )}
+              {ticket.asignado_a && (
+                <div><span className="font-semibold text-slate-600">Asignado:</span> {ticket.asignado_a}</div>
+              )}
+              {ticket.cargado_por && (
+                <div><span className="font-semibold text-slate-600">Creado por:</span> {ticket.cargado_por}</div>
+              )}
+              {ticket.fecha_vencimiento && (
+                <div className={dias < 0 ? "text-red-600 font-semibold" : dias <= 2 ? "text-amber-600 font-semibold" : ""}>
+                  <span className="font-semibold text-slate-600">Vence:</span> {fmtFecha(ticket.fecha_vencimiento)}
+                  {dias < 0 && ` (hace ${Math.abs(dias)}d)`}
+                  {dias === 0 && " (hoy)"}
+                  {dias === 1 && " (mañana)"}
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            {/* Descripción */}
+            {ticket.descripcion && (
+              <p className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2.5 leading-relaxed">
+                {ticket.descripcion}
+              </p>
+            )}
+
+            {/* Acciones */}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => onEdit(ticket)}
+                className="flex-1 text-xs py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition font-medium">
+                ✎ Editar
+              </button>
+              <button onClick={() => { if (confirm("¿Eliminar este ticket?")) { onDelete(ticket.id); onClose(); } }}
+                className="flex-1 text-xs py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600 transition font-medium">
+                Eliminar
+              </button>
+            </div>
           </div>
+
+          {/* Notas / Historial */}
+          <div className="px-5 py-4">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Notas / Historial
+            </h3>
+
+            {cargandoN ? (
+              <p className="text-xs text-slate-400 italic mb-3">Cargando…</p>
+            ) : notas.length === 0 ? (
+              <p className="text-xs text-slate-400 italic mb-4">Sin notas aún.</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {notas.map(n => (
+                  <div key={n.id} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 group">
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.texto}</p>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-[10px] text-slate-400">
+                        {n.cargado_por && `${n.cargado_por} · `}
+                        {n.created_at
+                          ? new Date(n.created_at).toLocaleDateString("es-AR", {
+                              day: "2-digit", month: "2-digit", year: "2-digit",
+                              hour: "2-digit", minute: "2-digit",
+                            })
+                          : ""}
+                      </span>
+                      <button onClick={() => eliminarNota(n.id)}
+                        className="text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)}
+                placeholder="Agregar nota o actualización…"
+                rows={3}
+                onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) agregarNota(); }}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 resize-none" />
+              <button onClick={agregarNota} disabled={!nuevaNota.trim() || guardandoN}
+                className="w-full py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition disabled:opacity-50">
+                {guardandoN ? "Guardando…" : "Agregar nota"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+// ── Tarjeta Kanban ────────────────────────────────────────────────────
+function KanbanCard({ ticket, onDetalle, onMover }) {
+  const tipo = TIPOS[ticket.tipo] || TIPOS.tarea;
+  const prio = PRIORIDADES[ticket.prioridad] || PRIORIDADES.media;
+  const idx  = ESTADO_IDX[ticket.estado] ?? 0;
+  const dias = diasVenc(ticket.fecha_vencimiento);
+  const vencida = dias < 0 && ticket.estado !== "completada";
+
+  return (
+    <div
+      className={`bg-white rounded-xl border shadow-sm p-3.5 cursor-pointer hover:border-indigo-300 hover:shadow-md transition group ${vencida ? "border-red-200 bg-red-50/30" : "border-slate-200"}`}
+      onClick={() => onDetalle(ticket)}>
+
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[10px] font-bold text-slate-400">{numStr(ticket.numero)}</span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tipo.color}`}>{tipo.label}</span>
+      </div>
+
+      <p className="text-sm font-medium text-slate-800 leading-snug mb-2.5">{ticket.titulo}</p>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${prio.color}`}>{prio.label}</span>
+        {ticket.categoria && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{ticket.categoria}</span>
+        )}
+        {ticket.asignado_a && (
+          <span className="text-[10px] text-slate-400 ml-auto truncate">→ {ticket.asignado_a}</span>
         )}
       </div>
 
-      {/* Urgentes / Vencidas (solo si estamos viendo hoy) */}
-      {esHoy && urgentes.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 bg-red-50 border-b border-red-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-red-700">Urgentes / Vencidas</h2>
-            <span className="text-xs text-red-400">{urgentes.length} tarea{urgentes.length !== 1 ? "s" : ""}</span>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {urgentes.map(t => {
-              const dias = diasVencimiento(t.fecha_vencimiento);
-              const vencida = dias < 0;
-              return (
-                <div key={t.id} className="flex items-center gap-4 px-5 py-3.5">
-                  <button onClick={() => onEstado(t.id, "completada")}
-                    className="w-6 h-6 rounded-full border-2 border-slate-300 hover:border-indigo-400 flex items-center justify-center shrink-0 transition" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-slate-800">{t.titulo}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${PRIORIDAD_STYLE[t.prioridad] || PRIORIDAD_STYLE.media}`}>
-                        {t.prioridad?.toUpperCase()}
-                      </span>
-                    </div>
-                    <p className={`text-xs mt-0.5 font-medium ${vencida ? "text-red-600" : "text-amber-600"}`}>
-                      {vencida
-                        ? `Vencida hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}`
-                        : dias === 0 ? "Vence hoy"
-                        : dias === 1 ? "Vence mañana"
-                        : `Vence en ${dias} días`}
-                      {t.asignado_a && <span className="text-slate-400 font-normal ml-2">→ {t.asignado_a}</span>}
-                    </p>
-                  </div>
-                  <div className="flex gap-0.5 shrink-0">
-                    <IconEdit onClick={() => onEdit(t)} />
-                    <IconDelete onClick={() => onDelete(t.id)} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {ticket.fecha_vencimiento && (
+        <div className={`text-[10px] mt-2 ${vencida ? "text-red-600 font-semibold" : dias <= 2 ? "text-amber-600" : "text-slate-400"}`}>
+          {vencida ? `⚠ Vencido ${fmtFecha(ticket.fecha_vencimiento)}` : `📅 ${fmtFecha(ticket.fecha_vencimiento)}`}
         </div>
       )}
 
-      {esHoy && urgentes.length === 0 && tareas.filter(t => !t.es_recurrente && t.estado !== "completada").length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 text-sm text-green-700 font-medium text-center">
-          Sin tareas vencidas ni próximas a vencer
-        </div>
-      )}
+      {/* Flechas de mover — visibles al hover */}
+      <div className="flex gap-1 mt-3 opacity-0 group-hover:opacity-100 transition"
+        onClick={e => e.stopPropagation()}>
+        {idx > 0 && (
+          <button onClick={() => onMover(ticket.id, ESTADOS[idx - 1].key)}
+            className="flex-1 text-[10px] py-1 border border-slate-200 rounded text-slate-500 hover:bg-slate-50 transition truncate">
+            ← {ESTADOS[idx - 1].label}
+          </button>
+        )}
+        {idx < 2 && (
+          <button onClick={() => onMover(ticket.id, ESTADOS[idx + 1].key)}
+            className="flex-1 text-[10px] py-1 border border-indigo-200 bg-indigo-50 rounded text-indigo-600 hover:bg-indigo-100 transition truncate">
+            {ESTADOS[idx + 1].label} →
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-// ── Tab TODAS ────────────────────────────────────────────────────────
-function TabTodas({ tareas, onEdit, onDelete, onEstado }) {
-  const [filtroEstado, setFiltroEstado] = useState("todas");
-  const [filtroPrioridad, setFiltroPrioridad] = useState("todas");
-  const [busqueda, setBusqueda] = useState("");
-  const [vistaCalendario, setVistaCalendario] = useState(false);
-  const [mesActual, setMesActual] = useState(() => mesAR() - 1);
-  const [anioActual, setAnioActual] = useState(anioAR);
 
-  const normales = tareas.filter(t => !t.es_recurrente);
-  const filtradas = normales.filter(t => {
-    if (filtroEstado !== "todas" && t.estado !== filtroEstado) return false;
-    if (filtroPrioridad !== "todas" && t.prioridad !== filtroPrioridad) return false;
-    if (busqueda && !t.titulo.toLowerCase().includes(busqueda.toLowerCase()) &&
-        !t.descripcion?.toLowerCase().includes(busqueda.toLowerCase()) &&
-        !t.asignado_a?.toLowerCase().includes(busqueda.toLowerCase())) return false;
+// ── Vista Kanban ──────────────────────────────────────────────────────
+function VistaKanban({ tickets, onDetalle, onMover }) {
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {ESTADOS.map(estado => {
+        const col = tickets.filter(t => t.estado === estado.key);
+        return (
+          <div key={estado.key} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between px-1 mb-1">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${estado.dot}`} />
+                <span className="text-sm font-semibold text-slate-700">{estado.label}</span>
+              </div>
+              <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">{col.length}</span>
+            </div>
+            <div className="bg-slate-50/80 rounded-xl p-2 flex-1 space-y-2 min-h-[200px] border border-slate-200/60">
+              {col.length === 0 && (
+                <div className="flex items-center justify-center h-20 text-xs text-slate-300 italic">Sin tickets</div>
+              )}
+              {col.map(t => (
+                <KanbanCard key={t.id} ticket={t} onDetalle={onDetalle} onMover={onMover} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+// ── Vista Lista ───────────────────────────────────────────────────────
+function VistaLista({ tickets, onDetalle }) {
+  const [filtroEstado,    setFiltroEstado]    = useState("todos");
+  const [filtroTipo,      setFiltroTipo]      = useState("todos");
+  const [filtroPrioridad, setFiltroPrioridad] = useState("todos");
+  const [busqueda,        setBusqueda]        = useState("");
+
+  const filtrados = tickets.filter(t => {
+    if (filtroEstado    !== "todos" && t.estado    !== filtroEstado)    return false;
+    if (filtroTipo      !== "todos" && t.tipo      !== filtroTipo)      return false;
+    if (filtroPrioridad !== "todos" && t.prioridad !== filtroPrioridad) return false;
+    if (busqueda) {
+      const q = busqueda.toLowerCase();
+      if (!t.titulo.toLowerCase().includes(q) &&
+          !(t.descripcion?.toLowerCase().includes(q)) &&
+          !(t.categoria?.toLowerCase().includes(q)) &&
+          !(t.asignado_a?.toLowerCase().includes(q))) return false;
+    }
     return true;
-  }).sort((a, b) => {
-    const prioOrder = { alta: 0, media: 1, baja: 2 };
-    if (a.estado === "completada" && b.estado !== "completada") return 1;
-    if (b.estado === "completada" && a.estado !== "completada") return -1;
-    const prio = (prioOrder[a.prioridad] ?? 1) - (prioOrder[b.prioridad] ?? 1);
-    if (prio !== 0) return prio;
-    return (a.fecha_vencimiento || "9999") < (b.fecha_vencimiento || "9999") ? -1 : 1;
   });
-
-  const tareasDelMes = normales.filter(t => {
-    if (!t.fecha_vencimiento) return false;
-    const [a, m] = t.fecha_vencimiento.split("-");
-    return parseInt(a) === anioActual && parseInt(m) === mesActual + 1;
-  });
-
-  const mesAnterior = () => { if (mesActual === 0) { setMesActual(11); setAnioActual(a => a - 1); } else setMesActual(m => m - 1); };
-  const mesSiguiente = () => { if (mesActual === 11) { setMesActual(0); setAnioActual(a => a + 1); } else setMesActual(m => m + 1); };
 
   return (
     <div className="space-y-4">
-      {/* Barra de filtros */}
+      {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Estado */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {[{ k: "todas", l: "Todas" }, { k: "pendiente", l: "Pendientes" }, { k: "en_progreso", l: "En progreso" }, { k: "completada", l: "Completadas" }].map(f => (
+          {[{ k: "todos", l: "Todos" }, ...ESTADOS.map(e => ({ k: e.key, l: e.label }))].map(f => (
             <button key={f.k} onClick={() => setFiltroEstado(f.k)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroEstado === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
               {f.l}
@@ -424,9 +471,17 @@ function TabTodas({ tareas, onEdit, onDelete, onEstado }) {
           ))}
         </div>
 
-        {/* Prioridad */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {[{ k: "todas", l: "Prioridad" }, { k: "alta", l: "Alta" }, { k: "media", l: "Media" }, { k: "baja", l: "Baja" }].map(f => (
+          {[{ k: "todos", l: "Tipo" }, ...Object.entries(TIPOS).map(([k, v]) => ({ k, l: v.label }))].map(f => (
+            <button key={f.k} onClick={() => setFiltroTipo(f.k)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroTipo === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+              {f.l}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          {[{ k: "todos", l: "Prio" }, ...Object.entries(PRIORIDADES).map(([k, v]) => ({ k, l: v.label }))].map(f => (
             <button key={f.k} onClick={() => setFiltroPrioridad(f.k)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroPrioridad === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
               {f.l}
@@ -434,129 +489,57 @@ function TabTodas({ tareas, onEdit, onDelete, onEstado }) {
           ))}
         </div>
 
-        {/* Busqueda */}
         <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar..."
+          placeholder="Buscar…"
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-300 min-w-[160px]" />
-
-        <div className="ml-auto">
-          <button onClick={() => setVistaCalendario(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition ${vistaCalendario ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Calendario
-          </button>
-        </div>
       </div>
 
-      {/* Calendario */}
-      {vistaCalendario && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
-            <button onClick={mesAnterior} className="text-slate-500 hover:text-slate-700 p-1 rounded hover:bg-slate-100">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <span className="text-sm font-semibold text-slate-700 min-w-[150px] text-center">{MESES[mesActual]} {anioActual}</span>
-            <button onClick={mesSiguiente} className="text-slate-500 hover:text-slate-700 p-1 rounded hover:bg-slate-100">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            </button>
-          </div>
-          <div className="grid grid-cols-7">
-            {DIAS_SEMANA.map(d => (
-              <div key={d} className="text-center text-xs font-semibold text-slate-500 py-2 bg-slate-50 border-b border-slate-100">{d}</div>
-            ))}
-            {(() => {
-              const primerDia = new Date(anioActual, mesActual, 1);
-              let inicio = primerDia.getDay() - 1;
-              if (inicio < 0) inicio = 6;
-              const diasEnMes = new Date(anioActual, mesActual + 1, 0).getDate();
-              const hoy = hoyAR();
-              const celdas = [...Array(inicio).fill(null), ...Array.from({ length: diasEnMes }, (_, i) => i + 1)];
-              const porDia = {};
-              tareasDelMes.forEach(t => {
-                const d = parseInt(t.fecha_vencimiento?.split("-")[2]);
-                if (!porDia[d]) porDia[d] = [];
-                porDia[d].push(t);
-              });
-              return celdas.map((dia, idx) => {
-                if (!dia) return <div key={`e-${idx}`} className="border-b border-r border-slate-100 min-h-[80px] bg-slate-50/50" />;
-                const fechaStr = `${anioActual}-${String(mesActual + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-                const esHoy = fechaStr === hoy;
-                const del = porDia[dia] || [];
-                return (
-                  <div key={dia} className={`border-b border-r border-slate-100 min-h-[80px] p-1.5 ${esHoy ? "bg-indigo-50" : ""}`}>
-                    <div className={`text-xs font-medium mb-1 ${esHoy ? "bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center" : "text-slate-500"}`}>{dia}</div>
-                    {del.slice(0, 3).map(t => (
-                      <div key={t.id} className={`text-[10px] px-1.5 py-0.5 rounded mb-0.5 truncate ${
-                        t.estado === "completada" ? "bg-green-100 text-green-700 line-through" :
-                        diasVencimiento(t.fecha_vencimiento) < 0 ? "bg-red-100 text-red-700" :
-                        t.prioridad === "alta" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-700"
-                      }`}>{t.titulo}</div>
-                    ))}
-                    {del.length > 3 && <div className="text-[10px] text-slate-400">+{del.length - 3} más</div>}
-                  </div>
-                );
-              });
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* Lista */}
-      {filtradas.length === 0 ? (
+      {filtrados.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
-          No hay tareas con los filtros seleccionados
+          No hay tickets con los filtros seleccionados
         </div>
       ) : (
         <div className="space-y-2">
-          {filtradas.map(t => {
-            const dias = diasVencimiento(t.fecha_vencimiento);
-            const vencida = dias < 0 && t.estado !== "completada";
-            const proxima = dias >= 0 && dias <= 2 && t.estado !== "completada";
+          {filtrados.map(t => {
+            const tipo     = TIPOS[t.tipo]           || TIPOS.tarea;
+            const prio     = PRIORIDADES[t.prioridad] || PRIORIDADES.media;
+            const estadoObj = ESTADOS[ESTADO_IDX[t.estado]] || ESTADOS[0];
+            const dias     = diasVenc(t.fecha_vencimiento);
+            const vencida  = dias < 0 && t.estado !== "completada";
+
             return (
-              <div key={t.id} className={`bg-white rounded-xl border shadow-sm px-5 py-3.5 flex items-center gap-4 transition ${
-                vencida ? "border-red-200 bg-red-50/30" : proxima ? "border-amber-200 bg-amber-50/30" : "border-slate-200"
-              }`}>
-                <button onClick={() => onEstado(t.id, t.estado === "completada" ? "pendiente" : "completada")}
-                  className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
-                    t.estado === "completada" ? "bg-green-500 border-green-500" : "border-slate-300 hover:border-indigo-400"
-                  }`}>
-                  {t.estado === "completada" && (
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
+              <div key={t.id}
+                onClick={() => onDetalle(t)}
+                className={`bg-white rounded-xl border shadow-sm px-5 py-3.5 flex items-center gap-4 cursor-pointer hover:border-indigo-200 hover:shadow-md transition ${vencida ? "border-red-200 bg-red-50/30" : "border-slate-200"}`}>
+
+                <span className="text-xs font-bold text-slate-400 shrink-0 w-10">{numStr(t.numero)}</span>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tipo.color}`}>{tipo.label}</span>
                     <span className={`text-sm font-medium ${t.estado === "completada" ? "line-through text-slate-400" : "text-slate-800"}`}>
                       {t.titulo}
                     </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${PRIORIDAD_STYLE[t.prioridad] || PRIORIDAD_STYLE.media}`}>
-                      {t.prioridad?.toUpperCase()}
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${ESTADO_STYLE[t.estado] || ESTADO_STYLE.pendiente}`}>
-                      {ESTADO_LABELS[t.estado] || t.estado}
-                    </span>
                   </div>
-                  {t.descripcion && <p className="text-xs text-slate-400 mt-0.5 truncate">{t.descripcion}</p>}
-                  <div className="flex items-center gap-3 mt-1 text-xs">
-                    <span className={vencida ? "text-red-600 font-semibold" : proxima ? "text-amber-600 font-semibold" : "text-slate-400"}>
-                      {fmtFecha(t.fecha_vencimiento)}
-                      {vencida && ` — vencida hace ${Math.abs(dias)}d`}
-                      {proxima && dias === 0 && " — vence hoy"}
-                      {proxima && dias === 1 && " — vence mañana"}
-                    </span>
-                    {t.asignado_a && <span className="text-slate-400">→ {t.asignado_a}</span>}
+                  <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                    <span className={`px-1.5 py-0.5 rounded-full font-semibold ${prio.color}`}>{prio.label}</span>
+                    <span className={`px-1.5 py-0.5 rounded-full ${ESTADO_COLOR[t.estado]}`}>{estadoObj.label}</span>
+                    {t.categoria && <span className="bg-slate-100 px-1.5 py-0.5 rounded-full">{t.categoria}</span>}
+                    {t.asignado_a && <span>→ {t.asignado_a}</span>}
+                    {t.fecha_vencimiento && (
+                      <span className={vencida ? "text-red-600 font-semibold" : dias <= 2 ? "text-amber-600" : ""}>
+                        📅 {fmtFecha(t.fecha_vencimiento)}
+                        {vencida && ` (vencido hace ${Math.abs(dias)}d)`}
+                        {!vencida && dias === 0 && " (hoy)"}
+                        {!vencida && dias === 1 && " (mañana)"}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex gap-0.5 shrink-0">
-                  <IconEdit onClick={() => onEdit(t)} />
-                  <IconDelete onClick={() => onDelete(t.id)} />
-                </div>
+                <svg className="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
             );
           })}
@@ -566,117 +549,130 @@ function TabTodas({ tareas, onEdit, onDelete, onEstado }) {
   );
 }
 
-// ── Página principal ─────────────────────────────────────────────────
+
+// ── Página principal ──────────────────────────────────────────────────
 export default function TareasPage() {
-  const [tab, setTab] = useState("hoy");
-  const [tareas, setTareas] = useState([]);
-  const [completaciones, setCompletaciones] = useState([]);
-  const [modal, setModal] = useState(null);
-  const [msg, setMsg] = useState("");
+  const [vista,   setVista]   = useState("kanban");
+  const [tickets, setTickets] = useState([]);
+  const [modal,   setModal]   = useState(null);   // null | "nuevo" | ticket
+  const [detalle, setDetalle] = useState(null);   // ticket | null
+  const [msg,     setMsg]     = useState("");
 
   useEffect(() => { cargar(); }, []);
 
   const cargar = async () => {
     try {
-      const [data, comps] = await Promise.all([
-        api.get("/tareas/"),
-        api.get("/tareas/completaciones/").catch(() => []),
-      ]);
-      setTareas(data);
-      setCompletaciones(comps || []);
-    } catch { setMsg("Error al cargar tareas."); }
+      const data = await api.get("/tareas/");
+      setTickets(data || []);
+    } catch { setMsg("Error al cargar tickets."); }
   };
 
   const guardar = async (id, form) => {
     try {
-      if (id) await api.put(`/tareas/${id}/`, form);
-      else await api.post("/tareas/", form);
+      if (id) await api.put(`/tareas/${id}`, form);
+      else    await api.post("/tareas/", form);
       cargar();
       return true;
-    } catch { setMsg("Error al guardar tarea."); return false; }
+    } catch { setMsg("Error al guardar."); return false; }
   };
 
   const eliminar = async (id) => {
-    if (!confirm("¿Eliminar esta tarea?")) return;
     try { await api.delete(`/tareas/${id}`); cargar(); }
-    catch { setMsg("Error al eliminar tarea."); }
+    catch { setMsg("Error al eliminar."); }
   };
 
-  const cambiarEstado = async (id, estado) => {
-    try { await api.put(`/tareas/${id}`, { estado }); cargar(); }
-    catch { setMsg("Error al actualizar estado."); }
-  };
-
-  const toggleCompletacion = async (tareaId, fecha) => {
+  const moverEstado = async (ticketId, nuevoEstado) => {
     try {
-      const existe = completaciones.find(c => c.tarea_id === tareaId && c.fecha === fecha);
-      if (existe) await api.delete("/tareas/completaciones/", { tarea_id: tareaId, fecha });
-      else await api.post("/tareas/completaciones/", { tarea_id: tareaId, fecha });
-      cargar();
-    } catch { setMsg("Error al actualizar completación."); }
+      await api.put(`/tareas/${ticketId}`, { estado: nuevoEstado });
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, estado: nuevoEstado } : t));
+      if (detalle?.id === ticketId) setDetalle(prev => ({ ...prev, estado: nuevoEstado }));
+    } catch { setMsg("Error al actualizar estado."); }
   };
 
-  // Contadores para badges en tabs
-  const recurrentesHoy = tareas.filter(t => t.es_recurrente && debeMostrar(t, hoyAR())).length;
-  const completadasHoy = completaciones.filter(c => c.fecha === hoyAR()).length;
-  const urgentesHoy = tareas.filter(t => !t.es_recurrente && t.estado !== "completada" && diasVencimiento(t.fecha_vencimiento) <= 2).length;
-  const pendientesTotal = tareas.filter(t => !t.es_recurrente && t.estado !== "completada").length;
+  // Stats
+  const abiertos   = tickets.filter(t => t.estado === "pendiente").length;
+  const enProgreso = tickets.filter(t => t.estado === "en_progreso").length;
+  const resueltos  = tickets.filter(t => t.estado === "completada").length;
+
+  // Ticket en el panel usa la versión más reciente del array
+  const ticketDetalle = detalle ? tickets.find(t => t.id === detalle.id) || detalle : null;
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      {modal != null && (
-        <ModalTarea tarea={modal === "nueva" ? null : modal} onClose={() => setModal(null)} onSave={guardar} />
+    <div className="space-y-5">
+      {/* Modal crear/editar */}
+      {modal !== null && (
+        <ModalTicket
+          ticket={modal === "nuevo" ? null : modal}
+          onClose={() => setModal(null)}
+          onSave={guardar}
+        />
       )}
-      {msg && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{msg}</div>}
+
+      {/* Panel de detalle */}
+      {ticketDetalle && (
+        <PanelDetalle
+          ticket={ticketDetalle}
+          onClose={() => setDetalle(null)}
+          onEdit={t => { setDetalle(null); setModal(t); }}
+          onDelete={id => { eliminar(id); setDetalle(null); }}
+          onMover={moverEstado}
+        />
+      )}
+
+      {msg && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+          {msg}
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Tareas</h1>
-        <button onClick={() => setModal("nueva")}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
-          + Nueva tarea
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Tickets</h1>
+          <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
+            <span><span className="font-semibold text-slate-700">{abiertos}</span> pendientes</span>
+            <span><span className="font-semibold text-blue-600">{enProgreso}</span> en progreso</span>
+            <span><span className="font-semibold text-green-600">{resueltos}</span> resueltos</span>
+          </div>
+        </div>
+        <button onClick={() => setModal("nuevo")}
+          className="bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition shadow-sm flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Nuevo ticket
         </button>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs de vista */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-        <button onClick={() => setTab("hoy")}
-          className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition ${tab === "hoy" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-          Hoy
-          {urgentesHoy > 0 && (
-            <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{urgentesHoy}</span>
-          )}
-          {urgentesHoy === 0 && recurrentesHoy > 0 && (
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${completadasHoy === recurrentesHoy ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-              {completadasHoy}/{recurrentesHoy}
-            </span>
-          )}
+        <button onClick={() => setVista("kanban")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${vista === "kanban" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+          </svg>
+          Kanban
         </button>
-        <button onClick={() => setTab("todas")}
-          className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition ${tab === "todas" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-          Todas
-          {pendientesTotal > 0 && (
-            <span className="bg-slate-400 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendientesTotal}</span>
-          )}
+        <button onClick={() => setVista("lista")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${vista === "lista" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          Lista
         </button>
       </div>
 
       {/* Contenido */}
-      {tab === "hoy" ? (
-        <TabHoy
-          tareas={tareas}
-          completaciones={completaciones}
-          onToggle={toggleCompletacion}
-          onEdit={t => setModal(t)}
-          onDelete={eliminar}
-          onEstado={cambiarEstado}
+      {vista === "kanban" ? (
+        <VistaKanban
+          tickets={tickets}
+          onDetalle={t => setDetalle(t)}
+          onMover={moverEstado}
         />
       ) : (
-        <TabTodas
-          tareas={tareas}
-          onEdit={t => setModal(t)}
-          onDelete={eliminar}
-          onEstado={cambiarEstado}
+        <VistaLista
+          tickets={tickets}
+          onDetalle={t => setDetalle(t)}
         />
       )}
     </div>
