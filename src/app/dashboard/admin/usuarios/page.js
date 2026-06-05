@@ -10,6 +10,7 @@ const TODOS_MODULOS = [
   { key: "contactos",    label: "Contactos" },
   { key: "estadisticas", label: "Estadísticas" },
   { key: "stock",        label: "Stock" },
+  { key: "tareas",       label: "Tareas" },
   { key: "configuracion",label: "Configuración" },
   { key: "exportar",     label: "Exportar / Importar" },
 ];
