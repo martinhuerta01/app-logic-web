@@ -20,9 +20,13 @@ src/app/dashboard/
     historial-camioneta/ → Historial de movimientos por mes
   stock/oficina/       → Stock de oficina (actual, entradas, salidas, búsqueda)
   exportar-importar/   → Exportaciones Excel
-  tareas/              → Módulo de tareas privadas por usuario
+  tareas/              → Sistema de tickets (kanban + lista + panel de detalle con notas)
+    historial/         → Tickets resueltos filtrados por período
+  admin/usuarios/      → Gestión de usuarios (módulos + sub-módulos por usuario)
 src/components/
   Sidebar.js           → Navegación lateral con versión
+src/lib/
+  auth.js              → AuthContext — expone user, rol, modulos, submodulos
 ```
 
 ## Convenciones importantes
@@ -46,6 +50,15 @@ GET  /stock/actual/?ubicacion_id=
 GET  /stock/movimientos/?producto_id=
 GET  /directorio/tecnicos
 GET  /jornadas/ausencias/
+GET  /tareas/?estado=&tipo=&prioridad=
+POST /tareas/
+PUT  /tareas/{id}
+GET  /tareas/{id}/notas/
+POST /tareas/{id}/notas/
+DELETE /tareas/{id}/notas/{nota_id}
+GET  /usuarios/
+POST /usuarios/
+PUT  /usuarios/{id}
 ```
 
 ## Módulo de Estadísticas — tabs
@@ -92,7 +105,32 @@ GET  /jornadas/ausencias/
 | Clientes vs Responsables | Tabla cruzada pivot |
 | Servicios por Cliente | Filtrable por cliente específico + año/mes |
 
+## Módulo de Tickets (tareas/)
+
+- **Tipos:** tarea | investigacion | bug | mejora
+- **Estados:** pendiente → en_progreso → completada
+- **Número auto-incremental** por ticket (#001, #002…) — campo `numero` en tabla `tareas`
+- **Kanban:** 3 columnas, flechas al hover para mover entre estados
+- **Lista:** filtrable por estado, tipo, prioridad y búsqueda libre
+- **Panel de detalle:** slide-over derecho con metadata, botones avanzar/retroceder, notas
+- **Notas/historial:** tabla `ticket_notas` (ticket_id, texto, cargado_por, created_at)
+- **Historial:** sub-módulo `/tareas/historial` — solo resueltos, navegable por mes, resumen por tipo
+
+## Administración de Usuarios (admin/usuarios/)
+
+- **Módulos:** lista hardcodeada en `TODOS_MODULOS` — agregar ahí para que aparezca en el modal
+- **Sub-módulos:** cada módulo puede tener `subs[]`; al habilitar un módulo aparece ▼ para restringir subs individuales
+- Campo `submodulos` JSONB en tabla `usuarios` — `null` = sin restricción, `{ "contactos": ["clientes"] }` = solo esos subs
+- Sidebar filtra subs con: `mod.subs.filter(s => submodulos[mod.key].includes(s.key))`
+- `auth.js` expone `submodulos` junto con `modulos` (localStorage + context)
+
 ## Historial de versiones
+
+### v1.5 (Jun 2026)
+- Tickets: reemplazo completo del módulo de tareas por sistema de tickets (kanban, tipos, categoría, numeración, notas/historial, panel de detalle)
+- Tickets: sub-módulo Historial — resueltos filtrados por período con resumen por tipo
+- Usuarios: control de sub-módulos por usuario (JSONB `submodulos` en tabla `usuarios`)
+- Sidebar: módulo Tareas renombrado a Tickets 🎫
 
 ### v1.4 (Jun 2026)
 - Estadísticas: Stock KPI por insumo (consumo diario, días restantes, compra sugerida)
