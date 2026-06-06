@@ -167,6 +167,7 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
   const [nuevaNota,    setNuevaNota]    = useState("");
   const [guardandoN,   setGuardandoN]   = useState(false);
   const [cargandoN,    setCargandoN]    = useState(false);
+  const [errorNota,    setErrorNota]    = useState("");
 
   useEffect(() => {
     if (ticket?.id) cargarNotas();
@@ -177,18 +178,23 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
     try {
       const data = await api.get(`/tareas/${ticket.id}/notas/`);
       setNotas(data || []);
-    } catch {}
+    } catch (e) {
+      setErrorNota("No se pudieron cargar las notas.");
+    }
     setCargandoN(false);
   };
 
   const agregarNota = async () => {
     if (!nuevaNota.trim()) return;
+    setErrorNota("");
     setGuardandoN(true);
     try {
       await api.post(`/tareas/${ticket.id}/notas/`, { texto: nuevaNota.trim(), cargado_por: user });
       setNuevaNota("");
       cargarNotas();
-    } catch {}
+    } catch (e) {
+      setErrorNota("Error al guardar la nota. Verificá que la tabla ticket_notas exista en Supabase.");
+    }
     setGuardandoN(false);
   };
 
@@ -196,7 +202,9 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
     try {
       await api.delete(`/tareas/${ticket.id}/notas/${id}`);
       cargarNotas();
-    } catch {}
+    } catch {
+      setErrorNota("Error al eliminar la nota.");
+    }
   };
 
   const tipo     = TIPOS[ticket.tipo]           || TIPOS.tarea;
@@ -330,6 +338,11 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
               </div>
             )}
 
+            {errorNota && (
+              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">
+                {errorNota}
+              </div>
+            )}
             <div className="space-y-2">
               <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)}
                 placeholder="Agregar nota o actualización…"
