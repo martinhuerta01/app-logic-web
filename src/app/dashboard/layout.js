@@ -2,14 +2,14 @@
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import { api } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
 const PING_INTERVAL = 12 * 60 * 1000; // 12 minutos
 
 function useKeepAlive() {
   useEffect(() => {
     // Cualquier request despierta el servidor; /health es ideal si existe
-    const ping = () => fetch(`${API_URL}/health`, { method: "GET" }).catch(() => {});
+    const ping = () => api.get("/health").catch(() => {});
     ping(); // ping inmediato al montar
     const id = setInterval(ping, PING_INTERVAL);
     return () => clearInterval(id);
