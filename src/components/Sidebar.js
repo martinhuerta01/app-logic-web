@@ -564,7 +564,7 @@ export default function Sidebar() {
           fontFamily: "var(--font-mono, monospace)",
           letterSpacing: "0.05em",
         }}>
-          v1.5
+          v1.6
         </p>
       </div>
     </aside>

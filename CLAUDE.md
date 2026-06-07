@@ -124,7 +124,26 @@ PUT  /usuarios/{id}
 - Sidebar filtra subs con: `mod.subs.filter(s => submodulos[mod.key].includes(s.key))`
 - `auth.js` expone `submodulos` junto con `modulos` (localStorage + context)
 
+## Design System (v1.6+)
+
+- **Tokens:** `globals.css` con `@theme {}` (Tailwind v4) — colores brand/sidebar/surface/border
+- **Fuentes:** DM Sans (UI), DM Mono (números, fechas, códigos)
+- **Sidebar:** fondo `#0a0f1a`, iconos SVG Tabler-style, sub-panel animado con `max-height`
+- **Componente Modal:** `src/components/Modal.js` — header gradiente azul, animación `modal-enter`, exports: `BtnPrimary`, `BtnSecondary`, `KeyboardHint`, `FieldLabel`, `FieldInput`, `FieldTextarea`, `FieldSelect`, `ChipGroup`
+- **Estilo general:** inline styles con variables CSS; evitar Tailwind para rgba/hover states
+- **Tablas:** headers 9.5px uppercase `#94a3b8`, rows hover `#f8fafc`
+- **Badges semánticos:** `{ bg, color }` inline — sin clases de color de Tailwind
+
 ## Historial de versiones
+
+### v1.6 (Jun 2026)
+- UI Redesign completo: design system con DM Sans/Mono, brand azul `#2563eb`, sidebar oscuro `#0a0f1a`
+- Componente `Modal.js` compartido con primitivas de formulario (FieldInput, ChipGroup, etc.)
+- Todos los módulos migrados a inline styles con design system (excepto estadísticas)
+- Seguridad backend: JWT en todos los routers, CORS restringido, rate limiting login, logging middleware
+- Revisiones Frecuentes: oculta patentes con un solo servicio; muestra Dispositivo en línea de tiempo
+- Vista Día: dispositivos del modal editar traídos desde Configuración (no hardcodeados)
+- Historial Tickets: filtra por `updated_at`/`created_at` cuando no hay `fecha_vencimiento`
 
 ### v1.5 (Jun 2026)
 - Tickets: reemplazo completo del módulo de tareas por sistema de tickets (kanban, tipos, categoría, numeración, notas/historial, panel de detalle)
