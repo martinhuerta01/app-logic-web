@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import Modal, { BtnPrimary, BtnSecondary, KeyboardHint, FieldLabel, FieldInput, FieldSelect } from "@/components/Modal";
+import { fetchOpciones } from "@/lib/opciones";
 
 const inputStyle = {
   padding: "7px 11px", borderRadius: 7, border: "1.5px solid #e2e8f0",
@@ -16,11 +17,15 @@ function ModalEditar({ servicio, onClose, onSave }) {
     hora_programada: servicio.hora_programada?.slice(0, 5) || "",
     cliente: servicio.cliente || "",
     tipo_servicio: servicio.tipo_servicio || "INSTALACION",
-    dispositivo: servicio.dispositivo || "GPS",
+    dispositivo: servicio.dispositivo || "",
     patente: servicio.patente || "",
     observaciones: servicio.observaciones || "",
     estado: servicio.estado || "-",
   });
+  const [dispositivos, setDispositivos] = useState([]);
+  useEffect(() => {
+    fetchOpciones().then(opts => setDispositivos(opts.dispositivos || []));
+  }, []);
 
   const guardar = async () => {
     await onSave(servicio.id, form);
@@ -68,14 +73,8 @@ function ModalEditar({ servicio, onClose, onSave }) {
         <div>
           <FieldLabel>Dispositivo</FieldLabel>
           <FieldSelect value={form.dispositivo} onChange={e => setForm({ ...form, dispositivo: e.target.value })}>
-            <option value="-">-</option>
-            <option>GPS</option>
-            <option>LECTORA</option>
-            <option>GPS y LECTORA</option>
-            <option>CAMARA</option>
-            <option>Tractor</option>
-            <option>Semi</option>
-            <option>Chasis</option>
+            <option value="">-</option>
+            {dispositivos.map(d => <option key={d} value={d}>{d}</option>)}
           </FieldSelect>
         </div>
         <div>
