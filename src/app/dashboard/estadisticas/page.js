@@ -1887,8 +1887,9 @@ function RevisionesFrecuentes() {
     return { ...g, eventos, revisiones, pares, tieneFrecuente: pares.length > 0 };
   });
 
-  // Filtros
+  // Filtros — solo patentes con más de 1 servicio en el período
   const gruposFiltrados = grupos
+    .filter((g) => g.eventos.length > 1)
     .filter((g) => filtro === "todas" || g.tieneFrecuente)
     .filter((g) =>
       !busqueda ||
@@ -1900,9 +1901,10 @@ function RevisionesFrecuentes() {
       return b.eventos.length - a.eventos.length;
     });
 
-  const totalPatentes   = grupos.length;
-  const totalFrecuentes = grupos.filter((g) => g.tieneFrecuente).length;
-  const totalRevisiones = grupos.reduce((s, g) => s + g.revisiones.length, 0);
+  const gruposConMasDeUno = grupos.filter((g) => g.eventos.length > 1);
+  const totalPatentes   = gruposConMasDeUno.length;
+  const totalFrecuentes = gruposConMasDeUno.filter((g) => g.tieneFrecuente).length;
+  const totalRevisiones = gruposConMasDeUno.reduce((s, g) => s + g.revisiones.length, 0);
 
   const fmtFecha = (f) =>
     new Date(f + "T12:00:00Z").toLocaleDateString("es-AR", {
