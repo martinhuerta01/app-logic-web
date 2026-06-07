@@ -995,20 +995,17 @@ export default function OficinaStockPage() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Stock — Oficina</h1>
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+        <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#0f172a" }}>Stock — Oficina</h1>
+        <div style={{ display:"flex", gap:4, background:"#f1f5f9", borderRadius:8, padding:4 }}>
           {tabs.map((t) => (
-            <a
-              key={t.key}
-              href={`/dashboard/stock/oficina?tab=${t.key}`}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${
-                tab === t.key
-                  ? "bg-white text-slate-800 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
+            <a key={t.key} href={`/dashboard/stock/oficina?tab=${t.key}`} style={{
+              padding:"6px 16px", borderRadius:6, fontSize:13, fontWeight:500, textDecoration:"none", transition:"all 150ms",
+              background: tab === t.key ? "#fff" : "transparent",
+              color: tab === t.key ? "#1e293b" : "#64748b",
+              boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+            }}>
               {t.label}
             </a>
           ))}

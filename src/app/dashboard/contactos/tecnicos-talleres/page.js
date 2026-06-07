@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import Modal, { BtnPrimary, BtnSecondary, KeyboardHint, FieldLabel, FieldInput } from "@/components/Modal";
 
 // ── Íconos ────────────────────────────────────────────────────────────────
 const IconEdit = () => (
@@ -40,7 +41,16 @@ const PRECIOS_LABELS = [
 
 const fmt = (n) => n != null ? `$${Number(n).toLocaleString("es-AR")}` : null;
 
-// ── Popover de precios ────────────────────────────────────────────────────
+const inputStyle = {
+  padding: "7px 11px", borderRadius: 7, border: "1.5px solid #e2e8f0",
+  background: "#f8fafc", fontSize: 13, outline: "none", fontFamily: "inherit", flex: 1,
+};
+const inputFocus = (e) => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.08)"; };
+const inputBlur  = (e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; };
+const thStyle = {textAlign:"left", padding:"8px 16px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9"};
+const tdStyle = {padding:"9px 16px", fontSize:12.5, color:"#334155"};
+
+// ── Popover de precios ──────────────────────────────────────────────────────
 function PreciosPopover({ contacto, onClose, anchorRef }) {
   const ref = useRef();
   useEffect(() => {
@@ -52,16 +62,16 @@ function PreciosPopover({ contacto, onClose, anchorRef }) {
   const precios = PRECIOS_LABELS.map(p => ({ ...p, valor: contacto[p.key] })).filter(p => p.valor != null);
 
   return (
-    <div ref={ref} className="absolute right-0 z-50 mt-1 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-3 text-xs">
-      <p className="font-semibold text-slate-700 mb-2">{contacto.nombre}</p>
+    <div ref={ref} style={{position:"absolute", right:0, zIndex:50, marginTop:4, width:224, background:"#fff", borderRadius:10, boxShadow:"0 8px 24px rgba(0,0,0,0.12)", border:"1px solid #e2e8f0", padding:12}}>
+      <p style={{fontSize:12, fontWeight:600, color:"#0f172a", marginBottom:8, marginTop:0}}>{contacto.nombre}</p>
       {precios.length === 0 ? (
-        <p className="text-slate-400">Sin precios cargados</p>
+        <p style={{fontSize:11.5, color:"#94a3b8", margin:0}}>Sin precios cargados</p>
       ) : (
-        <div className="space-y-1">
+        <div style={{display:"flex", flexDirection:"column", gap:4}}>
           {precios.map(p => (
-            <div key={p.key} className="flex justify-between">
-              <span className="text-slate-500">{p.label}</span>
-              <span className="font-medium text-slate-700">{fmt(p.valor)}</span>
+            <div key={p.key} style={{display:"flex", justifyContent:"space-between", fontSize:11.5}}>
+              <span style={{color:"#64748b"}}>{p.label}</span>
+              <span style={{fontWeight:500, color:"#0f172a"}}>{fmt(p.valor)}</span>
             </div>
           ))}
         </div>
@@ -70,7 +80,7 @@ function PreciosPopover({ contacto, onClose, anchorRef }) {
   );
 }
 
-// ── Modal de contactos (subresponsables) ──────────────────────────────────
+// ── Modal contactos (subresponsables) ───────────────────────────────────────
 function SubresponsablesModal({ contacto, onClose }) {
   const [subs, setSubs] = useState([]);
   const [form, setForm] = useState({ nombre: "", celular: "", email: "" });
@@ -95,41 +105,43 @@ function SubresponsablesModal({ contacto, onClose }) {
   const eliminar = async (id) => { await api.delete(`/directorio/subresponsable/${id}`); cargar(); };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4 shadow-xl">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-700">Contactos — {contacto.nombre}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
-        </div>
-        <form onSubmit={agregar} className="flex gap-2 flex-wrap">
-          <input type="text" placeholder="Nombre *" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm flex-1 min-w-32" required />
-          <input type="text" placeholder="Celular" value={form.celular} onChange={e => setForm({ ...form, celular: e.target.value })}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-36" />
-          <input type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-44" />
-          <button type="submit" className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm">+</button>
-        </form>
-        {msg && <p className="text-xs text-green-600">{msg}</p>}
-        <div className="space-y-2 max-h-52 overflow-y-auto">
-          {subs.length === 0 ? <p className="text-sm text-slate-400">Sin contactos cargados</p>
-            : subs.map(s => (
-              <div key={s.id} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                <div>
-                  <span className="text-sm font-medium text-slate-700">{s.nombre}</span>
-                  {s.celular && <span className="text-xs text-slate-500 ml-2">{s.celular}</span>}
-                  {s.email   && <span className="text-xs text-slate-500 ml-2">{s.email}</span>}
-                </div>
-                <button onClick={() => eliminar(s.id)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
-              </div>
-            ))}
-        </div>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={`Contactos — ${contacto.nombre}`}
+      footer={<div style={{marginLeft:"auto"}}><BtnSecondary onClick={onClose}>Cerrar</BtnSecondary></div>}
+    >
+      <form onSubmit={agregar} style={{display:"flex", gap:8, flexWrap:"wrap", marginBottom:12}}>
+        <FieldInput type="text" placeholder="Nombre *" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} required style={{flex:1, minWidth:128}} />
+        <FieldInput type="text" placeholder="Celular" value={form.celular} onChange={e => setForm({ ...form, celular: e.target.value })} style={{width:144}} />
+        <FieldInput type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={{width:176}} />
+        <BtnPrimary type="submit">+</BtnPrimary>
+      </form>
+      {msg && <p style={{fontSize:11.5, color:"#16a34a", marginBottom:8}}>{msg}</p>}
+      <div style={{display:"flex", flexDirection:"column", gap:6, maxHeight:200, overflowY:"auto"}}>
+        {subs.length === 0 ? (
+          <p style={{fontSize:13, color:"#94a3b8"}}>Sin contactos cargados</p>
+        ) : subs.map(s => (
+          <div key={s.id} style={{display:"flex", alignItems:"center", justifyContent:"space-between", background:"#f8fafc", borderRadius:8, padding:"8px 12px"}}>
+            <div>
+              <span style={{fontSize:13, fontWeight:500, color:"#0f172a"}}>{s.nombre}</span>
+              {s.celular && <span style={{fontSize:11.5, color:"#64748b", marginLeft:8}}>{s.celular}</span>}
+              {s.email   && <span style={{fontSize:11.5, color:"#64748b", marginLeft:8}}>{s.email}</span>}
+            </div>
+            <button onClick={() => eliminar(s.id)}
+              style={{fontSize:12, color:"#fca5a5", background:"none", border:"none", cursor:"pointer"}}
+              onMouseEnter={e => e.currentTarget.style.color="#dc2626"}
+              onMouseLeave={e => e.currentTarget.style.color="#fca5a5"}>
+              ✕
+            </button>
+          </div>
+        ))}
       </div>
-    </div>
+    </Modal>
   );
 }
 
-// ── Modal de edición / creación ───────────────────────────────────────────
+// ── Modal edición / creación ────────────────────────────────────────────────
 const FORM_VACIO = {
   nombre: "", razon_social: "", celular: "", direccion: "", localidad: "", email: "",
   precio_inst_basica: "", precio_inst_chasis: "", precio_inst_tracto: "", precio_inst_semi: "",
@@ -162,7 +174,6 @@ function EditModal({ contacto, onClose, onSaved }) {
   const guardar = async (e) => {
     e.preventDefault(); setError("");
     const payload = { ...form, tipo: "interior" };
-    // Convertir precios vacíos a null, y strings a int
     for (const p of PRECIOS_LABELS) {
       payload[p.key] = form[p.key] !== "" && form[p.key] !== null ? parseInt(form[p.key]) : null;
     }
@@ -174,116 +185,103 @@ function EditModal({ contacto, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h3 className="text-base font-semibold text-slate-800">
-            {contacto ? "Editar técnico / taller" : "Nuevo técnico / taller"}
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={contacto ? "Editar técnico / taller" : "Nuevo técnico / taller"}
+      width="640px"
+      footer={
+        <>
+          <KeyboardHint />
+          <div style={{display:"flex", gap:8}}>
+            {error && <span style={{fontSize:12, color:"#dc2626", alignSelf:"center"}}>{error}</span>}
+            <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={guardar}>{contacto ? "Guardar cambios" : "Guardar"}</BtnPrimary>
+          </div>
+        </>
+      }
+    >
+      <form onSubmit={guardar}>
+        <p style={{fontSize:9.5, fontWeight:600, letterSpacing:"0.07em", textTransform:"uppercase", color:"#94a3b8", marginBottom:10, marginTop:0}}>Datos generales</p>
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:16}}>
+          <div>
+            <FieldLabel required>Responsable</FieldLabel>
+            <FieldInput type="text" value={form.nombre} onChange={e => setF("nombre", e.target.value)} required />
+          </div>
+          <div>
+            <FieldLabel>Razón Social</FieldLabel>
+            <FieldInput type="text" value={form.razon_social} onChange={e => setF("razon_social", e.target.value)} />
+          </div>
+          <div>
+            <FieldLabel>Celular</FieldLabel>
+            <FieldInput type="text" value={form.celular} onChange={e => setF("celular", e.target.value)} />
+          </div>
+          <div>
+            <FieldLabel>Email</FieldLabel>
+            <FieldInput type="email" value={form.email} onChange={e => setF("email", e.target.value)} />
+          </div>
+          <div>
+            <FieldLabel>Dirección</FieldLabel>
+            <FieldInput type="text" value={form.direccion} onChange={e => setF("direccion", e.target.value)} />
+          </div>
+          <div>
+            <FieldLabel>Localidad</FieldLabel>
+            <FieldInput type="text" value={form.localidad} onChange={e => setF("localidad", e.target.value)} />
+          </div>
         </div>
 
-        <form onSubmit={guardar} className="p-6 space-y-5">
-          {/* Datos generales */}
-          <div>
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Datos generales</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Responsable *</label>
-                <input type="text" value={form.nombre} onChange={e => setF("nombre", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Razón Social</label>
-                <input type="text" value={form.razon_social} onChange={e => setF("razon_social", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Celular</label>
-                <input type="text" value={form.celular} onChange={e => setF("celular", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Email</label>
-                <input type="email" value={form.email} onChange={e => setF("email", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Dirección</label>
-                <input type="text" value={form.direccion} onChange={e => setF("direccion", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Localidad</label>
-                <input type="text" value={form.localidad} onChange={e => setF("localidad", e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        <p style={{fontSize:9.5, fontWeight:600, letterSpacing:"0.07em", textTransform:"uppercase", color:"#94a3b8", marginBottom:10, borderTop:"1px solid #f1f5f9", paddingTop:14}}>Precios acordados</p>
+        <div style={{display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:12}}>
+          {PRECIOS_LABELS.map(p => (
+            <div key={p.key}>
+              <FieldLabel>{p.label}</FieldLabel>
+              <div style={{position:"relative"}}>
+                <span style={{position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#94a3b8", fontSize:13}}>$</span>
+                <FieldInput type="number" min="0" value={form[p.key]}
+                  onChange={e => setF(p.key, e.target.value)}
+                  placeholder="—"
+                  style={{paddingLeft:24}} />
               </div>
             </div>
-          </div>
-
-          {/* Precios acordados */}
-          <div className="border-t border-slate-100 pt-4">
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Precios acordados</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {PRECIOS_LABELS.map(p => (
-                <div key={p.key}>
-                  <label className="block text-xs text-slate-500 mb-1">{p.label}</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                    <input type="number" min="0" value={form[p.key]}
-                      onChange={e => setF(p.key, e.target.value)}
-                      className="w-full border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm"
-                      placeholder="—" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-
-          <div className="flex gap-3 pt-1">
-            <button type="submit"
-              className="bg-green-600 hover:bg-green-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
-              {contacto ? "Guardar cambios" : "Guardar"}
-            </button>
-            <button type="button" onClick={onClose}
-              className="text-slate-500 hover:text-slate-700 text-sm px-4 py-2 rounded-lg border border-slate-300 transition">
-              Cancelar
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          ))}
+        </div>
+      </form>
+    </Modal>
   );
 }
 
-// ── Fila con popover de precios ───────────────────────────────────────────
+// ── Fila con popover de precios ─────────────────────────────────────────────
 function FilaContacto({ c, onEditar, onEliminar, onVerSubs }) {
   const [showPrecios, setShowPrecios] = useState(false);
   const btnRef = useRef();
   const tienePrecios = PRECIOS_LABELS.some(p => c[p.key] != null);
 
   return (
-    <tr className="border-b border-slate-100 hover:bg-slate-50">
-      <td className="px-4 py-2.5 text-xs font-medium text-slate-800">{c.nombre}</td>
-      <td className="px-4 py-2.5 text-xs text-slate-500">{c.razon_social || "—"}</td>
-      <td className="px-4 py-2.5 text-xs">{c.celular || "—"}</td>
-      <td className="px-4 py-2.5 text-xs">{c.direccion || "—"}</td>
-      <td className="px-4 py-2.5 text-xs">{c.localidad || "—"}</td>
-      <td className="px-4 py-2.5 text-xs">{c.email || "—"}</td>
-      <td className="px-4 py-2.5">
-        <div className="flex items-center gap-2">
+    <tr style={{borderBottom:"1px solid #f1f5f9"}}
+      onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+      onMouseLeave={e => e.currentTarget.style.background=""}>
+      <td style={{...tdStyle, fontWeight:500}}>{c.nombre}</td>
+      <td style={{...tdStyle, color:"#64748b"}}>{c.razon_social || "—"}</td>
+      <td style={tdStyle}>{c.celular || "—"}</td>
+      <td style={tdStyle}>{c.direccion || "—"}</td>
+      <td style={tdStyle}>{c.localidad || "—"}</td>
+      <td style={tdStyle}>{c.email || "—"}</td>
+      <td style={{...tdStyle, whiteSpace:"nowrap"}}>
+        <div style={{display:"flex", alignItems:"center", gap:4}}>
           {/* Contactos */}
           <button onClick={() => onVerSubs(c)} title="Contactos"
-            className="text-teal-500 hover:text-teal-700 transition">
+            style={{color:"#2dd4bf", background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6, display:"inline-flex"}}
+            onMouseEnter={e => { e.currentTarget.style.color="#0d9488"; e.currentTarget.style.background="#f0fdfa"; }}
+            onMouseLeave={e => { e.currentTarget.style.color="#2dd4bf"; e.currentTarget.style.background="none"; }}>
             <IconUsers />
           </button>
 
           {/* Precios */}
-          <div className="relative">
+          <div style={{position:"relative"}}>
             <button ref={btnRef} onClick={() => setShowPrecios(v => !v)} title="Ver precios"
-              className={`transition ${tienePrecios ? "text-amber-500 hover:text-amber-700" : "text-slate-300 hover:text-slate-500"}`}>
+              style={{color: tienePrecios ? "#f59e0b" : "#cbd5e1", background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6, display:"inline-flex"}}
+              onMouseEnter={e => { e.currentTarget.style.color = tienePrecios ? "#d97706" : "#94a3b8"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = tienePrecios ? "#f59e0b" : "#cbd5e1"; }}>
               <IconMoney />
             </button>
             {showPrecios && (
@@ -293,13 +291,17 @@ function FilaContacto({ c, onEditar, onEliminar, onVerSubs }) {
 
           {/* Editar */}
           <button onClick={() => onEditar(c)} title="Editar"
-            className="text-blue-500 hover:text-blue-700 transition">
+            style={{color:"#60a5fa", background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6, display:"inline-flex"}}
+            onMouseEnter={e => { e.currentTarget.style.color="#2563eb"; e.currentTarget.style.background="#eff6ff"; }}
+            onMouseLeave={e => { e.currentTarget.style.color="#60a5fa"; e.currentTarget.style.background="none"; }}>
             <IconEdit />
           </button>
 
           {/* Eliminar */}
           <button onClick={() => onEliminar(c.id)} title="Eliminar"
-            className="text-red-400 hover:text-red-600 transition">
+            style={{color:"#fca5a5", background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6, display:"inline-flex"}}
+            onMouseEnter={e => { e.currentTarget.style.color="#dc2626"; e.currentTarget.style.background="#fef2f2"; }}
+            onMouseLeave={e => { e.currentTarget.style.color="#fca5a5"; e.currentTarget.style.background="none"; }}>
             <IconTrash />
           </button>
         </div>
@@ -308,10 +310,10 @@ function FilaContacto({ c, onEditar, onEliminar, onVerSubs }) {
   );
 }
 
-// ── Página principal ──────────────────────────────────────────────────────
+// ── Página principal ──────────────────────────────────────────────────────────
 export default function TecnicosTalleresPage() {
   const [contactos, setContactos] = useState([]);
-  const [modalEdit, setModalEdit] = useState(null);   // null | false (nuevo) | contacto (editar)
+  const [modalEdit, setModalEdit] = useState(null);
   const [verSubs,   setVerSubs]   = useState(null);
   const [textoBusqueda, setTextoBusqueda] = useState("");
   const [busqueda,      setBusqueda]      = useState("");
@@ -339,8 +341,8 @@ export default function TecnicosTalleresPage() {
     : contactos;
 
   return (
-    <div className="space-y-6">
-      {verSubs  && <SubresponsablesModal contacto={verSubs} onClose={() => setVerSubs(null)} />}
+    <div style={{paddingBottom:32}}>
+      {verSubs && <SubresponsablesModal contacto={verSubs} onClose={() => setVerSubs(null)} />}
       {modalEdit !== null && (
         <EditModal
           contacto={modalEdit || null}
@@ -349,60 +351,74 @@ export default function TecnicosTalleresPage() {
         />
       )}
 
-      {errorCarga && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>}
-
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Técnicos / Talleres</h1>
+      {/* Page header */}
+      <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24}}>
+        <div>
+          <h1 style={{fontSize:22, fontWeight:700, color:"#0f172a", margin:0}}>Técnicos / Talleres</h1>
+          <p style={{fontSize:13, color:"#64748b", marginTop:4}}>Directorio de técnicos externos y talleres</p>
+        </div>
         <button onClick={() => setModalEdit(false)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          style={{background:"#2563eb", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:600, cursor:"pointer"}}
+          onMouseEnter={e => e.currentTarget.style.background="#1d4ed8"}
+          onMouseLeave={e => e.currentTarget.style.background="#2563eb"}>
           + Agregar
         </button>
       </div>
 
-      <div className="flex gap-2">
+      {errorCarga && (
+        <div style={{background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:8, padding:"10px 16px", fontSize:13, marginBottom:16}}>
+          {errorCarga}
+        </div>
+      )}
+
+      {/* Búsqueda */}
+      <div style={{display:"flex", gap:8, marginBottom:24}}>
         <input type="text" placeholder="Buscar por nombre, razón social, localidad, celular..."
           value={textoBusqueda}
           onChange={e => setTextoBusqueda(e.target.value)}
           onKeyDown={e => e.key === "Enter" && setBusqueda(textoBusqueda)}
-          className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+          style={{...inputStyle, padding:"8px 12px"}}
+          onFocus={inputFocus} onBlur={inputBlur}
         />
         <button onClick={() => setBusqueda(textoBusqueda)}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg text-sm transition">
+          style={{background:"#2563eb", color:"#fff", border:"none", borderRadius:8, padding:"8px 16px", fontSize:13, fontWeight:600, cursor:"pointer"}}
+          onMouseEnter={e => e.currentTarget.style.background="#1d4ed8"}
+          onMouseLeave={e => e.currentTarget.style.background="#2563eb"}>
           Buscar
         </button>
         {busqueda && (
           <button onClick={() => { setBusqueda(""); setTextoBusqueda(""); }}
-            className="text-slate-500 hover:text-slate-700 px-3 py-2 rounded-lg text-sm border border-slate-300 transition">
+            style={{background:"#f8fafc", color:"#475569", border:"1.5px solid #e2e8f0", borderRadius:8, padding:"7px 14px", fontSize:13, fontWeight:500, cursor:"pointer"}}
+            onMouseEnter={e => e.currentTarget.style.background="#e9edf1"}
+            onMouseLeave={e => e.currentTarget.style.background="#f8fafc"}>
             Limpiar
           </button>
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 text-xs">
-              <th className="text-left px-4 py-3">Responsable</th>
-              <th className="text-left px-4 py-3">Razón Social</th>
-              <th className="text-left px-4 py-3">Celular</th>
-              <th className="text-left px-4 py-3">Dirección</th>
-              <th className="text-left px-4 py-3">Localidad</th>
-              <th className="text-left px-4 py-3">Email</th>
-              <th className="text-left px-4 py-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contactosFiltrados.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400 text-xs">Sin resultados</td></tr>
-            ) : contactosFiltrados.map(c => (
-              <FilaContacto key={c.id} c={c}
-                onEditar={setModalEdit}
-                onEliminar={eliminar}
-                onVerSubs={setVerSubs}
-              />
-            ))}
-          </tbody>
-        </table>
+      <div style={{background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", overflow:"hidden"}}>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%", borderCollapse:"collapse"}}>
+            <thead>
+              <tr>
+                {["Responsable","Razón Social","Celular","Dirección","Localidad","Email","Acciones"].map((h, i) => (
+                  <th key={i} style={thStyle}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {contactosFiltrados.length === 0 ? (
+                <tr><td colSpan={7} style={{...tdStyle, textAlign:"center", color:"#94a3b8", fontStyle:"italic"}}>Sin resultados</td></tr>
+              ) : contactosFiltrados.map(c => (
+                <FilaContacto key={c.id} c={c}
+                  onEditar={setModalEdit}
+                  onEliminar={eliminar}
+                  onVerSubs={setVerSubs}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

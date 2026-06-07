@@ -1,6 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import Modal, { BtnPrimary, BtnSecondary, KeyboardHint, FieldLabel, FieldInput, FieldSelect } from "@/components/Modal";
+
+const inputStyle = {
+  padding: "7px 11px", borderRadius: 7, border: "1.5px solid #e2e8f0",
+  background: "#f8fafc", fontSize: 13, outline: "none", fontFamily: "inherit",
+};
+const inputFocus = (e) => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.08)"; };
+const inputBlur  = (e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; };
 
 function ModalEditar({ servicio, onClose, onSave }) {
   const [form, setForm] = useState({
@@ -20,79 +28,76 @@ function ModalEditar({ servicio, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-lg space-y-4 shadow-xl">
-        <h3 className="text-lg font-semibold text-slate-700">Editar Servicio</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Fecha</label>
-            <input type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Editar Servicio"
+      width="540px"
+      footer={
+        <>
+          <KeyboardHint />
+          <div style={{display:"flex", gap:8}}>
+            <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={guardar}>Guardar</BtnPrimary>
           </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Hora</label>
-            <input type="time" value={form.hora_programada} onChange={e => setForm({ ...form, hora_programada: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Cliente</label>
-            <input type="text" value={form.cliente} onChange={e => setForm({ ...form, cliente: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Tipo</label>
-            <select value={form.tipo_servicio} onChange={e => setForm({ ...form, tipo_servicio: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="-">-</option>
-              <option>INSTALACION</option>
-              <option>REVISION</option>
-              <option>DESINSTALACION</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Dispositivo</label>
-            <select value={form.dispositivo} onChange={e => setForm({ ...form, dispositivo: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="-">-</option>
-              <option>GPS</option>
-              <option>LECTORA</option>
-              <option>GPS y LECTORA</option>
-              <option>CAMARA</option>
-              <option>Tractor</option>
-              <option>Semi</option>
-              <option>Chasis</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Patente</label>
-            <input type="text" value={form.patente} onChange={e => setForm({ ...form, patente: e.target.value.toUpperCase() })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
+        </>
+      }
+    >
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
+        <div>
+          <FieldLabel required>Fecha</FieldLabel>
+          <FieldInput type="date" value={form.fecha} onChange={e => setForm({ ...form, fecha: e.target.value })} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Observaciones</label>
-            <input type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 mb-1">Estado</label>
-            <select value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-              <option value="-">-</option>
-              <option>PENDIENTE</option>
-              <option>CONFIRMADO</option>
-              <option>REALIZADO</option>
-              <option>SUSPENDIDO</option>
-            </select>
-          </div>
+        <div>
+          <FieldLabel>Hora</FieldLabel>
+          <FieldInput type="time" value={form.hora_programada} onChange={e => setForm({ ...form, hora_programada: e.target.value })} />
         </div>
-        <div className="flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-          <button onClick={guardar} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">Guardar</button>
+        <div>
+          <FieldLabel>Cliente</FieldLabel>
+          <FieldInput type="text" value={form.cliente} onChange={e => setForm({ ...form, cliente: e.target.value })} />
+        </div>
+        <div>
+          <FieldLabel>Tipo</FieldLabel>
+          <FieldSelect value={form.tipo_servicio} onChange={e => setForm({ ...form, tipo_servicio: e.target.value })}>
+            <option value="-">-</option>
+            <option>INSTALACION</option>
+            <option>REVISION</option>
+            <option>DESINSTALACION</option>
+          </FieldSelect>
+        </div>
+        <div>
+          <FieldLabel>Dispositivo</FieldLabel>
+          <FieldSelect value={form.dispositivo} onChange={e => setForm({ ...form, dispositivo: e.target.value })}>
+            <option value="-">-</option>
+            <option>GPS</option>
+            <option>LECTORA</option>
+            <option>GPS y LECTORA</option>
+            <option>CAMARA</option>
+            <option>Tractor</option>
+            <option>Semi</option>
+            <option>Chasis</option>
+          </FieldSelect>
+        </div>
+        <div>
+          <FieldLabel>Patente</FieldLabel>
+          <FieldInput type="text" value={form.patente} onChange={e => setForm({ ...form, patente: e.target.value.toUpperCase() })} />
+        </div>
+        <div>
+          <FieldLabel>Observaciones</FieldLabel>
+          <FieldInput type="text" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} />
+        </div>
+        <div>
+          <FieldLabel>Estado</FieldLabel>
+          <FieldSelect value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
+            <option value="-">-</option>
+            <option>PENDIENTE</option>
+            <option>CONFIRMADO</option>
+            <option>REALIZADO</option>
+            <option>SUSPENDIDO</option>
+          </FieldSelect>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -146,12 +151,19 @@ export default function VistaDiaPage() {
   const svcInterior = servicios.filter(s => !s.equipo_id);
 
   const estadoBadge = (estado) => {
-    const colors = {
-      REALIZADO: "bg-green-100 text-green-700",
-      CONFIRMADO: "bg-blue-100 text-blue-700",
-      PENDIENTE: "bg-yellow-100 text-yellow-700",
+    const map = {
+      REALIZADO:  { bg:"#f0fdf4", color:"#16a34a" },
+      CONFIRMADO: { bg:"#eff6ff", color:"#2563eb" },
+      PENDIENTE:  { bg:"#fffbeb", color:"#d97706" },
+      SUSPENDIDO: { bg:"#fef2f2", color:"#dc2626" },
     };
-    return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[estado] || "bg-slate-100 text-slate-600"}`}>{estado}</span>;
+    const s = map[estado] || { bg:"#f1f5f9", color:"#64748b" };
+    return (
+      <span style={{display:"inline-flex", alignItems:"center", gap:4, background:s.bg, color:s.color, borderRadius:6, padding:"2px 8px", fontSize:10.5, fontWeight:600}}>
+        <span style={{width:5, height:5, borderRadius:"50%", background:s.color, display:"inline-block"}} />
+        {estado}
+      </span>
+    );
   };
 
   const IconPencil = () => (
@@ -167,38 +179,45 @@ export default function VistaDiaPage() {
     </svg>
   );
 
+  const thStyle = {textAlign:"left", padding:"8px 16px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9"};
+  const tdStyle = {padding:"9px 16px", fontSize:12.5, color:"#334155"};
+
   const TablaServicios = ({ items }) => (
-    <table className="w-full text-sm">
+    <table style={{width:"100%", borderCollapse:"collapse"}}>
       <thead>
-        <tr className="border-b border-slate-200 text-slate-500 text-xs">
-          <th className="text-left py-2 pr-3">Hora</th>
-          <th className="text-left py-2 pr-3">Cliente</th>
-          <th className="text-left py-2 pr-3">Tipo</th>
-          <th className="text-left py-2 pr-3">Dispositivo</th>
-          <th className="text-left py-2 pr-3">Patente</th>
-          <th className="text-left py-2 pr-3">Estado</th>
-          <th className="text-left py-2 pr-3">Observaciones</th>
-          {vista === "interna" && <th className="py-2"></th>}
+        <tr>
+          <th style={thStyle}>Hora</th>
+          <th style={thStyle}>Cliente</th>
+          <th style={thStyle}>Tipo</th>
+          <th style={thStyle}>Dispositivo</th>
+          <th style={thStyle}>Patente</th>
+          <th style={thStyle}>Estado</th>
+          <th style={thStyle}>Observaciones</th>
+          {vista === "interna" && <th style={thStyle}></th>}
         </tr>
       </thead>
       <tbody>
         {items.length === 0 ? (
-          <tr><td colSpan={vista === "interna" ? 8 : 7} className="text-slate-400 py-3 text-xs">Sin servicios</td></tr>
+          <tr><td colSpan={vista === "interna" ? 8 : 7} style={{...tdStyle, color:"#94a3b8", fontStyle:"italic"}}>Sin servicios</td></tr>
         ) : items.map(s => (
-          <tr key={s.id} className="border-b border-slate-100">
-            <td className="py-2 pr-3">{s.hora_programada?.slice(0,5) || "—"}</td>
-            <td className="py-2 pr-3">
+          <tr key={s.id}
+            style={{borderBottom:"1px solid #f1f5f9"}}
+            onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+            onMouseLeave={e => e.currentTarget.style.background=""}>
+            <td style={{...tdStyle, fontFamily:"DM Mono, monospace", fontSize:11, color:"#64748b"}}>{s.hora_programada?.slice(0,5) || "—"}</td>
+            <td style={tdStyle}>
               {s.tipo_servicio === "-"
-                ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300">FERIADO</span>
+                ? <span style={{background:"#fff7ed", color:"#ea580c", border:"1px solid #fed7aa", borderRadius:6, padding:"2px 7px", fontSize:10.5, fontWeight:700}}>FERIADO</span>
                 : s.cliente}
             </td>
-            <td className="py-2 pr-3 text-xs font-medium text-blue-700">{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
-            <td className="py-2 pr-3">{s.dispositivo || "—"}</td>
-            <td className="py-2 pr-3 font-mono text-xs">{s.patente || "—"}</td>
-            <td className="py-2 pr-3">
+            <td style={{...tdStyle, color:"#2563eb", fontWeight:500}}>{s.tipo_servicio === "-" ? "—" : s.tipo_servicio}</td>
+            <td style={tdStyle}>{s.dispositivo || "—"}</td>
+            <td style={{...tdStyle, fontFamily:"DM Mono, monospace", fontSize:11, color:"#64748b"}}>{s.patente || "—"}</td>
+            <td style={tdStyle}>
               {vista === "interna" ? (
                 <select value={s.estado || "-"} onChange={e => cambiarEstado(s.id, e.target.value)}
-                  className="border border-slate-300 rounded px-2 py-1 text-xs">
+                  style={{padding:"4px 8px", borderRadius:6, border:"1.5px solid #e2e8f0", background:"#f8fafc", fontSize:12, outline:"none", fontFamily:"inherit"}}
+                  onFocus={inputFocus} onBlur={inputBlur}>
                   <option value="-">-</option>
                   <option>PENDIENTE</option>
                   <option>CONFIRMADO</option>
@@ -206,15 +225,19 @@ export default function VistaDiaPage() {
                 </select>
               ) : estadoBadge(s.estado)}
             </td>
-            <td className="py-2 pr-3 text-xs text-slate-500 max-w-[180px] truncate">{s.observaciones || "—"}</td>
+            <td style={{...tdStyle, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#64748b"}}>{s.observaciones || "—"}</td>
             {vista === "interna" && (
-              <td className="py-2 text-right whitespace-nowrap">
+              <td style={{...tdStyle, textAlign:"right", whiteSpace:"nowrap"}}>
                 <button onClick={() => setEditando(s)}
-                  className="text-blue-500 hover:text-blue-700 transition p-1 rounded hover:bg-blue-50 mr-1">
+                  style={{color:"#60a5fa", background:"none", border:"none", cursor:"pointer", padding:"4px", borderRadius:6, marginRight:4}}
+                  onMouseEnter={e => { e.currentTarget.style.color="#2563eb"; e.currentTarget.style.background="#eff6ff"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color="#60a5fa"; e.currentTarget.style.background="none"; }}>
                   <IconPencil />
                 </button>
                 <button onClick={() => eliminar(s.id)}
-                  className="text-red-400 hover:text-red-600 transition p-1 rounded hover:bg-red-50">
+                  style={{color:"#fca5a5", background:"none", border:"none", cursor:"pointer", padding:"4px", borderRadius:6}}
+                  onMouseEnter={e => { e.currentTarget.style.color="#dc2626"; e.currentTarget.style.background="#fef2f2"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color="#fca5a5"; e.currentTarget.style.background="none"; }}>
                   <IconTrash />
                 </button>
               </td>
@@ -226,7 +249,7 @@ export default function VistaDiaPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div style={{paddingBottom:32}}>
       {editando && (
         <ModalEditar
           servicio={editando}
@@ -234,59 +257,78 @@ export default function VistaDiaPage() {
           onSave={guardarEdicion}
         />
       )}
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-slate-800">Vista del Día</h1>
-        <div className="flex gap-2">
+
+      {/* Page header */}
+      <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24, flexWrap:"wrap", gap:12}}>
+        <div>
+          <h1 style={{fontSize:22, fontWeight:700, color:"#0f172a", margin:0}}>Vista del Día</h1>
+          <p style={{fontSize:13, color:"#64748b", marginTop:4}}>Consultá y gestioná los servicios de cualquier fecha</p>
+        </div>
+        <div style={{display:"flex", gap:6}}>
           {["interna", "tecnicos"].map(v => (
             <button key={v} onClick={() => setVista(v)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                vista === v ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600 hover:bg-slate-300"
-              }`}>
+              style={{
+                padding:"7px 14px", borderRadius:8, fontSize:13, fontWeight:500, cursor:"pointer", border:"1.5px solid",
+                ...(vista === v
+                  ? {background:"#2563eb", color:"#fff", borderColor:"#2563eb"}
+                  : {background:"#f8fafc", color:"#475569", borderColor:"#e2e8f0"})
+              }}>
               {v === "interna" ? "Vista interna" : "Vista técnicos"}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="flex items-end gap-3">
+      {error && (
+        <div style={{background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:8, padding:"10px 16px", fontSize:13, marginBottom:16}}>
+          {error}
+        </div>
+      )}
+
+      <div style={{display:"flex", alignItems:"flex-end", gap:12, marginBottom:24}}>
         <div>
-          <label className="block text-xs text-slate-500 mb-1">Fecha</label>
+          <label style={{display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5}}>Fecha</label>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
         </div>
         <button onClick={buscar}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
+          style={{background:"#2563eb", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:600, cursor:"pointer"}}
+          onMouseEnter={e => e.currentTarget.style.background="#1d4ed8"}
+          onMouseLeave={e => e.currentTarget.style.background="#2563eb"}>
           Buscar
         </button>
       </div>
 
       {/* Equipos */}
-      <div className="space-y-5">
+      <div style={{display:"flex", flexDirection:"column", gap:20}}>
         {equipos.map(eq => {
           const mov = getMovimiento(eq.id);
           return (
-            <div key={eq.id} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-              <div className="flex items-start justify-between mb-1">
-                <h2 className="text-base font-bold text-blue-700">
-                  {eq.nombre}
-                  {vista === "interna" && (
-                    <span className="ml-2 text-xs font-normal text-slate-400">{eq.patente}</span>
-                  )}
-                </h2>
+            <div key={eq.id} style={{background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", overflow:"hidden"}}>
+              <div style={{padding:"14px 20px", borderBottom:"1px solid #f1f5f9"}}>
+                <div style={{display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:vista === "interna" ? 6 : 0}}>
+                  <h2 style={{fontSize:14, fontWeight:700, color:"#2563eb", margin:0}}>
+                    {eq.nombre}
+                    {vista === "interna" && (
+                      <span style={{marginLeft:8, fontSize:11, fontWeight:400, color:"#94a3b8"}}>{eq.patente}</span>
+                    )}
+                  </h2>
+                </div>
+                {vista === "interna" && (
+                  mov ? (
+                    <p style={{fontSize:11.5, color:"#64748b", margin:0}}>
+                      Salida: <strong>{mov.hora_salida?.slice(0,5) || "—"}</strong>
+                      {" "}— Llegada: <strong>{mov.hora_llegada?.slice(0,5) || "—"}</strong>
+                      {mov.punto_inicio && <> | {mov.punto_inicio} → {mov.punto_fin || "—"}</>}
+                    </p>
+                  ) : (
+                    <p style={{fontSize:11.5, color:"#94a3b8", margin:0}}>Salida: <strong>-</strong> — Llegada: <strong>-</strong></p>
+                  )
+                )}
               </div>
-              {vista === "interna" && (
-                mov ? (
-                  <p className="text-xs text-slate-500 mb-3">
-                    Salida: <strong>{mov.hora_salida?.slice(0,5) || "—"}</strong>
-                    {" "}— Llegada: <strong>{mov.hora_llegada?.slice(0,5) || "—"}</strong>
-                    {mov.punto_inicio && <> | {mov.punto_inicio} → {mov.punto_fin || "—"}</>}
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-400 mb-3">Salida: <strong>-</strong> — Llegada: <strong>-</strong></p>
-                )
-              )}
-              <TablaServicios items={svcEquipo(eq.id)} />
+              <div style={{overflowX:"auto"}}>
+                <TablaServicios items={svcEquipo(eq.id)} />
+              </div>
             </div>
           );
         })}
@@ -294,9 +336,13 @@ export default function VistaDiaPage() {
 
       {/* Interior */}
       {svcInterior.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-          <h2 className="text-base font-bold text-teal-700 mb-3">Interior</h2>
-          <TablaServicios items={svcInterior} />
+        <div style={{background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", overflow:"hidden", marginTop:20}}>
+          <div style={{padding:"14px 20px", borderBottom:"1px solid #f1f5f9"}}>
+            <h2 style={{fontSize:14, fontWeight:700, color:"#0d9488", margin:0}}>Interior</h2>
+          </div>
+          <div style={{overflowX:"auto"}}>
+            <TablaServicios items={svcInterior} />
+          </div>
         </div>
       )}
     </div>

@@ -574,10 +574,12 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Configuración</h1>
-      <p className="text-sm text-slate-500">Administrá equipos, ubicaciones de stock y productos.</p>
-      {errorCarga && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>}
+    <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      <div>
+        <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#0f172a" }}>Configuración</h1>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"#64748b" }}>Administrá equipos, ubicaciones de stock y productos.</p>
+      </div>
+      {errorCarga && <div style={{ background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:10, padding:"10px 16px", fontSize:13 }}>{errorCarga}</div>}
 
       <CrudSection
         titulo="Equipos"

@@ -243,123 +243,192 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
   const idx      = ESTADO_IDX[ticket.estado] ?? 0;
   const dias     = diasVenc(ticket.fecha_vencimiento);
 
+  const TIPO_STYLE = {
+    tarea:         { bg: "#f1f5f9", color: "#475569" },
+    investigacion: { bg: "#eff6ff", color: "#2563eb" },
+    bug:           { bg: "#fef2f2", color: "#dc2626" },
+    mejora:        { bg: "#f5f3ff", color: "#7c3aed" },
+  };
+  const PRIO_STYLE = {
+    alta:  { bg: "#fef2f2", color: "#dc2626" },
+    media: { bg: "#fffbeb", color: "#d97706" },
+    baja:  { bg: "#f0fdf4", color: "#16a34a" },
+  };
+  const ESTADO_STYLE = {
+    pendiente:   { bg: "#f1f5f9", color: "#64748b" },
+    en_progreso: { bg: "#eff6ff", color: "#2563eb" },
+    completada:  { bg: "#f0fdf4", color: "#16a34a" },
+  };
+  const tipoSt  = TIPO_STYLE[ticket.tipo]      || TIPO_STYLE.tarea;
+  const prioSt  = PRIO_STYLE[ticket.prioridad] || PRIO_STYLE.media;
+  const estadoSt = ESTADO_STYLE[ticket.estado] || ESTADO_STYLE.pendiente;
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200">
+      {/* Overlay */}
+      <div style={{ position:"fixed", inset:0, background:"rgba(8,15,30,0.35)", zIndex:40, backdropFilter:"blur(2px)" }} onClick={onClose} />
+
+      {/* Slide-over */}
+      <div style={{
+        position:"fixed", right:0, top:0, height:"100%",
+        width:"100%", maxWidth:420,
+        background:"#ffffff",
+        borderLeft:"1px solid #e2e8f0",
+        zIndex:50, display:"flex", flexDirection:"column",
+        boxShadow:"-12px 0 48px rgba(0,0,0,0.10)",
+      }}>
 
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="text-xs font-bold text-slate-400">{numStr(ticket.numero)}</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${tipo.color}`}>{tipo.label}</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${prio.color}`}>{prio.label}</span>
+        <div style={{
+          background:"linear-gradient(135deg, #1e3a8a, #1d4ed8)",
+          padding:"14px 16px", flexShrink:0,
+        }}>
+          <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6, flexWrap:"wrap" }}>
+                <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.5)", fontFamily:"DM Mono, monospace" }}>
+                  {numStr(ticket.numero)}
+                </span>
+                <span style={{ fontSize:10, padding:"2px 8px", borderRadius:999, fontWeight:500, background:"rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.9)" }}>
+                  {tipo.label}
+                </span>
+                <span style={{ fontSize:10, padding:"2px 8px", borderRadius:999, fontWeight:500, background:"rgba(255,255,255,0.12)", color:"rgba(255,255,255,0.85)" }}>
+                  {prio.label}
+                </span>
+              </div>
+              <h2 style={{ margin:0, fontSize:14, fontWeight:600, color:"#ffffff", lineHeight:1.3 }}>
+                {ticket.titulo}
+              </h2>
             </div>
-            <h2 className="text-base font-bold text-slate-800 leading-tight">{ticket.titulo}</h2>
+            <button onClick={onClose} style={{
+              display:"flex", alignItems:"center", justifyContent:"center",
+              width:26, height:26, borderRadius:7, flexShrink:0,
+              border:"none", cursor:"pointer",
+              background:"rgba(255,255,255,0.10)", color:"rgba(255,255,255,0.80)",
+              transition:"background 150ms",
+            }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.20)"}
+              onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.10)"}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0 mt-1">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
-        {/* Cuerpo scrolleable */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Body */}
+        <div style={{ flex:1, overflowY:"auto" }}>
 
           {/* Metadata */}
-          <div className="px-5 py-4 space-y-3 border-b border-slate-100">
+          <div style={{ padding:"16px", borderBottom:"1px solid #f1f5f9" }}>
 
-            {/* Estado + botones mover */}
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${ESTADO_COLOR[ticket.estado]}`}>
+            {/* Estado + navegación */}
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+              <span style={{
+                fontSize:11, padding:"3px 10px", borderRadius:999, fontWeight:600,
+                background: estadoSt.bg, color: estadoSt.color,
+              }}>
                 {estadoObj.label}
               </span>
-              <div className="flex gap-1 ml-auto">
+              <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
                 {idx > 0 && (
-                  <button onClick={() => onMover(ticket.id, ESTADOS[idx - 1].key)}
-                    className="text-xs px-2.5 py-1 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition">
-                    ← {ESTADOS[idx - 1].label}
+                  <button onClick={() => onMover(ticket.id, ESTADOS[idx-1].key)} style={{
+                    fontSize:11, padding:"4px 10px", borderRadius:7,
+                    border:"1.5px solid #e2e8f0", background:"#f8fafc", color:"#475569",
+                    cursor:"pointer", transition:"background 120ms",
+                  }}>
+                    ← {ESTADOS[idx-1].label}
                   </button>
                 )}
                 {idx < 2 && (
-                  <button onClick={() => onMover(ticket.id, ESTADOS[idx + 1].key)}
-                    className="text-xs px-2.5 py-1 border border-indigo-200 bg-indigo-50 rounded-lg hover:bg-indigo-100 text-indigo-700 font-medium transition">
-                    {ESTADOS[idx + 1].label} →
+                  <button onClick={() => onMover(ticket.id, ESTADOS[idx+1].key)} style={{
+                    fontSize:11, padding:"4px 10px", borderRadius:7,
+                    border:"1.5px solid #2563eb", background:"#eff6ff", color:"#2563eb",
+                    cursor:"pointer", fontWeight:500, transition:"background 120ms",
+                  }}>
+                    {ESTADOS[idx+1].label} →
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Campos meta */}
-            <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-500">
-              {ticket.categoria && (
-                <div><span className="font-semibold text-slate-600">Categoría:</span> {ticket.categoria}</div>
-              )}
-              {ticket.asignado_a && (
-                <div><span className="font-semibold text-slate-600">Asignado:</span> {ticket.asignado_a}</div>
-              )}
-              {ticket.cargado_por && (
-                <div><span className="font-semibold text-slate-600">Creado por:</span> {ticket.cargado_por}</div>
-              )}
-              {ticket.fecha_vencimiento && (
-                <div className={dias < 0 ? "text-red-600 font-semibold" : dias <= 2 ? "text-amber-600 font-semibold" : ""}>
-                  <span className="font-semibold text-slate-600">Vence:</span> {fmtFecha(ticket.fecha_vencimiento)}
-                  {dias < 0 && ` (hace ${Math.abs(dias)}d)`}
-                  {dias === 0 && " (hoy)"}
-                  {dias === 1 && " (mañana)"}
+            {/* Meta grid */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px 12px", marginBottom:12 }}>
+              {[
+                ticket.categoria && { label:"Categoría", value: ticket.categoria },
+                ticket.asignado_a && { label:"Asignado a", value: ticket.asignado_a },
+                ticket.cargado_por && { label:"Creado por", value: ticket.cargado_por },
+                ticket.fecha_vencimiento && {
+                  label:"Vencimiento",
+                  value: `${fmtFecha(ticket.fecha_vencimiento)}${dias < 0 ? ` (hace ${Math.abs(dias)}d)` : dias === 0 ? " (hoy)" : dias === 1 ? " (mañana)" : ""}`,
+                  color: dias < 0 ? "#dc2626" : dias <= 2 ? "#d97706" : undefined,
+                },
+              ].filter(Boolean).map((item, i) => (
+                <div key={i}>
+                  <p style={{ margin:0, fontSize:9, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8" }}>{item.label}</p>
+                  <p style={{ margin:"2px 0 0", fontSize:12, color: item.color || "#334155", fontWeight: item.color ? 600 : 400 }}>{item.value}</p>
                 </div>
-              )}
+              ))}
             </div>
 
             {/* Descripción */}
             {ticket.descripcion && (
-              <p className="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2.5 leading-relaxed">
-                {ticket.descripcion}
-              </p>
+              <div style={{ background:"#f8fafc", border:"1px solid #f1f5f9", borderRadius:8, padding:"10px 12px", marginBottom:12 }}>
+                <p style={{ margin:0, fontSize:12.5, color:"#475569", lineHeight:1.6, whiteSpace:"pre-wrap" }}>
+                  {ticket.descripcion}
+                </p>
+              </div>
             )}
 
             {/* Acciones */}
-            <div className="flex gap-2 pt-1">
-              <button onClick={() => onEdit(ticket)}
-                className="flex-1 text-xs py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition font-medium">
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={() => onEdit(ticket)} style={{
+                flex:1, padding:"7px", borderRadius:8, fontSize:12,
+                border:"1.5px solid #e2e8f0", background:"#f8fafc", color:"#334155",
+                cursor:"pointer", fontWeight:500, transition:"background 120ms",
+              }}>
                 ✎ Editar
               </button>
-              <button onClick={() => { if (confirm("¿Eliminar este ticket?")) { onDelete(ticket.id); onClose(); } }}
-                className="flex-1 text-xs py-2 border border-red-200 rounded-lg hover:bg-red-50 text-red-600 transition font-medium">
+              <button onClick={() => { if (window.confirm("¿Eliminar este ticket?")) { onDelete(ticket.id); onClose(); } }} style={{
+                flex:1, padding:"7px", borderRadius:8, fontSize:12,
+                border:"1.5px solid #fecaca", background:"#fef2f2", color:"#dc2626",
+                cursor:"pointer", fontWeight:500, transition:"background 120ms",
+              }}>
                 Eliminar
               </button>
             </div>
           </div>
 
-          {/* Notas / Historial */}
-          <div className="px-5 py-4">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          {/* Notas */}
+          <div style={{ padding:"16px" }}>
+            <p style={{ margin:"0 0 12px", fontSize:9.5, fontWeight:600, letterSpacing:"0.07em", textTransform:"uppercase", color:"#94a3b8" }}>
               Notas / Historial
-            </h3>
+            </p>
 
             {cargandoN ? (
-              <p className="text-xs text-slate-400 italic mb-3">Cargando…</p>
+              <p style={{ fontSize:12, color:"#94a3b8", fontStyle:"italic" }}>Cargando…</p>
             ) : notas.length === 0 ? (
-              <p className="text-xs text-slate-400 italic mb-4">Sin notas aún.</p>
+              <p style={{ fontSize:12, color:"#94a3b8", fontStyle:"italic", marginBottom:16 }}>Sin notas aún.</p>
             ) : (
-              <div className="space-y-2 mb-4">
+              <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:16 }}>
                 {notas.map(n => (
-                  <div key={n.id} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 group">
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{n.texto}</p>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[10px] text-slate-400">
+                  <div key={n.id} style={{
+                    background:"#f8fafc", border:"1px solid #f1f5f9", borderRadius:8, padding:"10px 12px",
+                  }}
+                    onMouseEnter={e=>e.currentTarget.querySelector(".nota-del")?.style && (e.currentTarget.querySelector(".nota-del").style.opacity="1")}
+                    onMouseLeave={e=>e.currentTarget.querySelector(".nota-del")?.style && (e.currentTarget.querySelector(".nota-del").style.opacity="0")}
+                  >
+                    <p style={{ margin:0, fontSize:12.5, color:"#334155", whiteSpace:"pre-wrap", lineHeight:1.6 }}>{n.texto}</p>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:6 }}>
+                      <span style={{ fontSize:10, color:"#94a3b8", fontFamily:"DM Mono, monospace" }}>
                         {n.cargado_por && `${n.cargado_por} · `}
-                        {n.created_at
-                          ? new Date(n.created_at).toLocaleDateString("es-AR", {
-                              day: "2-digit", month: "2-digit", year: "2-digit",
-                              hour: "2-digit", minute: "2-digit",
-                            })
-                          : ""}
+                        {n.created_at ? new Date(n.created_at).toLocaleDateString("es-AR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }) : ""}
                       </span>
-                      <button onClick={() => eliminarNota(n.id)}
-                        className="text-[10px] text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition">
+                      <button className="nota-del" onClick={() => eliminarNota(n.id)} style={{
+                        fontSize:10, color:"#ef4444", background:"none", border:"none",
+                        cursor:"pointer", opacity:0, transition:"opacity 150ms",
+                      }}>
                         Eliminar
                       </button>
                     </div>
@@ -369,21 +438,35 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
             )}
 
             {errorNota && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">
+              <div style={{ fontSize:12, color:"#dc2626", background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, padding:"8px 12px", marginBottom:10 }}>
                 {errorNota}
               </div>
             )}
-            <div className="space-y-2">
-              <textarea value={nuevaNota} onChange={e => setNuevaNota(e.target.value)}
-                placeholder="Agregar nota o actualización…"
-                rows={3}
-                onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) agregarNota(); }}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 resize-none" />
-              <button onClick={agregarNota} disabled={!nuevaNota.trim() || guardandoN}
-                className="w-full py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition disabled:opacity-50">
-                {guardandoN ? "Guardando…" : "Agregar nota"}
-              </button>
-            </div>
+
+            <textarea
+              value={nuevaNota}
+              onChange={e => setNuevaNota(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) agregarNota(); }}
+              placeholder="Agregar nota… (Ctrl+Enter para guardar)"
+              rows={3}
+              style={{
+                width:"100%", padding:"8px 11px", borderRadius:8,
+                border:"1.5px solid #e2e8f0", background:"#f8fafc",
+                fontSize:12.5, resize:"none", outline:"none",
+                fontFamily:"inherit", lineHeight:1.5, marginBottom:8,
+                boxSizing:"border-box",
+              }}
+              onFocus={e=>{e.target.style.borderColor="#2563eb"; e.target.style.boxShadow="0 0 0 3px rgba(37,99,235,0.08)"; e.target.style.background="#fff";}}
+              onBlur={e=>{e.target.style.borderColor="#e2e8f0"; e.target.style.boxShadow="none"; e.target.style.background="#f8fafc";}}
+            />
+            <button onClick={agregarNota} disabled={!nuevaNota.trim() || guardandoN} style={{
+              width:"100%", padding:"8px", borderRadius:8, fontSize:12.5,
+              border:"none", background: (!nuevaNota.trim() || guardandoN) ? "#93c5fd" : "#2563eb",
+              color:"#fff", fontWeight:600, cursor: (!nuevaNota.trim() || guardandoN) ? "not-allowed" : "pointer",
+              transition:"background 150ms",
+            }}>
+              {guardandoN ? "Guardando…" : "Agregar nota"}
+            </button>
           </div>
         </div>
       </div>
@@ -393,54 +476,82 @@ function PanelDetalle({ ticket, onClose, onEdit, onDelete, onMover }) {
 
 
 // ── Tarjeta Kanban ────────────────────────────────────────────────────
+const TIPO_BADGE = {
+  tarea:         { bg:"#f1f5f9", color:"#475569" },
+  investigacion: { bg:"#eff6ff", color:"#2563eb" },
+  bug:           { bg:"#fef2f2", color:"#dc2626" },
+  mejora:        { bg:"#f5f3ff", color:"#7c3aed" },
+};
+const PRIO_BADGE = {
+  alta:  { bg:"#fef2f2", color:"#dc2626" },
+  media: { bg:"#fffbeb", color:"#d97706" },
+  baja:  { bg:"#f0fdf4", color:"#16a34a" },
+};
+
 function KanbanCard({ ticket, onDetalle, onMover }) {
   const tipo = TIPOS[ticket.tipo] || TIPOS.tarea;
   const prio = PRIORIDADES[ticket.prioridad] || PRIORIDADES.media;
   const idx  = ESTADO_IDX[ticket.estado] ?? 0;
   const dias = diasVenc(ticket.fecha_vencimiento);
   const vencida = dias < 0 && ticket.estado !== "completada";
+  const tipoBadge = TIPO_BADGE[ticket.tipo] || TIPO_BADGE.tarea;
+  const prioBadge = PRIO_BADGE[ticket.prioridad] || PRIO_BADGE.media;
 
   return (
     <div
-      className={`bg-white rounded-xl border shadow-sm p-3.5 cursor-pointer hover:border-indigo-300 hover:shadow-md transition group ${vencida ? "border-red-200 bg-red-50/30" : "border-slate-200"}`}
-      onClick={() => onDetalle(ticket)}>
-
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] font-bold text-slate-400">{numStr(ticket.numero)}</span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tipo.color}`}>{tipo.label}</span>
+      style={{
+        background: vencida ? "#fff8f8" : "#ffffff",
+        border: `1px solid ${vencida ? "#fecaca" : "#e2e8f0"}`,
+        borderRadius:10, padding:"12px", cursor:"pointer",
+        transition:"border-color 150ms, box-shadow 150ms",
+      }}
+      onMouseEnter={e=>{ e.currentTarget.style.borderColor=vencida?"#fca5a5":"#93c5fd"; e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.06)"; e.currentTarget.querySelector(".kanban-arrows").style.opacity="1"; }}
+      onMouseLeave={e=>{ e.currentTarget.style.borderColor=vencida?"#fecaca":"#e2e8f0"; e.currentTarget.style.boxShadow="none"; e.currentTarget.querySelector(".kanban-arrows").style.opacity="0"; }}
+      onClick={() => onDetalle(ticket)}
+    >
+      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
+        <span style={{ fontSize:9.5, fontWeight:700, color:"#94a3b8", fontFamily:"DM Mono, monospace" }}>{numStr(ticket.numero)}</span>
+        <span style={{ fontSize:9.5, padding:"2px 7px", borderRadius:999, fontWeight:500, background:tipoBadge.bg, color:tipoBadge.color }}>{tipo.label}</span>
       </div>
 
-      <p className="text-sm font-medium text-slate-800 leading-snug mb-2.5">{ticket.titulo}</p>
+      <p style={{ margin:"0 0 10px", fontSize:12.5, fontWeight:500, color:"#1e293b", lineHeight:1.4 }}>{ticket.titulo}</p>
 
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${prio.color}`}>{prio.label}</span>
+      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+        <span style={{ fontSize:9.5, padding:"2px 7px", borderRadius:999, fontWeight:600, background:prioBadge.bg, color:prioBadge.color }}>{prio.label}</span>
         {ticket.categoria && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{ticket.categoria}</span>
+          <span style={{ fontSize:9.5, padding:"2px 7px", borderRadius:999, background:"#f1f5f9", color:"#64748b" }}>{ticket.categoria}</span>
         )}
         {ticket.asignado_a && (
-          <span className="text-[10px] text-slate-400 ml-auto truncate">→ {ticket.asignado_a}</span>
+          <span style={{ fontSize:9.5, color:"#94a3b8", marginLeft:"auto" }}>→ {ticket.asignado_a}</span>
         )}
       </div>
 
       {ticket.fecha_vencimiento && (
-        <div className={`text-[10px] mt-2 ${vencida ? "text-red-600 font-semibold" : dias <= 2 ? "text-amber-600" : "text-slate-400"}`}>
-          {vencida ? `⚠ Vencido ${fmtFecha(ticket.fecha_vencimiento)}` : `📅 ${fmtFecha(ticket.fecha_vencimiento)}`}
-        </div>
+        <p style={{ margin:"8px 0 0", fontSize:9.5, color: vencida?"#dc2626": dias<=2?"#d97706":"#94a3b8", fontWeight: (vencida||dias<=2)?600:400, fontFamily:"DM Mono, monospace" }}>
+          {vencida ? `⚠ ${fmtFecha(ticket.fecha_vencimiento)}` : `📅 ${fmtFecha(ticket.fecha_vencimiento)}`}
+        </p>
       )}
 
-      {/* Flechas de mover — visibles al hover */}
-      <div className="flex gap-1 mt-3 opacity-0 group-hover:opacity-100 transition"
+      {/* Flechas de mover */}
+      <div className="kanban-arrows"
+        style={{ display:"flex", gap:6, marginTop:10, opacity:0, transition:"opacity 150ms" }}
         onClick={e => e.stopPropagation()}>
         {idx > 0 && (
-          <button onClick={() => onMover(ticket.id, ESTADOS[idx - 1].key)}
-            className="flex-1 text-[10px] py-1 border border-slate-200 rounded text-slate-500 hover:bg-slate-50 transition truncate">
-            ← {ESTADOS[idx - 1].label}
+          <button onClick={() => onMover(ticket.id, ESTADOS[idx-1].key)} style={{
+            flex:1, fontSize:10, padding:"4px 0", borderRadius:6,
+            border:"1px solid #e2e8f0", background:"#f8fafc", color:"#475569",
+            cursor:"pointer", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+          }}>
+            ← {ESTADOS[idx-1].label}
           </button>
         )}
         {idx < 2 && (
-          <button onClick={() => onMover(ticket.id, ESTADOS[idx + 1].key)}
-            className="flex-1 text-[10px] py-1 border border-indigo-200 bg-indigo-50 rounded text-indigo-600 hover:bg-indigo-100 transition truncate">
-            {ESTADOS[idx + 1].label} →
+          <button onClick={() => onMover(ticket.id, ESTADOS[idx+1].key)} style={{
+            flex:1, fontSize:10, padding:"4px 0", borderRadius:6,
+            border:"1px solid #bfdbfe", background:"#eff6ff", color:"#2563eb",
+            cursor:"pointer", fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+          }}>
+            {ESTADOS[idx+1].label} →
           </button>
         )}
       </div>
@@ -449,24 +560,34 @@ function KanbanCard({ ticket, onDetalle, onMover }) {
 }
 
 
+const ESTADO_DOT = { pendiente:"#94a3b8", en_progreso:"#2563eb", completada:"#16a34a" };
+
 // ── Vista Kanban ──────────────────────────────────────────────────────
 function VistaKanban({ tickets, onDetalle, onMover }) {
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
       {ESTADOS.map(estado => {
         const col = tickets.filter(t => t.estado === estado.key);
         return (
-          <div key={estado.key} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between px-1 mb-1">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${estado.dot}`} />
-                <span className="text-sm font-semibold text-slate-700">{estado.label}</span>
+          <div key={estado.key} style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {/* Column header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 2px", marginBottom:4 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ width:8, height:8, borderRadius:"50%", background: ESTADO_DOT[estado.key], display:"inline-block" }}/>
+                <span style={{ fontSize:12.5, fontWeight:600, color:"#334155" }}>{estado.label}</span>
               </div>
-              <span className="text-xs text-slate-400 font-medium bg-slate-100 px-2 py-0.5 rounded-full">{col.length}</span>
+              <span style={{ fontSize:11, color:"#94a3b8", fontWeight:600, background:"#f1f5f9", padding:"1px 8px", borderRadius:999, fontFamily:"DM Mono, monospace" }}>{col.length}</span>
             </div>
-            <div className="bg-slate-50/80 rounded-xl p-2 flex-1 space-y-2 min-h-[200px] border border-slate-200/60">
+            {/* Column body */}
+            <div style={{
+              background:"#f8fafc", borderRadius:10, padding:8,
+              border:"1px solid #f1f5f9", minHeight:200,
+              display:"flex", flexDirection:"column", gap:8,
+            }}>
               {col.length === 0 && (
-                <div className="flex items-center justify-center h-20 text-xs text-slate-300 italic">Sin tickets</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:80, fontSize:11.5, color:"#cbd5e1", fontStyle:"italic" }}>
+                  Sin tickets
+                </div>
               )}
               {col.map(t => (
                 <KanbanCard key={t.id} ticket={t} onDetalle={onDetalle} onMover={onMover} />
@@ -501,78 +622,93 @@ function VistaLista({ tickets, onDetalle }) {
     return true;
   });
 
+  function PillGroup({ options, value, onChange }) {
+    return (
+      <div style={{ display:"flex", gap:2, background:"#f1f5f9", borderRadius:8, padding:3 }}>
+        {options.map(o => (
+          <button key={o.k} onClick={() => onChange(o.k)} style={{
+            padding:"5px 12px", borderRadius:6, border:"none", fontSize:11.5, fontWeight:500,
+            background: value===o.k ? "#ffffff" : "transparent",
+            color: value===o.k ? "#1e293b" : "#64748b",
+            boxShadow: value===o.k ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+            cursor:"pointer", transition:"all 120ms",
+          }}>{o.l}</button>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {[{ k: "todos", l: "Todos" }, ...ESTADOS.map(e => ({ k: e.key, l: e.label }))].map(f => (
-            <button key={f.k} onClick={() => setFiltroEstado(f.k)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroEstado === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              {f.l}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {[{ k: "todos", l: "Tipo" }, ...Object.entries(TIPOS).map(([k, v]) => ({ k, l: v.label }))].map(f => (
-            <button key={f.k} onClick={() => setFiltroTipo(f.k)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroTipo === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              {f.l}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {[{ k: "todos", l: "Prio" }, ...Object.entries(PRIORIDADES).map(([k, v]) => ({ k, l: v.label }))].map(f => (
-            <button key={f.k} onClick={() => setFiltroPrioridad(f.k)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroPrioridad === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              {f.l}
-            </button>
-          ))}
-        </div>
-
+      <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}>
+        <PillGroup
+          options={[{ k:"todos", l:"Todos" }, ...ESTADOS.map(e => ({ k:e.key, l:e.label }))]}
+          value={filtroEstado} onChange={setFiltroEstado}
+        />
+        <PillGroup
+          options={[{ k:"todos", l:"Tipo" }, ...Object.entries(TIPOS).map(([k,v]) => ({ k, l:v.label }))]}
+          value={filtroTipo} onChange={setFiltroTipo}
+        />
+        <PillGroup
+          options={[{ k:"todos", l:"Prioridad" }, ...Object.entries(PRIORIDADES).map(([k,v]) => ({ k, l:v.label }))]}
+          value={filtroPrioridad} onChange={setFiltroPrioridad}
+        />
         <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar…"
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-300 min-w-[160px]" />
+          style={{ padding:"6px 11px", borderRadius:8, border:"1.5px solid #e2e8f0", background:"#f8fafc", fontSize:12.5, outline:"none", minWidth:160, fontFamily:"inherit" }}
+          onFocus={e=>{e.target.style.borderColor="#2563eb"; e.target.style.boxShadow="0 0 0 3px rgba(37,99,235,0.08)";}}
+          onBlur={e=>{e.target.style.borderColor="#e2e8f0"; e.target.style.boxShadow="none";}}
+        />
       </div>
 
       {filtrados.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 px-4 py-10 text-center text-slate-400 text-sm">
+        <div style={{ background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", padding:"40px 20px", textAlign:"center", fontSize:13, color:"#94a3b8" }}>
           No hay tickets con los filtros seleccionados
         </div>
       ) : (
-        <div className="space-y-2">
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {filtrados.map(t => {
-            const tipo     = TIPOS[t.tipo]           || TIPOS.tarea;
-            const prio     = PRIORIDADES[t.prioridad] || PRIORIDADES.media;
+            const tipo      = TIPOS[t.tipo]            || TIPOS.tarea;
+            const prio      = PRIORIDADES[t.prioridad] || PRIORIDADES.media;
             const estadoObj = ESTADOS[ESTADO_IDX[t.estado]] || ESTADOS[0];
-            const dias     = diasVenc(t.fecha_vencimiento);
-            const vencida  = dias < 0 && t.estado !== "completada";
+            const dias      = diasVenc(t.fecha_vencimiento);
+            const vencida   = dias < 0 && t.estado !== "completada";
+            const tipoBadge = TIPO_BADGE[t.tipo]      || TIPO_BADGE.tarea;
+            const prioBadge = PRIO_BADGE[t.prioridad] || PRIO_BADGE.media;
+            const estadoBadge = { pendiente:{bg:"#f1f5f9",color:"#64748b"}, en_progreso:{bg:"#eff6ff",color:"#2563eb"}, completada:{bg:"#f0fdf4",color:"#16a34a"} }[t.estado] || {bg:"#f1f5f9",color:"#64748b"};
 
             return (
               <div key={t.id}
                 onClick={() => onDetalle(t)}
-                className={`bg-white rounded-xl border shadow-sm px-5 py-3.5 flex items-center gap-4 cursor-pointer hover:border-indigo-200 hover:shadow-md transition ${vencida ? "border-red-200 bg-red-50/30" : "border-slate-200"}`}>
+                style={{
+                  background: vencida ? "#fff8f8" : "#ffffff",
+                  border: `1px solid ${vencida ? "#fecaca" : "#e2e8f0"}`,
+                  borderRadius:10, padding:"12px 16px",
+                  display:"flex", alignItems:"center", gap:14, cursor:"pointer",
+                  transition:"border-color 150ms, box-shadow 150ms",
+                }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=vencida?"#fca5a5":"#93c5fd"; e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.06)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=vencida?"#fecaca":"#e2e8f0"; e.currentTarget.style.boxShadow="none";}}
+              >
+                <span style={{ fontSize:10, fontWeight:700, color:"#94a3b8", flexShrink:0, width:36, fontFamily:"DM Mono, monospace" }}>{numStr(t.numero)}</span>
 
-                <span className="text-xs font-bold text-slate-400 shrink-0 w-10">{numStr(t.numero)}</span>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${tipo.color}`}>{tipo.label}</span>
-                    <span className={`text-sm font-medium ${t.estado === "completada" ? "line-through text-slate-400" : "text-slate-800"}`}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:4 }}>
+                    <span style={{ fontSize:9.5, padding:"2px 7px", borderRadius:999, fontWeight:500, background:tipoBadge.bg, color:tipoBadge.color }}>{tipo.label}</span>
+                    <span style={{ fontSize:13, fontWeight:500, color: t.estado==="completada" ? "#94a3b8" : "#1e293b", textDecoration: t.estado==="completada" ? "line-through" : "none" }}>
                       {t.titulo}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
-                    <span className={`px-1.5 py-0.5 rounded-full font-semibold ${prio.color}`}>{prio.label}</span>
-                    <span className={`px-1.5 py-0.5 rounded-full ${ESTADO_COLOR[t.estado]}`}>{estadoObj.label}</span>
-                    {t.categoria && <span className="bg-slate-100 px-1.5 py-0.5 rounded-full">{t.categoria}</span>}
-                    {t.asignado_a && <span>→ {t.asignado_a}</span>}
+                  <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:9.5, padding:"1px 7px", borderRadius:999, fontWeight:600, background:prioBadge.bg, color:prioBadge.color }}>{prio.label}</span>
+                    <span style={{ fontSize:9.5, padding:"1px 7px", borderRadius:999, background:estadoBadge.bg, color:estadoBadge.color }}>{estadoObj.label}</span>
+                    {t.categoria && <span style={{ fontSize:9.5, padding:"1px 7px", borderRadius:999, background:"#f1f5f9", color:"#64748b" }}>{t.categoria}</span>}
+                    {t.asignado_a && <span style={{ fontSize:11, color:"#94a3b8" }}>→ {t.asignado_a}</span>}
                     {t.fecha_vencimiento && (
-                      <span className={vencida ? "text-red-600 font-semibold" : dias <= 2 ? "text-amber-600" : ""}>
+                      <span style={{ fontSize:11, color: vencida?"#dc2626":dias<=2?"#d97706":"#94a3b8", fontWeight:(vencida||dias<=2)?600:400, fontFamily:"DM Mono, monospace" }}>
                         📅 {fmtFecha(t.fecha_vencimiento)}
-                        {vencida && ` (vencido hace ${Math.abs(dias)}d)`}
+                        {vencida && ` (hace ${Math.abs(dias)}d)`}
                         {!vencida && dias === 0 && " (hoy)"}
                         {!vencida && dias === 1 && " (mañana)"}
                       </span>
@@ -580,8 +716,8 @@ function VistaLista({ tickets, onDetalle }) {
                   </div>
                 </div>
 
-                <svg className="w-4 h-4 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}>
+                  <polyline points="9 18 15 12 9 6"/>
                 </svg>
               </div>
             );
@@ -663,43 +799,66 @@ export default function TareasPage() {
       )}
 
       {msg && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+        <div style={{ background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:10, padding:"10px 16px", fontSize:13 }}>
           {msg}
         </div>
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Tickets</h1>
-          <div className="flex items-center gap-4 mt-1 text-xs text-slate-500">
-            <span><span className="font-semibold text-slate-700">{abiertos}</span> pendientes</span>
-            <span><span className="font-semibold text-blue-600">{enProgreso}</span> en progreso</span>
-            <span><span className="font-semibold text-green-600">{resueltos}</span> resueltos</span>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#0f172a" }}>Tickets</h1>
+          <div style={{ display:"flex", alignItems:"center", gap:16, marginTop:4 }}>
+            <span style={{ fontSize:12, color:"#64748b" }}>
+              <span style={{ fontWeight:700, color:"#1e293b" }}>{abiertos}</span> pendientes
+            </span>
+            <span style={{ fontSize:12, color:"#64748b" }}>
+              <span style={{ fontWeight:700, color:"#2563eb" }}>{enProgreso}</span> en progreso
+            </span>
+            <span style={{ fontSize:12, color:"#64748b" }}>
+              <span style={{ fontWeight:700, color:"#16a34a" }}>{resueltos}</span> resueltos
+            </span>
           </div>
         </div>
-        <button onClick={() => setModal("nuevo")}
-          className="bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition shadow-sm flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+        <button onClick={() => setModal("nuevo")} style={{
+          display:"flex", alignItems:"center", gap:7,
+          background:"#2563eb", color:"#ffffff", border:"none",
+          borderRadius:9, padding:"9px 18px", fontSize:13, fontWeight:600,
+          cursor:"pointer", transition:"background 150ms",
+        }}
+          onMouseEnter={e=>e.currentTarget.style.background="#1d4ed8"}
+          onMouseLeave={e=>e.currentTarget.style.background="#2563eb"}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo ticket
         </button>
       </div>
 
       {/* Tabs de vista */}
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-        <button onClick={() => setVista("kanban")}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${vista === "kanban" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div style={{ display:"flex", gap:3, background:"#f1f5f9", borderRadius:10, padding:4, width:"fit-content" }}>
+        <button onClick={() => setVista("kanban")} style={{
+          display:"flex", alignItems:"center", gap:6,
+          padding:"7px 16px", borderRadius:7, border:"none", fontSize:12.5, fontWeight:500,
+          background: vista==="kanban" ? "#ffffff" : "transparent",
+          color: vista==="kanban" ? "#1e293b" : "#64748b",
+          boxShadow: vista==="kanban" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+          cursor:"pointer", transition:"all 120ms",
+        }}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
           </svg>
           Kanban
         </button>
-        <button onClick={() => setVista("lista")}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition ${vista === "lista" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+        <button onClick={() => setVista("lista")} style={{
+          display:"flex", alignItems:"center", gap:6,
+          padding:"7px 16px", borderRadius:7, border:"none", fontSize:12.5, fontWeight:500,
+          background: vista==="lista" ? "#ffffff" : "transparent",
+          color: vista==="lista" ? "#1e293b" : "#64748b",
+          boxShadow: vista==="lista" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+          cursor:"pointer", transition:"all 120ms",
+        }}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
           </svg>
           Lista
         </button>

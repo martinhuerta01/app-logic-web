@@ -21,6 +21,18 @@ const filaVacia = (opts) => ({
   observaciones:"",
 });
 
+const inputStyle = {
+  padding: "7px 11px", borderRadius: 7, border: "1.5px solid #e2e8f0",
+  background: "#f8fafc", fontSize: 13, outline: "none", fontFamily: "inherit", width: "100%",
+};
+const inputFocus = (e) => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.08)"; };
+const inputBlur  = (e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; };
+
+const cellInputStyle = {
+  padding: "5px 8px", borderRadius: 6, border: "1.5px solid #e2e8f0",
+  background: "#f8fafc", fontSize: 12, outline: "none", fontFamily: "inherit", width: "100%",
+};
+
 export default function CargaDiaPage() {
   const { user } = useAuth();
   const [equipos,       setEquipos]       = useState([]);
@@ -28,14 +40,12 @@ export default function CargaDiaPage() {
   const [clientes,      setClientes]      = useState([]);
   const [opciones,      setOpciones]      = useState({ tipos: [], dispositivos: [], estados: [] });
 
-  // Cabecera del bloque
   const [svcFecha,       setSvcFecha]       = useState(() => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }));
   const [svcResponsable, setSvcResponsable] = useState("");
   const [svcLocalidad,   setSvcLocalidad]   = useState("");
   const [svcHora,        setSvcHora]        = useState("");
   const [svcCliente,     setSvcCliente]     = useState("");
 
-  // Filas de servicios
   const [filas,     setFilas]     = useState([]);
   const [feriado,   setFeriado]   = useState(false);
   const [svcMsg,    setSvcMsg]    = useState("");
@@ -61,12 +71,9 @@ export default function CargaDiaPage() {
     }).catch(() => setErrorCarga("No se pudieron cargar los datos iniciales. Verificá la conexión con el servidor."));
   }, []);
 
-  // ── Manejo de filas ───────────────────────────────────────────────
   const agregarFila = () => setFilas(prev => [...prev, filaVacia(opciones)]);
-
   const eliminarFila = (id) =>
     setFilas(prev => prev.length > 1 ? prev.filter(f => f._id !== id) : prev);
-
   const actualizarFila = (id, campo, valor) =>
     setFilas(prev => prev.map(f => f._id === id ? { ...f, [campo]: valor } : f));
 
@@ -83,7 +90,6 @@ export default function CargaDiaPage() {
     }
   };
 
-  // ── FERIADO ───────────────────────────────────────────────────────
   const toggleFeriado = (checked) => {
     setFeriado(checked);
     if (checked) {
@@ -95,18 +101,14 @@ export default function CargaDiaPage() {
     }
   };
 
-  // ── Guardar bloque ────────────────────────────────────────────────
   const guardarBloque = async (e) => {
     e.preventDefault();
     setSvcMsg("");
-
     const filasValidas = feriado ? filas.slice(0, 1) : filas.filter(f => f.patente.trim());
-
     if (!feriado && filasValidas.length === 0) {
       setSvcMsg("Completá al menos una patente antes de guardar.");
       return;
     }
-
     setGuardando(true);
     try {
       const equipo = equipos.find(eq => eq.nombre === svcResponsable);
@@ -140,7 +142,6 @@ export default function CargaDiaPage() {
     }
   };
 
-  // ── Cliente dropdown ──────────────────────────────────────────────
   const ClienteDropdown = () => {
     const grupos = {};
     clientes.forEach(c => {
@@ -153,7 +154,9 @@ export default function CargaDiaPage() {
     return (
       <select value={svcCliente} onChange={e => setSvcCliente(e.target.value)}
         disabled={feriado}
-        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm disabled:opacity-50" required>
+        style={{...inputStyle, opacity: feriado ? 0.5 : 1}}
+        onFocus={inputFocus} onBlur={inputBlur}
+        required>
         <option value="">Seleccionar</option>
         <option value="-">-</option>
         {Object.entries(grupos).map(([empresa, lista]) =>
@@ -172,27 +175,39 @@ export default function CargaDiaPage() {
   const filasConPatente = filas.filter(f => f.patente.trim()).length;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Carga del Día</h1>
+    <div style={{padding: "0 0 32px"}}>
+      {/* Page header */}
+      <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24}}>
+        <div>
+          <h1 style={{fontSize:22, fontWeight:700, color:"#0f172a", margin:0}}>Carga del Día</h1>
+          <p style={{fontSize:13, color:"#64748b", marginTop:4}}>Registrá los servicios del día por bloque</p>
+        </div>
+      </div>
+
       {errorCarga && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{errorCarga}</div>
+        <div style={{background:"#fef2f2", border:"1px solid #fecaca", color:"#dc2626", borderRadius:8, padding:"10px 16px", fontSize:13, marginBottom:16}}>
+          {errorCarga}
+        </div>
       )}
 
-      <form onSubmit={guardarBloque} className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
-        <h2 className="text-base font-semibold text-slate-700 border-b border-slate-100 pb-2">Nuevo Bloque de Servicios</h2>
+      <form onSubmit={guardarBloque}
+        style={{background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", padding:24}}>
+        <h2 style={{fontSize:13, fontWeight:600, color:"#0f172a", marginBottom:20, paddingBottom:12, borderBottom:"1px solid #f1f5f9"}}>
+          Nuevo Bloque de Servicios
+        </h2>
 
-        {/* ── Datos comunes ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Datos comunes */}
+        <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(160px, 1fr))", gap:16, marginBottom:24}}>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Fecha</label>
+            <label style={{display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5}}>Fecha</label>
             <input type="date" value={svcFecha} onChange={e => setSvcFecha(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required />
+              style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} required />
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Responsable</label>
+            <label style={{display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5}}>Responsable</label>
             <select value={svcResponsable} onChange={e => setSvcResponsable(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" required>
+              style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} required>
               <option value="">Seleccionar</option>
               {equipos.length > 0 && (
                 <optgroup label="Equipos">
@@ -209,95 +224,107 @@ export default function CargaDiaPage() {
 
           {esInterior && (
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Localidad</label>
+              <label style={{display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5}}>Localidad</label>
               <input type="text" value={svcLocalidad} onChange={e => setSvcLocalidad(e.target.value)}
                 placeholder="Ej: Rosario"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
             </div>
           )}
 
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Hora</label>
+            <label style={{display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5}}>Hora</label>
             <input type="time" value={svcHora} onChange={e => setSvcHora(e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
           </div>
 
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Cliente</label>
+            <label style={{display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5}}>Cliente</label>
             <ClienteDropdown />
           </div>
         </div>
 
-        {/* ── Tabla de servicios ── */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Servicios del bloque</p>
-            <span className="text-xs text-slate-400">{filas.length} fila{filas.length !== 1 ? "s" : ""}</span>
+        {/* Tabla de servicios */}
+        <div style={{marginBottom:20}}>
+          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10}}>
+            <p style={{fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8"}}>
+              Servicios del bloque
+            </p>
+            <span style={{fontSize:11, color:"#94a3b8"}}>{filas.length} fila{filas.length !== 1 ? "s" : ""}</span>
           </div>
 
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
+          <div style={{background:"#fff", borderRadius:8, border:"1px solid #e2e8f0", overflow:"hidden"}}>
+            <table style={{width:"100%", borderCollapse:"collapse"}}>
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 w-40">Tipo</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 w-36">Dispositivo</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 w-28">Patente</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 w-36">Estado</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500">Observaciones</th>
-                  <th className="px-3 py-2 w-10"></th>
+                <tr>
+                  <th style={{textAlign:"left", padding:"8px 14px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9", width:160}}>Tipo</th>
+                  <th style={{textAlign:"left", padding:"8px 14px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9", width:150}}>Dispositivo</th>
+                  <th style={{textAlign:"left", padding:"8px 14px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9", width:110}}>Patente</th>
+                  <th style={{textAlign:"left", padding:"8px 14px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9", width:150}}>Estado</th>
+                  <th style={{textAlign:"left", padding:"8px 14px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9"}}>Observaciones</th>
+                  <th style={{padding:"8px 14px", background:"#f8fafc", borderBottom:"1px solid #f1f5f9", width:40}}></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filas.map((fila) => (
-                  <tr key={fila._id} className="hover:bg-slate-50">
-                    <td className="px-3 py-2">
+              <tbody>
+                {filas.map((fila, idx) => (
+                  <tr key={fila._id}
+                    style={{borderBottom: idx < filas.length - 1 ? "1px solid #f1f5f9" : "none"}}
+                    onMouseEnter={e => e.currentTarget.style.background="#f8fafc"}
+                    onMouseLeave={e => e.currentTarget.style.background=""}>
+                    <td style={{padding:"8px 14px"}}>
                       <select value={fila.tipo}
                         onChange={e => actualizarFila(fila._id, "tipo", e.target.value)}
                         disabled={feriado}
-                        className="border border-slate-300 rounded px-2 py-1.5 text-xs w-full disabled:opacity-50">
+                        style={{...cellInputStyle, opacity: feriado ? 0.5 : 1}}
+                        onFocus={inputFocus} onBlur={inputBlur}>
                         <option value="-">-</option>
                         {opciones.tipos.map(t => <option key={t}>{t}</option>)}
                       </select>
                     </td>
-                    <td className="px-3 py-2">
+                    <td style={{padding:"8px 14px"}}>
                       <select value={fila.dispositivo}
                         onChange={e => actualizarFila(fila._id, "dispositivo", e.target.value)}
                         disabled={feriado}
-                        className="border border-slate-300 rounded px-2 py-1.5 text-xs w-full disabled:opacity-50">
+                        style={{...cellInputStyle, opacity: feriado ? 0.5 : 1}}
+                        onFocus={inputFocus} onBlur={inputBlur}>
                         <option value="-">-</option>
                         {opciones.dispositivos.map(d => <option key={d}>{d}</option>)}
                       </select>
                     </td>
-                    <td className="px-3 py-2">
+                    <td style={{padding:"8px 14px"}}>
                       <input type="text"
                         value={fila.patente}
                         onChange={e => actualizarFila(fila._id, "patente", e.target.value.toUpperCase())}
                         onKeyDown={e => onPatenteKeyDown(e, fila)}
                         disabled={feriado}
                         placeholder="AB123CD"
-                        className="border border-slate-300 rounded px-2 py-1.5 text-xs font-mono w-full disabled:opacity-50" />
+                        style={{...cellInputStyle, fontFamily:"DM Mono, monospace", opacity: feriado ? 0.5 : 1}}
+                        onFocus={inputFocus} onBlur={inputBlur} />
                     </td>
-                    <td className="px-3 py-2">
+                    <td style={{padding:"8px 14px"}}>
                       <select value={fila.estado}
                         onChange={e => actualizarFila(fila._id, "estado", e.target.value)}
                         disabled={feriado}
-                        className="border border-slate-300 rounded px-2 py-1.5 text-xs w-full disabled:opacity-50">
+                        style={{...cellInputStyle, opacity: feriado ? 0.5 : 1}}
+                        onFocus={inputFocus} onBlur={inputBlur}>
                         <option value="-">-</option>
                         {opciones.estados.map(s => <option key={s}>{s}</option>)}
                       </select>
                     </td>
-                    <td className="px-3 py-2">
+                    <td style={{padding:"8px 14px"}}>
                       <input type="text"
                         value={fila.observaciones}
                         onChange={e => actualizarFila(fila._id, "observaciones", e.target.value)}
                         placeholder="Opcional"
-                        className="border border-slate-300 rounded px-2 py-1.5 text-xs w-full" />
+                        style={cellInputStyle}
+                        onFocus={inputFocus} onBlur={inputBlur} />
                     </td>
-                    <td className="px-3 py-2">
+                    <td style={{padding:"8px 14px", textAlign:"center"}}>
                       <button type="button"
                         onClick={() => eliminarFila(fila._id)}
                         disabled={filas.length === 1}
-                        className="text-red-400 hover:text-red-600 transition disabled:opacity-20 disabled:cursor-not-allowed">
+                        style={{color:"#fca5a5", background:"none", border:"none", cursor:"pointer", opacity: filas.length === 1 ? 0.3 : 1, display:"flex", alignItems:"center", justifyContent:"center"}}
+                        onMouseEnter={e => { if (filas.length > 1) e.currentTarget.style.color="#dc2626"; }}
+                        onMouseLeave={e => e.currentTarget.style.color="#fca5a5"}>
                         <IconTrash />
                       </button>
                     </td>
@@ -307,39 +334,41 @@ export default function CargaDiaPage() {
             </table>
 
             {!feriado && (
-              <div className="border-t border-slate-100 px-3 py-2">
+              <div style={{borderTop:"1px solid #f1f5f9", padding:"8px 14px"}}>
                 <button type="button" onClick={agregarFila}
-                  className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition">
-                  <span className="text-base leading-none">+</span> Agregar fila
+                  style={{display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#2563eb", background:"none", border:"none", cursor:"pointer", fontWeight:500}}
+                  onMouseEnter={e => e.currentTarget.style.color="#1d4ed8"}
+                  onMouseLeave={e => e.currentTarget.style.color="#2563eb"}>
+                  <span style={{fontSize:16, lineHeight:1}}>+</span> Agregar fila
                 </button>
               </div>
             )}
           </div>
 
-          <p className="text-xs text-slate-400 mt-1.5">
-            Tip: presioná <kbd className="bg-slate-100 border border-slate-300 rounded px-1 text-[10px]">Enter</kbd> en Patente para agregar la siguiente fila automáticamente.
+          <p style={{fontSize:11, color:"#94a3b8", marginTop:6}}>
+            Tip: presioná <kbd style={{background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:4, padding:"1px 5px", fontSize:10}}>Enter</kbd> en Patente para agregar la siguiente fila automáticamente.
           </p>
         </div>
 
-        {/* ── Acciones ── */}
-        <div className="flex items-center gap-4 pt-1">
+        {/* Acciones */}
+        <div style={{display:"flex", alignItems:"center", gap:16, paddingTop:4}}>
           <button type="submit" disabled={guardando}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
+            style={{background: guardando ? "#93c5fd" : "#2563eb", color:"#fff", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:600, cursor: guardando ? "not-allowed" : "pointer"}}
+            onMouseEnter={e => { if (!guardando) e.currentTarget.style.background="#1d4ed8"; }}
+            onMouseLeave={e => { if (!guardando) e.currentTarget.style.background="#2563eb"; }}>
             {guardando
               ? "Guardando…"
               : `Guardar ${feriado ? 1 : filasConPatente || ""} servicio${(feriado ? 1 : filasConPatente) !== 1 ? "s" : ""}`}
           </button>
 
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+          <label style={{display:"flex", alignItems:"center", gap:8, cursor:"pointer", userSelect:"none"}}>
             <input type="checkbox" checked={feriado} onChange={e => toggleFeriado(e.target.checked)}
-              className="w-4 h-4 accent-orange-500 cursor-pointer" />
-            <span className={`text-sm font-semibold ${feriado ? "text-orange-600" : "text-slate-500"}`}>
-              FERIADO
-            </span>
+              style={{width:16, height:16, accentColor:"#f97316", cursor:"pointer"}} />
+            <span style={{fontSize:13, fontWeight:600, color: feriado ? "#ea580c" : "#64748b"}}>FERIADO</span>
           </label>
 
           {svcMsg && (
-            <span className={`text-sm font-medium ${svcMsg.startsWith("Error") ? "text-red-600" : "text-green-600"}`}>
+            <span style={{fontSize:13, fontWeight:500, color: svcMsg.startsWith("Error") ? "#dc2626" : "#16a34a"}}>
               {svcMsg}
             </span>
           )}

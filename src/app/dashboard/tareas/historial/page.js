@@ -80,118 +80,137 @@ export default function HistorialTicketsPage() {
     count: filtrados.filter(t => t.tipo === k).length,
   })).filter(x => x.count > 0);
 
+  const TIPO_BADGE = {
+    tarea:         { bg:"#f1f5f9", color:"#475569", dot:"#94a3b8" },
+    investigacion: { bg:"#eff6ff", color:"#2563eb", dot:"#3b82f6" },
+    bug:           { bg:"#fef2f2", color:"#dc2626", dot:"#ef4444" },
+    mejora:        { bg:"#f5f3ff", color:"#7c3aed", dot:"#8b5cf6" },
+  };
+  const PRIO_BADGE = {
+    alta:  { bg:"#fef2f2", color:"#dc2626" },
+    media: { bg:"#fffbeb", color:"#d97706" },
+    baja:  { bg:"#f0fdf4", color:"#16a34a" },
+  };
+  const TH = { textAlign:"left", padding:"8px 16px", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", background:"#f8fafc", borderBottom:"1px solid #f1f5f9" };
+
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div style={{ display:"flex", flexDirection:"column", gap:20, maxWidth:900 }}>
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Historial de Tickets</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Tickets resueltos por período</p>
+        <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#0f172a" }}>Historial de Tickets</h1>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"#64748b" }}>Tickets resueltos por período</p>
       </div>
 
-      {/* Controles de período */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Controles */}
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
         {!todos && (
-          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
-            <button onClick={() => navMes(-1)} className="text-slate-400 hover:text-slate-600 transition">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"#fff", border:"1px solid #e2e8f0", borderRadius:8, padding:"6px 12px" }}>
+            <button onClick={() => navMes(-1)} style={{ border:"none", background:"none", cursor:"pointer", color:"#94a3b8", padding:2 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <span className="text-sm font-semibold text-slate-700 min-w-[140px] text-center">
+            <span style={{ fontSize:13, fontWeight:600, color:"#1e293b", minWidth:140, textAlign:"center", fontFamily:"DM Mono, monospace" }}>
               {MESES[mes]} {anio}
             </span>
-            <button onClick={() => navMes(1)} className="text-slate-400 hover:text-slate-600 transition">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+            <button onClick={() => navMes(1)} style={{ border:"none", background:"none", cursor:"pointer", color:"#94a3b8", padding:2 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
         )}
 
-        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
-          <input type="checkbox" checked={todos} onChange={e => setTodos(e.target.checked)}
-            className="rounded border-slate-300 text-indigo-600" />
+        <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, color:"#475569", cursor:"pointer" }}>
+          <input type="checkbox" checked={todos} onChange={e => setTodos(e.target.checked)} />
           Todos los tiempos
         </label>
 
         {/* Filtro tipo */}
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 ml-auto">
+        <div style={{ display:"flex", gap:4, background:"#f1f5f9", borderRadius:8, padding:4, marginLeft:"auto" }}>
           {[{ k: "todos", l: "Todos" }, ...Object.entries(TIPOS).map(([k, v]) => ({ k, l: v.label }))].map(f => (
-            <button key={f.k} onClick={() => setFiltroTipo(f.k)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filtroTipo === f.k ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            <button key={f.k} onClick={() => setFiltroTipo(f.k)} style={{
+              padding:"5px 11px", borderRadius:6, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:500,
+              background: filtroTipo === f.k ? "#fff" : "transparent",
+              color: filtroTipo === f.k ? "#1e293b" : "#64748b",
+              boxShadow: filtroTipo === f.k ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+            }}>
               {f.l}
             </button>
           ))}
         </div>
 
-        <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar…"
-          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-indigo-300 min-w-[150px]" />
+        <input value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar…" style={{
+          border:"1.5px solid #e2e8f0", borderRadius:8, padding:"6px 12px", fontSize:13, outline:"none", minWidth:150,
+          background:"#f8fafc", color:"#1e293b",
+        }} />
       </div>
 
-      {/* Resumen */}
+      {/* Resumen KPIs */}
       {filtrados.length > 0 && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm flex items-center gap-3">
-            <span className="text-2xl font-bold text-slate-800">{filtrados.length}</span>
-            <span className="text-xs text-slate-500 leading-tight">tickets<br/>resueltos</span>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+          <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:26, fontWeight:700, color:"#0f172a", fontFamily:"DM Mono, monospace", lineHeight:1 }}>{filtrados.length}</span>
+            <span style={{ fontSize:11, color:"#64748b", lineHeight:1.4 }}>tickets<br/>resueltos</span>
           </div>
-          {porTipo.map(x => (
-            <div key={x.key} className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm flex items-center gap-2">
-              <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${x.color}`}>{x.label}</span>
-              <span className="text-lg font-bold text-slate-700">{x.count}</span>
-            </div>
-          ))}
+          {porTipo.map(x => {
+            const bd = TIPO_BADGE[x.key] || TIPO_BADGE.tarea;
+            return (
+              <div key={x.key} style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:9.5, padding:"3px 9px", borderRadius:999, fontWeight:600, background:bd.bg, color:bd.color }}>{x.label}</span>
+                <span style={{ fontSize:18, fontWeight:700, color:"#1e293b", fontFamily:"DM Mono, monospace" }}>{x.count}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Lista */}
       {cargando ? (
-        <div className="text-sm text-slate-400 py-8 text-center">Cargando…</div>
+        <div style={{ fontSize:13, color:"#94a3b8", textAlign:"center", padding:"32px 0" }}>Cargando…</div>
       ) : filtrados.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 px-4 py-12 text-center text-slate-400 text-sm">
+        <div style={{ background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", padding:"48px 16px", textAlign:"center", fontSize:13, color:"#94a3b8" }}>
           {todos ? "No hay tickets resueltos" : `No hay tickets resueltos en ${MESES[mes]} ${anio}`}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div style={{ background:"#fff", borderRadius:10, border:"1px solid #e2e8f0", overflow:"hidden" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
-                <th className="text-left px-4 py-3 w-14">#</th>
-                <th className="text-left px-4 py-3">Título</th>
-                <th className="text-left px-4 py-3 w-28">Tipo</th>
-                <th className="text-left px-4 py-3 w-20">Prioridad</th>
-                <th className="text-left px-4 py-3 w-28">Categoría</th>
-                <th className="text-left px-4 py-3 w-28">Asignado</th>
-                <th className="text-left px-4 py-3 w-24">Vencimiento</th>
+              <tr>
+                <th style={{ ...TH, width:56 }}>#</th>
+                <th style={TH}>Título</th>
+                <th style={{ ...TH, width:100 }}>Tipo</th>
+                <th style={{ ...TH, width:90 }}>Prioridad</th>
+                <th style={{ ...TH, width:110 }}>Categoría</th>
+                <th style={{ ...TH, width:110 }}>Asignado</th>
+                <th style={{ ...TH, width:100 }}>Vencimiento</th>
               </tr>
             </thead>
             <tbody>
               {filtrados.map(t => {
-                const tipo = TIPOS[t.tipo] || TIPOS.tarea;
-                const prio = PRIORIDADES[t.prioridad] || PRIORIDADES.media;
+                const tb = TIPO_BADGE[t.tipo] || TIPO_BADGE.tarea;
+                const pb = PRIO_BADGE[t.prioridad] || PRIO_BADGE.media;
                 return (
-                  <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 font-bold text-xs text-slate-400">{numStr(t.numero)}</td>
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-slate-700 line-through decoration-slate-400">{t.titulo}</span>
+                  <tr key={t.id} style={{ borderBottom:"1px solid #f8fafc" }}
+                    onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  >
+                    <td style={{ padding:"10px 16px", fontSize:11, fontWeight:700, color:"#94a3b8", fontFamily:"DM Mono, monospace" }}>{numStr(t.numero)}</td>
+                    <td style={{ padding:"10px 16px" }}>
+                      <span style={{ fontSize:13, fontWeight:500, color:"#64748b", textDecoration:"line-through" }}>{t.titulo}</span>
                       {t.descripcion && (
-                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{t.descripcion}</p>
+                        <p style={{ fontSize:11, color:"#94a3b8", margin:"2px 0 0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:280 }}>{t.descripcion}</p>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${tipo.color}`}>
-                        {tipo.label}
+                    <td style={{ padding:"10px 16px" }}>
+                      <span style={{ fontSize:9.5, padding:"3px 9px", borderRadius:999, fontWeight:600, background:tb.bg, color:tb.color }}>
+                        {TIPOS[t.tipo]?.label || t.tipo}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${prio.color}`}>
-                        {prio.label}
+                    <td style={{ padding:"10px 16px" }}>
+                      <span style={{ fontSize:9.5, padding:"3px 9px", borderRadius:999, fontWeight:600, background:pb.bg, color:pb.color }}>
+                        {PRIORIDADES[t.prioridad]?.label || t.prioridad}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{t.categoria || "—"}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{t.asignado_a || "—"}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{fmtFecha(t.fecha_vencimiento)}</td>
+                    <td style={{ padding:"10px 16px", fontSize:12, color:"#64748b" }}>{t.categoria || "—"}</td>
+                    <td style={{ padding:"10px 16px", fontSize:12, color:"#64748b" }}>{t.asignado_a || "—"}</td>
+                    <td style={{ padding:"10px 16px", fontSize:12, color:"#64748b", fontFamily:"DM Mono, monospace" }}>{fmtFecha(t.fecha_vencimiento)}</td>
                   </tr>
                 );
               })}

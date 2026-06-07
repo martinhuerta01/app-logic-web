@@ -592,105 +592,113 @@ export default function ExportarPage() {
     setLoading(l => ({ ...l, cliente: false }));
   };
 
+  const fieldStyle = { border:"1.5px solid #e2e8f0", borderRadius:8, padding:"7px 11px", fontSize:13, background:"#f8fafc", color:"#1e293b", outline:"none", fontFamily:"inherit" };
+  const labelStyle = { display:"block", fontSize:9.5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8", marginBottom:5 };
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div style={{ maxWidth:720, display:"flex", flexDirection:"column", gap:20 }}>
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Exportar</h1>
-        <p className="text-sm text-slate-500 mt-1">Descargá reportes en Excel listos para presentar o enviar por mail.</p>
+        <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#0f172a" }}>Exportar</h1>
+        <p style={{ margin:"4px 0 0", fontSize:13, color:"#64748b" }}>Descargá reportes en Excel listos para presentar o enviar por mail.</p>
       </div>
 
-      {/* Period selector */}
-      <div className="flex items-end gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4">
+      {/* Selector de período */}
+      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"16px 20px", display:"flex", alignItems:"flex-end", gap:16, flexWrap:"wrap" }}>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Mes</label>
-          <select value={mes} onChange={e => setMes(e.target.value === "" ? "" : +e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm min-w-[140px]">
+          <label style={labelStyle}>Mes</label>
+          <select value={mes} onChange={e => setMes(e.target.value === "" ? "" : +e.target.value)} style={{ ...fieldStyle, minWidth:140 }}>
             <option value="">Todos los meses</option>
             {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Año</label>
-          <select value={anio} onChange={e => setAnio(+e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <label style={labelStyle}>Año</label>
+          <select value={anio} onChange={e => setAnio(+e.target.value)} style={fieldStyle}>
             <option>2025</option><option>2026</option><option>2027</option>
           </select>
         </div>
-        <p className="text-xs text-slate-400 pb-2">Período aplicado a todas las exportaciones mensuales</p>
+        <p style={{ fontSize:11.5, color:"#94a3b8", paddingBottom:2 }}>Período aplicado a todas las exportaciones mensuales</p>
       </div>
 
       {/* Export cards */}
-      <div className="space-y-3">
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {EXPORTS.map(exp => (
-          <div key={exp.key}
-            className="bg-white border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4 hover:border-indigo-200 transition">
-            <span className="text-2xl shrink-0">{exp.icon}</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-slate-800">{exp.title}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{exp.desc}</p>
+          <div key={exp.key} style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 20px", display:"flex", alignItems:"center", gap:14 }}
+            onMouseEnter={e=>e.currentTarget.style.borderColor="#bfdbfe"}
+            onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}
+          >
+            <span style={{ fontSize:22, flexShrink:0 }}>{exp.icon}</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>{exp.title}</p>
+              <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>{exp.desc}</p>
               {msgs[exp.key] && (
-                <p className={`text-xs mt-1.5 font-medium ${msgs[exp.key].ok ? "text-green-600" : "text-red-600"}`}>
+                <p style={{ margin:"6px 0 0", fontSize:11.5, fontWeight:600, color: msgs[exp.key].ok ? "#16a34a" : "#dc2626" }}>
                   {msgs[exp.key].ok ? "✓ " : "✕ "}{msgs[exp.key].text}
                 </p>
               )}
             </div>
-            <button
-              onClick={() => run(exp.key, exp.fn)}
-              disabled={loading[exp.key]}
-              className="shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
-              {loading[exp.key] ? "Exportando…" : "⬇ Descargar"}
+            <button onClick={() => run(exp.key, exp.fn)} disabled={loading[exp.key]} style={{
+              flexShrink:0, background: loading[exp.key] ? "#93c5fd" : "#2563eb", color:"#fff",
+              border:"none", borderRadius:8, padding:"8px 16px", fontSize:12.5, fontWeight:600,
+              cursor: loading[exp.key] ? "not-allowed" : "pointer", whiteSpace:"nowrap",
+            }}
+              onMouseEnter={e=>{ if (!loading[exp.key]) e.currentTarget.style.background="#1d4ed8"; }}
+              onMouseLeave={e=>{ if (!loading[exp.key]) e.currentTarget.style.background="#2563eb"; }}
+            >
+              {loading[exp.key] ? "Exportando…" : "↓ Descargar"}
             </button>
           </div>
         ))}
       </div>
 
       {/* Export por cliente */}
-      <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 space-y-3 hover:border-indigo-200 transition">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🏢</span>
+      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 20px", display:"flex", flexDirection:"column", gap:14 }}
+        onMouseEnter={e=>e.currentTarget.style.borderColor="#bfdbfe"}
+        onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}
+      >
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <span style={{ fontSize:22 }}>🏢</span>
           <div>
-            <p className="font-semibold text-slate-800">Servicios por Cliente</p>
-            <p className="text-xs text-slate-400 mt-0.5">Todos los servicios de un cliente específico. Podés filtrar por año completo o solo un mes.</p>
+            <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>Servicios por Cliente</p>
+            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>Todos los servicios de un cliente específico. Podés filtrar por año completo o solo un mes.</p>
           </div>
         </div>
 
-        <div className="flex gap-3 flex-wrap items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Cliente</label>
-            <input
-              type="text"
-              placeholder="Ej: La Serenísima, Enel..."
-              value={clienteExport}
-              onChange={e => setClienteExport(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && runCliente()}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end" }}>
+          <div style={{ flex:1, minWidth:200 }}>
+            <label style={labelStyle}>Cliente</label>
+            <input type="text" placeholder="Ej: La Serenísima, Enel..." value={clienteExport}
+              onChange={e => setClienteExport(e.target.value)} onKeyDown={e => e.key === "Enter" && runCliente()}
+              style={{ ...fieldStyle, width:"100%", boxSizing:"border-box" }} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Mes</label>
-            <select value={mesExportCliente} onChange={e => setMesExportCliente(e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <label style={labelStyle}>Mes</label>
+            <select value={mesExportCliente} onChange={e => setMesExportCliente(e.target.value)} style={fieldStyle}>
               <option value="0">Todos los meses</option>
               {MESES.map((m, i) => <option key={i + 1} value={String(i + 1)}>{m}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Año</label>
-            <select value={anioExportCliente} onChange={e => setAnioExportCliente(+e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <label style={labelStyle}>Año</label>
+            <select value={anioExportCliente} onChange={e => setAnioExportCliente(+e.target.value)} style={fieldStyle}>
               <option>2025</option><option>2026</option><option>2027</option>
             </select>
           </div>
-          <button
-            onClick={runCliente}
-            disabled={loading["cliente"]}
-            className="shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
-            {loading["cliente"] ? "Exportando…" : "⬇ Descargar"}
+          <button onClick={runCliente} disabled={loading["cliente"]} style={{
+            background: loading["cliente"] ? "#93c5fd" : "#2563eb", color:"#fff",
+            border:"none", borderRadius:8, padding:"8px 16px", fontSize:12.5, fontWeight:600,
+            cursor: loading["cliente"] ? "not-allowed" : "pointer", whiteSpace:"nowrap", flexShrink:0,
+          }}
+            onMouseEnter={e=>{ if (!loading["cliente"]) e.currentTarget.style.background="#1d4ed8"; }}
+            onMouseLeave={e=>{ if (!loading["cliente"]) e.currentTarget.style.background="#2563eb"; }}
+          >
+            {loading["cliente"] ? "Exportando…" : "↓ Descargar"}
           </button>
         </div>
 
         {msgs["cliente"] && (
-          <p className={`text-xs font-medium ${msgs["cliente"].ok ? "text-green-600" : "text-red-600"}`}>
+          <p style={{ margin:0, fontSize:11.5, fontWeight:600, color: msgs["cliente"].ok ? "#16a34a" : "#dc2626" }}>
             {msgs["cliente"].ok ? "✓ " : "✕ "}{msgs["cliente"].text}
           </p>
         )}
