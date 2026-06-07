@@ -142,29 +142,29 @@ export default function DashboardPage() {
       label: "Servicios hoy",
       value: totalHoy,
       icon: <IconCalendar />,
-      gradient: "bg-gradient-to-br from-indigo-500 to-violet-600",
-      sub: hoy.split("-").reverse().join("/"),
+      accentColor: "#0f172a",
+      meta: { icon: "📅", text: hoy.split("-").reverse().join("/"), color: "#64748b" },
     },
     {
       label: `Servicios ${MESES[mesNum - 1]}`,
       value: totalMes,
       icon: <IconClipboard />,
-      gradient: "bg-gradient-to-br from-sky-400 to-indigo-500",
-      sub: `${anioNum}`,
+      accentColor: "#2563eb",
+      meta: { icon: "📈", text: `${anioNum}`, color: "#2563eb" },
     },
     {
       label: "Realizados",
       value: realizadosMes,
       icon: <IconCheck />,
-      gradient: "bg-gradient-to-br from-emerald-400 to-teal-600",
-      sub: totalMes > 0 ? `${pctRealizados}% del mes` : "—",
+      accentColor: "#16a34a",
+      meta: { icon: "✓", text: totalMes > 0 ? `${pctRealizados}% del mes` : "—", color: "#16a34a" },
     },
     {
       label: "Sin cerrar",
       value: sinCerrar,
       icon: <IconClock />,
-      gradient: sinCerrar > 0 ? "bg-gradient-to-br from-amber-400 to-orange-500" : "bg-gradient-to-br from-slate-400 to-slate-600",
-      sub: "Pendientes + Confirmados",
+      accentColor: sinCerrar > 0 ? "#d97706" : "#94a3b8",
+      meta: { icon: sinCerrar > 0 ? "⚠" : "✓", text: "Pendientes + Confirmados", color: sinCerrar > 0 ? "#d97706" : "#94a3b8" },
     },
   ];
 
@@ -191,18 +191,42 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* ── Fila 1: KPIs ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {kpis.map(k => (
               <div key={k.label}
-                className={`${k.gradient} rounded-xl shadow-md p-5 flex items-start gap-4 text-white`}>
-                <div className="p-2.5 rounded-xl bg-white/20 shrink-0">
-                  {k.icon}
-                </div>
-                <div>
-                  <p className="text-xs opacity-80 leading-tight">{k.label}</p>
-                  <p className="text-3xl font-bold leading-tight mt-0.5">{k.value}</p>
-                  <p className="text-xs opacity-70 mt-0.5">{k.sub}</p>
-                </div>
+                className="bg-white rounded-[10px] border border-border hover:shadow-card transition-shadow duration-200"
+                style={{ padding: "14px 16px", position: "relative", overflow: "hidden" }}>
+                {/* Top accent line */}
+                <div style={{
+                  position: "absolute", top: 0, left: 0, right: 0,
+                  height: 2, borderRadius: "10px 10px 0 0",
+                  background: k.accentColor,
+                }}/>
+                {/* Label */}
+                <p style={{
+                  margin: 0, fontSize: 9.5, fontWeight: 600,
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: "#94a3b8",
+                }}>
+                  {k.label}
+                </p>
+                {/* Number */}
+                <p style={{
+                  margin: "6px 0 0", fontSize: 28, fontWeight: 600,
+                  fontFamily: "var(--font-mono, 'DM Mono', monospace)",
+                  color: "#0f172a", lineHeight: 1,
+                }}>
+                  {k.value}
+                </p>
+                {/* Meta */}
+                <p style={{
+                  margin: "6px 0 0", fontSize: 10,
+                  color: k.meta.color,
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <span>{k.meta.icon}</span>
+                  <span>{k.meta.text}</span>
+                </p>
               </div>
             ))}
           </div>
@@ -211,8 +235,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Barras por día */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-4">
+            <div className="lg:col-span-2 bg-white rounded-[10px] border border-border p-5">
+              <h2 style={{ fontSize: 12, fontWeight: 600, color: "#334155", marginBottom: 16 }}>
                 Servicios por día — {MESES[mesNum - 1]} {anioNum}
               </h2>
               {porDia.every(d => d.servicios === 0) ? (
@@ -220,22 +244,26 @@ export default function DashboardPage() {
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={porDia} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="dia" tick={{ fontSize: 10 }} interval={1} />
-                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <CartesianGrid strokeDasharray="0" stroke="#f1f5f9" strokeWidth={1} vertical={false}/>
+                    <XAxis dataKey="dia" tick={{ fontSize: 9.5, fill: "#94a3b8", fontFamily: "DM Mono, monospace" }} axisLine={false} tickLine={false} interval={1} />
+                    <YAxis tick={{ fontSize: 9.5, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
+                      contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 16px rgba(0,0,0,0.06)", fontFamily: "DM Mono, monospace" }}
                       formatter={(v) => [`${v} servicio${v !== 1 ? "s" : ""}`, ""]}
                       labelFormatter={(l) => `Día ${l}`}
                     />
-                    <Bar dataKey="servicios" fill="#6366f1" radius={[3,3,0,0]} />
+                    <Bar dataKey="servicios" fill="#2563eb" radius={[4,4,0,0]}
+                      onMouseOver={(d, i, e) => { if (e) e.target.style.fill = "#bfdbfe"; }}
+                      onMouseOut={(d, i, e) => { if (e) e.target.style.fill = "#2563eb"; }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
 
             {/* Donut estados */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-4">
+            <div className="bg-white rounded-[10px] border border-border p-5">
+              <h2 style={{ fontSize: 12, fontWeight: 600, color: "#334155", marginBottom: 16 }}>
                 Distribución de estados
               </h2>
               {donutData.length === 0 ? (
@@ -251,18 +279,21 @@ export default function DashboardPage() {
                           <Cell key={i} fill={PIE_COLORS[d.name] || "#94a3b8"} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v, n) => [`${v} servicios`, n]} />
+                      <Tooltip
+                        contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}
+                        formatter={(v, n) => [`${v} servicios`, n]}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5 mt-2">
                     {donutData.map(d => (
-                      <div key={d.name} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: PIE_COLORS[d.name] || "#94a3b8" }} />
-                          <span className="text-slate-600">{d.name}</span>
+                      <div key={d.name} className="flex items-center justify-between" style={{ fontSize: 11.5 }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full shrink-0"
+                            style={{ background: PIE_COLORS[d.name] || "#94a3b8" }} />
+                          <span style={{ color: "#475569" }}>{d.name}</span>
                         </div>
-                        <span className="font-semibold text-slate-700">{d.value}</span>
+                        <span style={{ fontWeight: 600, color: "#1e293b", fontFamily: "DM Mono, monospace" }}>{d.value}</span>
                       </div>
                     ))}
                   </div>
@@ -275,36 +306,51 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Últimos servicios */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-700">Últimos servicios del mes</h2>
+            <div className="lg:col-span-2 bg-white rounded-[10px] border border-border overflow-hidden">
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <h2 style={{ fontSize: 12, fontWeight: 600, color: "#334155", margin: 0 }}>Últimos servicios del mes</h2>
                 <button onClick={() => router.push("/dashboard/historial")}
-                  className="text-xs text-indigo-600 hover:underline">Ver historial →</button>
+                  style={{ fontSize: 11, color: "#2563eb", background: "none", border: "none", cursor: "pointer" }}>
+                  Ver historial →
+                </button>
               </div>
-              <table className="w-full text-xs">
+              <table className="w-full" style={{ borderCollapse: "collapse" }}>
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-500">
-                    <th className="text-left px-5 py-2.5">Fecha</th>
-                    <th className="text-left px-5 py-2.5">Responsable</th>
-                    <th className="text-left px-5 py-2.5">Cliente</th>
-                    <th className="text-left px-5 py-2.5">Tipo</th>
-                    <th className="text-left px-5 py-2.5">Estado</th>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+                    {["Fecha","Responsable","Cliente","Tipo","Estado"].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "8px 20px", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "#94a3b8" }}>{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {recientes.length === 0 ? (
-                    <tr><td colSpan={5} className="px-5 py-4 text-slate-400">Sin servicios este mes.</td></tr>
+                    <tr><td colSpan={5} style={{ padding: "16px 20px", fontSize: 12, color: "#94a3b8" }}>Sin servicios este mes.</td></tr>
                   ) : recientes.map((s, i) => {
-                    const ec = ESTADO_COLOR[s.estado] || { bg: "bg-slate-100 text-slate-600", dot: "bg-slate-400" };
+                    const BADGE = {
+                      REALIZADO:  { bg: "#f0fdf4", color: "#16a34a" },
+                      PENDIENTE:  { bg: "#fffbeb", color: "#d97706" },
+                      CONFIRMADO: { bg: "#eff6ff", color: "#2563eb" },
+                      SUSPENDIDO: { bg: "#fef2f2", color: "#dc2626" },
+                    };
+                    const badge = BADGE[s.estado] || { bg: "#f1f5f9", color: "#64748b" };
                     return (
-                      <tr key={i} className="border-b border-slate-50 hover:bg-slate-50">
-                        <td className="px-5 py-2.5 font-mono">{s.fecha?.split("-").reverse().join("/")}</td>
-                        <td className="px-5 py-2.5 font-medium">{s.responsable || "—"}</td>
-                        <td className="px-5 py-2.5 text-slate-600 max-w-[140px] truncate">{s.cliente || "—"}</td>
-                        <td className="px-5 py-2.5 text-slate-600">{s.tipo_servicio === "-" ? "FERIADO" : (s.tipo_servicio || "—")}</td>
-                        <td className="px-5 py-2.5">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${ec.bg}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${ec.dot}`} />
+                      <tr key={i} style={{ borderBottom: "1px solid #f8fafc" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <td style={{ padding: "9px 20px", fontSize: 11, fontFamily: "DM Mono, monospace", color: "#64748b" }}>
+                          {s.fecha?.split("-").reverse().join("/")}
+                        </td>
+                        <td style={{ padding: "9px 20px", fontSize: 12, fontWeight: 500, color: "#1e293b" }}>{s.responsable || "—"}</td>
+                        <td style={{ padding: "9px 20px", fontSize: 12, color: "#475569", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.cliente || "—"}</td>
+                        <td style={{ padding: "9px 20px", fontSize: 11, color: "#64748b" }}>{s.tipo_servicio === "-" ? "FERIADO" : (s.tipo_servicio || "—")}</td>
+                        <td style={{ padding: "9px 20px" }}>
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "2px 8px", borderRadius: 999,
+                            fontSize: 10, fontWeight: 600,
+                            background: badge.bg, color: badge.color,
+                          }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: badge.color, display: "inline-block" }}/>
                             {s.estado || "—"}
                           </span>
                         </td>
@@ -316,14 +362,23 @@ export default function DashboardPage() {
             </div>
 
             {/* Accesos rápidos */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-slate-700 mb-4">Accesos rápidos</h2>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-[10px] border border-border p-5">
+              <h2 style={{ fontSize: 12, fontWeight: 600, color: "#334155", marginBottom: 14 }}>Accesos rápidos</h2>
+              <div className="grid grid-cols-2 gap-2.5">
                 {accesos.map(a => (
                   <button key={a.label} onClick={() => router.push(a.href)}
-                    className={`${a.gradient} text-white rounded-xl p-4 flex flex-col items-center gap-2 transition shadow-md`}>
+                    style={{
+                      background: "#f8fafc", border: "1.5px solid #e2e8f0",
+                      borderRadius: 10, padding: "14px 8px",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                      cursor: "pointer", transition: "border-color 150ms, background 150ms, box-shadow 150ms",
+                      color: "#334155",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "#93c5fd"; e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.color = "#2563eb"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.color = "#334155"; }}
+                  >
                     {a.icon}
-                    <span className="text-xs font-semibold text-center leading-tight">{a.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, textAlign: "center", lineHeight: 1.3 }}>{a.label}</span>
                   </button>
                 ))}
               </div>

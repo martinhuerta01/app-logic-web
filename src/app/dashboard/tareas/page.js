@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import Modal, { BtnPrimary, BtnSecondary, KeyboardHint, FieldLabel, FieldInput, FieldTextarea, ChipGroup } from "@/components/Modal";
 
 // ── Constantes ────────────────────────────────────────────────────────
 const TIPOS = {
@@ -77,85 +78,114 @@ function ModalTicket({ ticket, onClose, onSave }) {
     setGuardando(false);
   };
 
+  const TICKET_ICON = (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 11h6M9 15h4"/>
+    </svg>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-800">
-            {ticket ? `Editar ${numStr(ticket.numero)}` : "Nuevo ticket"}
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+    <Modal
+      open={true}
+      onClose={onClose}
+      title={ticket ? `Editar ${numStr(ticket.numero)}` : "Nuevo ticket"}
+      icon={TICKET_ICON}
+      width="520px"
+      footer={
+        <>
+          <KeyboardHint />
+          <div style={{ display: "flex", gap: 8 }}>
+            <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
+            <BtnPrimary onClick={guardar} disabled={!form.titulo.trim()} loading={guardando}>
+              {guardando ? "Guardando…" : "Guardar"}
+            </BtnPrimary>
+          </div>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Título */}
+        <div>
+          <FieldLabel required>Título</FieldLabel>
+          <FieldInput
+            type="text" value={form.titulo}
+            onChange={e => set("titulo", e.target.value)}
+            placeholder="Descripción breve del ticket…"
+            autoFocus
+          />
         </div>
 
-        <div className="px-6 py-5 space-y-4">
+        {/* Tipo + Categoría */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Título *</label>
-            <input type="text" value={form.titulo} onChange={e => set("titulo", e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-400" />
+            <FieldLabel>Tipo</FieldLabel>
+            <ChipGroup
+              options={Object.entries(TIPOS).map(([k, v]) => ({ value: k, label: v.label }))}
+              value={form.tipo}
+              onChange={v => set("tipo", v)}
+            />
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Tipo</label>
-              <select value={form.tipo} onChange={e => set("tipo", e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                {Object.entries(TIPOS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Categoría</label>
-              <input type="text" value={form.categoria} onChange={e => set("categoria", e.target.value)}
-                placeholder="GPS, Stock, Sistema…"
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Prioridad</label>
-              <select value={form.prioridad} onChange={e => set("prioridad", e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Estado</label>
-              <select value={form.estado} onChange={e => set("estado", e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                {ESTADOS.map(e => <option key={e.key} value={e.key}>{e.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Vencimiento</label>
-              <input type="date" value={form.fecha_vencimiento} onChange={e => set("fecha_vencimiento", e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-            </div>
-          </div>
-
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Descripción</label>
-            <textarea value={form.descripcion} onChange={e => set("descripcion", e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-none" rows={3} />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Asignado a</label>
-            <input type="text" value={form.asignado_a} onChange={e => set("asignado_a", e.target.value)}
-              placeholder="Nombre (opcional)"
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            <FieldLabel>Categoría</FieldLabel>
+            <FieldInput
+              type="text" value={form.categoria}
+              onChange={e => set("categoria", e.target.value)}
+              placeholder="GPS, Stock, Sistema…"
+            />
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition">Cancelar</button>
-          <button onClick={guardar} disabled={guardando || !form.titulo.trim()}
-            className="px-5 py-2 text-sm bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white rounded-lg font-medium transition disabled:opacity-60">
-            {guardando ? "Guardando…" : "Guardar"}
-          </button>
+        {/* Prioridad */}
+        <div>
+          <FieldLabel>Prioridad</FieldLabel>
+          <ChipGroup
+            options={Object.entries(PRIORIDADES).map(([k, v]) => ({ value: k, label: v.label }))}
+            value={form.prioridad}
+            onChange={v => set("prioridad", v)}
+          />
+        </div>
+
+        {/* Estado + Vencimiento */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <FieldLabel>Estado</FieldLabel>
+            <ChipGroup
+              options={ESTADOS.map(e => ({ value: e.key, label: e.label }))}
+              value={form.estado}
+              onChange={v => set("estado", v)}
+            />
+          </div>
+          <div>
+            <FieldLabel>Vencimiento</FieldLabel>
+            <FieldInput
+              type="date" value={form.fecha_vencimiento}
+              onChange={e => set("fecha_vencimiento", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Descripción */}
+        <div>
+          <FieldLabel>Descripción</FieldLabel>
+          <FieldTextarea
+            value={form.descripcion}
+            onChange={e => set("descripcion", e.target.value)}
+            rows={3}
+            placeholder="Detalle adicional…"
+          />
+        </div>
+
+        {/* Asignado a */}
+        <div>
+          <FieldLabel>Asignado a</FieldLabel>
+          <FieldInput
+            type="text" value={form.asignado_a}
+            onChange={e => set("asignado_a", e.target.value)}
+            placeholder="Nombre (opcional)"
+          />
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 p-6 bg-slate-50 overflow-auto">
+      <main className="flex-1 p-6 overflow-auto" style={{ background: "var(--color-surface-page, #f0f2f5)" }}>
         {children}
       </main>
     </div>
