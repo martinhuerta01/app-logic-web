@@ -2056,8 +2056,13 @@ function RevisionesFrecuentes() {
                               return (
                                 <div key={e.id} className="flex items-center gap-1.5">
                                   <div className={`text-xs px-2.5 py-1.5 rounded-lg border ${cfg.color}`}>
-                                    <span className="font-semibold">{cfg.label}</span>
-                                    <span className="ml-1.5 opacity-75">{fmtFecha(e.fecha)}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-semibold">{cfg.label}</span>
+                                      <span className="opacity-75">{fmtFecha(e.fecha)}</span>
+                                    </div>
+                                    {e.dispositivo && (
+                                      <div className="mt-0.5 opacity-60 font-normal">{e.dispositivo}</div>
+                                    )}
                                   </div>
                                   {dias != null && (
                                     <span className={`text-xs font-medium ${esPar ? "text-amber-500" : "text-slate-300"}`}>
