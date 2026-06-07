@@ -59,9 +59,15 @@ export default function HistorialTicketsPage() {
 
   const filtrados = tickets.filter(t => {
     if (filtroTipo !== "todos" && t.tipo !== filtroTipo) return false;
-    if (!todos && t.fecha_vencimiento) {
-      const [ta, tm] = t.fecha_vencimiento.split("-");
-      if (parseInt(ta) !== anio || parseInt(tm) !== mes + 1) return false;
+    if (!todos) {
+      // Prioridad: fecha_vencimiento → updated_at → created_at
+      const fechaRef = t.fecha_vencimiento
+        || t.updated_at?.slice(0, 10)
+        || t.created_at?.slice(0, 10);
+      if (fechaRef) {
+        const [ta, tm] = fechaRef.split("-");
+        if (parseInt(ta) !== anio || parseInt(tm) !== mes + 1) return false;
+      }
     }
     if (busqueda) {
       const q = busqueda.toLowerCase();
