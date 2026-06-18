@@ -523,6 +523,220 @@ async function exportarPorCliente(clienteNombre, anio, mes) {
   XS.writeFile(wb, `Servicios_${safeName}_${label}.xlsx`);
 }
 
+// ── Export 7: Informe de Tickets (Word .docx) ──────────────────────
+async function exportarTickets(estadosSeleccionados) {
+  if (!estadosSeleccionados.length) throw new Error("Seleccioná al menos un estado");
+
+  const {
+    Document, Packer, Paragraph, Table, TableRow, TableCell,
+    TextRun, AlignmentType, WidthType, BorderStyle,
+  } = await import("docx");
+
+  const results = await Promise.all(
+    estadosSeleccionados.map(e => api.get(`/tareas/?estado=${e}`))
+  );
+  const tickets = results.flat().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+
+  if (!tickets.length) throw new Error("No hay tickets para los estados seleccionados");
+
+  const notasArr = await Promise.all(
+    tickets.map(t => api.get(`/tareas/${t.id}/notas/`).catch(() => []))
+  );
+
+  const TIPO_LABEL  = { tarea: "Tarea", investigacion: "Investigación", bug: "Bug", mejora: "Mejora" };
+  const ESTADO_LABEL = { pendiente: "Pendiente", en_progreso: "En Progreso", completada: "Completada" };
+  const PRIO_LABEL  = { alta: "Alta", media: "Media", baja: "Baja" };
+
+  const hoy = new Date().toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+
+  const BRAND = "2563EB";
+  const DARK  = "0F172A";
+  const GRAY  = "64748B";
+  const LGRAY = "94A3B8";
+  const HDRBG = "1E293B";
+  const TEXT  = "334155";
+
+  function numStr(n) { return n != null ? `#${String(n).padStart(3, "0")}` : "#---"; }
+
+  function secHeading(num, text) {
+    return new Paragraph({
+      children: [new TextRun({ text: `${num}. ${text}`, bold: true, size: 26, color: DARK })],
+      spacing: { before: 400, after: 120 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: BRAND, space: 6 } },
+    });
+  }
+
+  function hdrCell(text) {
+    return new TableCell({
+      shading: { fill: HDRBG, color: "auto" },
+      margins: { top: 70, bottom: 70, left: 100, right: 100 },
+      children: [new Paragraph({ children: [new TextRun({ text, bold: true, size: 18, color: "FFFFFF" })] })],
+    });
+  }
+
+  function dataCell(text) {
+    return new TableCell({
+      shading: { fill: "F8FAFC", color: "auto" },
+      margins: { top: 70, bottom: 70, left: 100, right: 100 },
+      children: [new Paragraph({ children: [new TextRun({ text: text || "—", size: 18, color: TEXT })] })],
+    });
+  }
+
+  function metaTable(t) {
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: {
+        top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE },
+        left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE },
+        insideH: { style: BorderStyle.NONE },
+        insideV: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0" },
+      },
+      rows: [
+        new TableRow({ children: ["Estado","Tipo","Prioridad","Asignado a","Categoría"].map(hdrCell) }),
+        new TableRow({ children: [
+          ESTADO_LABEL[t.estado] || t.estado,
+          TIPO_LABEL[t.tipo] || t.tipo,
+          PRIO_LABEL[t.prioridad] || t.prioridad,
+          t.asignado_a, t.categoria,
+        ].map(dataCell) }),
+      ],
+    });
+  }
+
+  const ch = [];
+
+  // ── Portada ──
+  ch.push(
+    new Paragraph({ children: [new TextRun({ text: "App Logic", bold: true, size: 32, color: BRAND })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 60 } }),
+    new Paragraph({ children: [new TextRun({ text: "INFORME DE TICKETS", bold: true, size: 52, color: DARK })], alignment: AlignmentType.CENTER, spacing: { after: 80 } }),
+    new Paragraph({ children: [new TextRun({ text: `Estados: ${estadosSeleccionados.map(e => ESTADO_LABEL[e] || e).join(" · ")}`, italics: true, size: 22, color: GRAY })], alignment: AlignmentType.CENTER, spacing: { after: 60 } }),
+    new Paragraph({ children: [new TextRun({ text: `Fecha: ${hoy}`, size: 22, color: GRAY })], alignment: AlignmentType.CENTER, spacing: { after: 300 } }),
+    new Paragraph({ children: [new TextRun({ text: " " })], border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: BRAND, space: 4 } }, spacing: { after: 200 } }),
+  );
+
+  // ── Sección 1: Resumen ──
+  ch.push(secHeading("1", "RESUMEN"));
+
+  const porTipo = {};
+  for (const t of tickets) porTipo[t.tipo] = (porTipo[t.tipo] || 0) + 1;
+
+  ch.push(
+    new Paragraph({
+      children: [
+        new TextRun({ text: "Total de tickets: ", bold: true, size: 24, color: DARK }),
+        new TextRun({ text: String(tickets.length), bold: true, size: 24, color: BRAND }),
+      ],
+      spacing: { before: 120, after: 100 },
+    }),
+    new Table({
+      width: { size: 50, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({ children: [hdrCell("Tipo"), hdrCell("Cantidad")] }),
+        ...Object.entries(porTipo).map(([tipo, count]) =>
+          new TableRow({ children: [dataCell(TIPO_LABEL[tipo] || tipo), dataCell(String(count))] })
+        ),
+      ],
+    }),
+  );
+
+  // ── Sección 2: Detalle ──
+  ch.push(secHeading("2", "DETALLE DE TICKETS"));
+
+  for (let i = 0; i < tickets.length; i++) {
+    const t = tickets[i];
+    const notas = notasArr[i] || [];
+
+    ch.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: `${numStr(t.numero)}  `, bold: true, size: 28, color: BRAND }),
+          new TextRun({ text: t.titulo, bold: true, size: 28, color: DARK }),
+        ],
+        spacing: { before: 300, after: 120 },
+      }),
+      metaTable(t),
+      new Paragraph({
+        children: [
+          new TextRun({ text: "Creado: ", bold: true, size: 18, color: GRAY }),
+          new TextRun({ text: fmtFecha(t.created_at?.slice(0, 10)) || "—", size: 18, color: TEXT }),
+          new TextRun({ text: "     Vencimiento: ", bold: true, size: 18, color: GRAY }),
+          new TextRun({ text: fmtFecha(t.fecha_vencimiento) || "Sin fecha", size: 18, color: TEXT }),
+        ],
+        spacing: { before: 80, after: 80 },
+      }),
+    );
+
+    if (t.descripcion?.trim()) {
+      ch.push(
+        new Paragraph({ children: [new TextRun({ text: "Descripción", bold: true, size: 20, color: GRAY })], spacing: { before: 100, after: 40 } }),
+        new Paragraph({ children: [new TextRun({ text: t.descripcion, size: 20, color: TEXT })], indent: { left: 200 }, spacing: { after: 100 } }),
+      );
+    }
+
+    if (notas.length > 0) {
+      ch.push(
+        new Paragraph({ children: [new TextRun({ text: `Notas  (${notas.length})`, bold: true, size: 20, color: GRAY })], spacing: { before: 140, after: 60 } }),
+      );
+      for (const nota of notas) {
+        const fn = nota.created_at
+          ? new Date(nota.created_at).toLocaleString("es-AR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" })
+          : "—";
+        ch.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: nota.cargado_por || "Usuario", bold: true, size: 18, color: BRAND }),
+              new TextRun({ text: `  ·  ${fn}`, size: 18, color: LGRAY, italics: true }),
+            ],
+            indent: { left: 200 },
+            spacing: { before: 80, after: 20 },
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: nota.texto, size: 20, color: TEXT })],
+            indent: { left: 380 },
+            spacing: { after: 100 },
+          }),
+        );
+      }
+    } else {
+      ch.push(
+        new Paragraph({ children: [new TextRun({ text: "Sin notas registradas", size: 18, color: LGRAY, italics: true })], indent: { left: 200 }, spacing: { before: 60, after: 60 } }),
+      );
+    }
+
+    if (i < tickets.length - 1) {
+      ch.push(
+        new Paragraph({ children: [new TextRun({ text: " " })], border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: "E2E8F0", space: 4 } }, spacing: { before: 200, after: 200 } }),
+      );
+    }
+  }
+
+  // ── Footer ──
+  ch.push(
+    new Paragraph({ children: [new TextRun({ text: " " })], border: { top: { style: BorderStyle.SINGLE, size: 6, color: BRAND, space: 6 } }, spacing: { before: 400, after: 80 } }),
+    new Paragraph({ children: [new TextRun({ text: "Buenos Aires, Argentina", size: 18, color: GRAY })], alignment: AlignmentType.RIGHT, spacing: { after: 40 } }),
+    new Paragraph({ children: [new TextRun({ text: hoy, size: 18, color: GRAY })], alignment: AlignmentType.RIGHT }),
+  );
+
+  const doc = new Document({
+    creator: "App Logic",
+    title: "Informe de Tickets",
+    sections: [{
+      properties: { page: { margin: { top: 900, right: 900, bottom: 900, left: 900 } } },
+      children: ch,
+    }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `Informe_Tickets_${new Date().toLocaleDateString("sv-SE")}.docx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ── Página principal ────────────────────────────────────────────────
 
 const EXPORTS = [
@@ -567,6 +781,24 @@ export default function ExportarPage() {
   const [clienteExport,    setClienteExport]    = useState("");
   const [mesExportCliente, setMesExportCliente] = useState("0");
   const [anioExportCliente, setAnioExportCliente] = useState(2026);
+
+  // — Filtros del export de tickets —
+  const [ticketEstados, setTicketEstados] = useState(["completada", "en_progreso"]);
+  const toggleTicketEstado = (e) => setTicketEstados(prev =>
+    prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]
+  );
+
+  const runTickets = async () => {
+    setLoading(l => ({ ...l, tickets: true }));
+    setMsgs(m => ({ ...m, tickets: null }));
+    try {
+      await exportarTickets(ticketEstados);
+      setMsgs(m => ({ ...m, tickets: { ok: true, text: "Archivo descargado" } }));
+    } catch (e) {
+      setMsgs(m => ({ ...m, tickets: { ok: false, text: e.message || "Error al exportar" } }));
+    }
+    setLoading(l => ({ ...l, tickets: false }));
+  };
 
   const run = async (key, fn) => {
     setLoading(l => ({ ...l, [key]: true }));
@@ -700,6 +932,65 @@ export default function ExportarPage() {
         {msgs["cliente"] && (
           <p style={{ margin:0, fontSize:11.5, fontWeight:600, color: msgs["cliente"].ok ? "#16a34a" : "#dc2626" }}>
             {msgs["cliente"].ok ? "✓ " : "✕ "}{msgs["cliente"].text}
+          </p>
+        )}
+      </div>
+
+      {/* Export tickets Word */}
+      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 20px", display:"flex", flexDirection:"column", gap:14 }}
+        onMouseEnter={e=>e.currentTarget.style.borderColor="#bfdbfe"}
+        onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}
+      >
+        <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+          <span style={{ fontSize:22, marginTop:2 }}>📄</span>
+          <div style={{ flex:1 }}>
+            <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>Informe de Tickets (.docx)</p>
+            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>
+              Exporta tickets con todas sus notas en formato Word, listo para presentar o enviar.
+            </p>
+          </div>
+        </div>
+
+        {/* Selección de estados */}
+        <div style={{ display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8" }}>Incluir</span>
+          {[
+            { key:"completada",  label:"Completados" },
+            { key:"en_progreso", label:"En progreso" },
+            { key:"pendiente",   label:"Pendientes"  },
+          ].map(opt => (
+            <label key={opt.key} style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, color:"#475569", cursor:"pointer", userSelect:"none" }}>
+              <input
+                type="checkbox"
+                checked={ticketEstados.includes(opt.key)}
+                onChange={() => toggleTicketEstado(opt.key)}
+                style={{ width:15, height:15, accentColor:"#2563eb", cursor:"pointer" }}
+              />
+              {opt.label}
+            </label>
+          ))}
+
+          <button
+            onClick={runTickets}
+            disabled={loading["tickets"] || ticketEstados.length === 0}
+            style={{
+              marginLeft:"auto", flexShrink:0,
+              background: (loading["tickets"] || ticketEstados.length === 0) ? "#93c5fd" : "#2563eb",
+              color:"#fff", border:"none", borderRadius:8, padding:"8px 16px",
+              fontSize:12.5, fontWeight:600,
+              cursor: (loading["tickets"] || ticketEstados.length === 0) ? "not-allowed" : "pointer",
+              whiteSpace:"nowrap",
+            }}
+            onMouseEnter={e=>{ if (!loading["tickets"] && ticketEstados.length) e.currentTarget.style.background="#1d4ed8"; }}
+            onMouseLeave={e=>{ if (!loading["tickets"] && ticketEstados.length) e.currentTarget.style.background="#2563eb"; }}
+          >
+            {loading["tickets"] ? "Generando…" : "↓ Descargar .docx"}
+          </button>
+        </div>
+
+        {msgs["tickets"] && (
+          <p style={{ margin:0, fontSize:11.5, fontWeight:600, color: msgs["tickets"].ok ? "#16a34a" : "#dc2626" }}>
+            {msgs["tickets"].ok ? "✓ " : "✕ "}{msgs["tickets"].text}
           </p>
         )}
       </div>
