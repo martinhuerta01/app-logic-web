@@ -8,7 +8,7 @@ Frontend: Next.js 16 + Tailwind. Backend: FastAPI + Supabase (repo separado: App
 - **Frontend:** Next.js 16 (App Router), Tailwind CSS, `xlsx-js-style` para exportaciones
 - **Backend:** FastAPI + Supabase (C:\Users\Tincho\Desktop\App-Logic)
 - **Auth:** JWT via `src/lib/auth.js`
-- **API client:** `src/lib/api.js` — `api.get/post/put/patch/delete`
+- **API client:** `src/lib/api.js` — `api.get/post/put/patch/delete/upload`
 
 ## Estructura principal
 
@@ -19,9 +19,10 @@ src/app/dashboard/
     horario-tecnico/   → Carga movimientos camioneta + ausencias (incluye parser de Excel LogicTracker)
     historial-camioneta/ → Historial de movimientos por mes
   stock/oficina/       → Stock de oficina (actual, entradas, salidas, búsqueda)
-  exportar-importar/   → Exportaciones Excel
+  exportar-importar/   → Exportaciones Excel + informe de tickets en .docx
   tareas/              → Sistema de tickets (kanban + lista + panel de detalle con notas)
     historial/         → Tickets resueltos filtrados por período
+  recibos/             → Recibos de sueldo (subir PDF bulk, split por empleado, descarga individual)
   admin/usuarios/      → Gestión de usuarios (módulos + sub-módulos por usuario)
 src/components/
   Sidebar.js           → Navegación lateral con versión
@@ -59,6 +60,10 @@ DELETE /tareas/{id}/notas/{nota_id}
 GET  /usuarios/
 POST /usuarios/
 PUT  /usuarios/{id}
+POST /recibos/upload
+GET  /recibos/empleados
+GET  /recibos/{id}/url
+DELETE /recibos/{id}
 ```
 
 ## Módulo de Estadísticas — tabs
@@ -104,6 +109,7 @@ PUT  /usuarios/{id}
 | Servicios del período | Todos los servicios + resumen por responsable |
 | Clientes vs Responsables | Tabla cruzada pivot |
 | Servicios por Cliente | Filtrable por cliente específico + año/mes |
+| Informe de Tickets (.docx) | Selector individual de tickets → Word con portada, resumen y detalle por ticket |
 
 ## Módulo de Tickets (tareas/)
 
@@ -124,6 +130,16 @@ PUT  /usuarios/{id}
 - Sidebar filtra subs con: `mod.subs.filter(s => submodulos[mod.key].includes(s.key))`
 - `auth.js` expone `submodulos` junto con `modulos` (localStorage + context)
 
+## Módulo de Recibos de Sueldo (recibos/)
+
+- **Subir PDF:** drag & drop de PDF con múltiples recibos (1 página por empleado, ORIGINAL + DUPLICADO lado a lado)
+- **Backend:** PyMuPDF (`fitz`) extrae texto por página → regex captura nombre (incluyendo Ñ/tildes), legajo y período
+- **Storage:** Supabase Storage bucket `recibos-sueldo`, path `{anio}/{mes:02d}/{NOMBRE_SEGURO}.pdf`
+- **Upload via httpx** directo (no supabase-py Storage client) con header `x-upsert: true`
+- **DB:** tabla `recibos_sueldo` (id, empleado_nombre, legajo, mes, anio, periodo_texto, archivo_path, subido_por)
+- **Descarga:** URL firmada (`/storage/v1/object/sign/`) con expiración 1h → `window.open`
+- **Vista empleados:** accordion por nombre → lista de períodos → botón descargar por recibo
+
 ## Design System (v1.6+)
 
 - **Tokens:** `globals.css` con `@theme {}` (Tailwind v4) — colores brand/sidebar/surface/border
@@ -135,6 +151,11 @@ PUT  /usuarios/{id}
 - **Badges semánticos:** `{ bg, color }` inline — sin clases de color de Tailwind
 
 ## Historial de versiones
+
+### v1.7 (Jun 2026)
+- Recibos de Sueldo: nuevo módulo — subida de PDF bulk, split por empleado, guardado en Supabase Storage, descarga individual por período
+- Exportaciones: informe de tickets en formato Word (.docx) con selector individual de tickets
+- Backend: PyMuPDF para extracción de texto PDF, httpx para uploads directos a Supabase Storage
 
 ### v1.6 (Jun 2026)
 - UI Redesign completo: design system con DM Sans/Mono, brand azul `#2563eb`, sidebar oscuro `#0a0f1a`
