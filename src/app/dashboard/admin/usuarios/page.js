@@ -206,7 +206,7 @@ function ModalUsuario({ usuario, onClose, onGuardado }) {
           {form.acceso_total ? (
             <p style={{ fontSize:12, color:"#94a3b8", fontStyle:"italic" }}>El usuario podrá ver todos los módulos.</p>
           ) : (
-            <div style={{ maxHeight:220, overflowY:"auto", display:"flex", flexDirection:"column", gap:4 }}>
+            <div style={{ maxHeight:300, overflowY:"auto", display:"flex", flexDirection:"column", gap:4 }}>
               {TODOS_MODULOS.map(m => {
                 const activo    = form.modulos.includes(m.key);
                 const expandido = expandidos[m.key];
