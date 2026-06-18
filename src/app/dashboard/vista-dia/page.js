@@ -217,7 +217,7 @@ export default function VistaDiaPage() {
                   style={{padding:"4px 8px", borderRadius:6, border:"1.5px solid #e2e8f0", background:"#f8fafc", fontSize:12, outline:"none", fontFamily:"inherit"}}
                   onFocus={inputFocus} onBlur={inputBlur}>
                   <option value="-">-</option>
-                  {estadosOpts.map(e => <option key={e} value={e}>{e}</option>)}
+                  {estados.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               ) : estadoBadge(s.estado)}
             </td>
