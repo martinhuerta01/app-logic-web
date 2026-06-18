@@ -11,7 +11,7 @@ const inputStyle = {
 const inputFocus = (e) => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.08)"; };
 const inputBlur  = (e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; };
 
-function ModalEditar({ servicio, onClose, onSave }) {
+function ModalEditar({ servicio, onClose, onSave, estadosOpts = [] }) {
   const [form, setForm] = useState({
     fecha: servicio.fecha || "",
     hora_programada: servicio.hora_programada?.slice(0, 5) || "",
@@ -89,10 +89,7 @@ function ModalEditar({ servicio, onClose, onSave }) {
           <FieldLabel>Estado</FieldLabel>
           <FieldSelect value={form.estado} onChange={e => setForm({ ...form, estado: e.target.value })}>
             <option value="-">-</option>
-            <option>PENDIENTE</option>
-            <option>CONFIRMADO</option>
-            <option>REALIZADO</option>
-            <option>SUSPENDIDO</option>
+            {estadosOpts.map(e => <option key={e} value={e}>{e}</option>)}
           </FieldSelect>
         </div>
       </div>
@@ -108,9 +105,11 @@ export default function VistaDiaPage() {
   const [vista, setVista] = useState("interna");
   const [editando, setEditando] = useState(null);
   const [error, setError] = useState("");
+  const [estados, setEstados] = useState([]);
 
   useEffect(() => {
     api.get("/equipos/").then(setEquipos).catch(() => setError("No se pudieron cargar los equipos."));
+    fetchOpciones().then(opts => setEstados(opts.estados || []));
   }, []);
 
   const buscar = async () => {
@@ -218,9 +217,7 @@ export default function VistaDiaPage() {
                   style={{padding:"4px 8px", borderRadius:6, border:"1.5px solid #e2e8f0", background:"#f8fafc", fontSize:12, outline:"none", fontFamily:"inherit"}}
                   onFocus={inputFocus} onBlur={inputBlur}>
                   <option value="-">-</option>
-                  <option>PENDIENTE</option>
-                  <option>CONFIRMADO</option>
-                  <option>REALIZADO</option>
+                  {estadosOpts.map(e => <option key={e} value={e}>{e}</option>)}
                 </select>
               ) : estadoBadge(s.estado)}
             </td>
@@ -254,6 +251,7 @@ export default function VistaDiaPage() {
           servicio={editando}
           onClose={() => setEditando(null)}
           onSave={guardarEdicion}
+          estadosOpts={estados}
         />
       )}
 
