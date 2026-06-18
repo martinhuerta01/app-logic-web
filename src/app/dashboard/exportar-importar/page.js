@@ -524,20 +524,13 @@ async function exportarPorCliente(clienteNombre, anio, mes) {
 }
 
 // ── Export 7: Informe de Tickets (Word .docx) ──────────────────────
-async function exportarTickets(estadosSeleccionados) {
-  if (!estadosSeleccionados.length) throw new Error("Seleccioná al menos un estado");
+async function exportarTickets(tickets) {
+  if (!tickets.length) throw new Error("Seleccioná al menos un ticket");
 
   const {
     Document, Packer, Paragraph, Table, TableRow, TableCell,
     TextRun, AlignmentType, WidthType, BorderStyle,
   } = await import("docx");
-
-  const results = await Promise.all(
-    estadosSeleccionados.map(e => api.get(`/tareas/?estado=${e}`))
-  );
-  const tickets = results.flat().sort((a, b) => (a.numero || 0) - (b.numero || 0));
-
-  if (!tickets.length) throw new Error("No hay tickets para los estados seleccionados");
 
   const notasArr = await Promise.all(
     tickets.map(t => api.get(`/tareas/${t.id}/notas/`).catch(() => []))
@@ -609,7 +602,7 @@ async function exportarTickets(estadosSeleccionados) {
   ch.push(
     new Paragraph({ children: [new TextRun({ text: "App Logic", bold: true, size: 32, color: BRAND })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 60 } }),
     new Paragraph({ children: [new TextRun({ text: "INFORME DE TICKETS", bold: true, size: 52, color: DARK })], alignment: AlignmentType.CENTER, spacing: { after: 80 } }),
-    new Paragraph({ children: [new TextRun({ text: `Estados: ${estadosSeleccionados.map(e => ESTADO_LABEL[e] || e).join(" · ")}`, italics: true, size: 22, color: GRAY })], alignment: AlignmentType.CENTER, spacing: { after: 60 } }),
+    new Paragraph({ children: [new TextRun({ text: `${tickets.length} ticket${tickets.length !== 1 ? "s" : ""} seleccionado${tickets.length !== 1 ? "s" : ""}`, italics: true, size: 22, color: GRAY })], alignment: AlignmentType.CENTER, spacing: { after: 60 } }),
     new Paragraph({ children: [new TextRun({ text: `Fecha: ${hoy}`, size: 22, color: GRAY })], alignment: AlignmentType.CENTER, spacing: { after: 300 } }),
     new Paragraph({ children: [new TextRun({ text: " " })], border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: BRAND, space: 4 } }, spacing: { after: 200 } }),
   );
@@ -782,17 +775,63 @@ export default function ExportarPage() {
   const [mesExportCliente, setMesExportCliente] = useState("0");
   const [anioExportCliente, setAnioExportCliente] = useState(2026);
 
-  // — Filtros del export de tickets —
-  const [ticketEstados, setTicketEstados] = useState(["completada", "en_progreso"]);
-  const toggleTicketEstado = (e) => setTicketEstados(prev =>
-    prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]
-  );
+  // — Export de tickets (.docx) —
+  const [tkEstados,     setTkEstados]     = useState(["completada", "en_progreso"]);
+  const [tkDisponibles, setTkDisponibles] = useState(null);   // null = sin cargar
+  const [tkSelIds,      setTkSelIds]      = useState(new Set());
+  const [tkCargando,    setTkCargando]    = useState(false);
+  const [tkBusqueda,    setTkBusqueda]    = useState("");
+
+  const TIPO_LABEL_UI   = { tarea:"Tarea", investigacion:"Investigación", bug:"Bug", mejora:"Mejora" };
+  const ESTADO_LABEL_UI = { pendiente:"Pendiente", en_progreso:"En progreso", completada:"Completada" };
+
+  const toggleTkEstado = (e) => {
+    setTkEstados(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]);
+    setTkDisponibles(null);
+  };
+
+  const cargarTickets = async () => {
+    if (!tkEstados.length) return;
+    setTkCargando(true);
+    setMsgs(m => ({ ...m, tickets: null }));
+    try {
+      const results = await Promise.all(tkEstados.map(e => api.get(`/tareas/?estado=${e}`)));
+      const lista = results.flat().sort((a, b) => (a.numero || 0) - (b.numero || 0));
+      setTkDisponibles(lista);
+      setTkSelIds(new Set(lista.map(t => t.id)));
+    } catch {
+      setMsgs(m => ({ ...m, tickets: { ok: false, text: "Error al cargar tickets" } }));
+    }
+    setTkCargando(false);
+  };
+
+  const tkFiltrados = (tkDisponibles || []).filter(t => {
+    if (!tkBusqueda.trim()) return true;
+    const q = tkBusqueda.toLowerCase();
+    return t.titulo?.toLowerCase().includes(q) || String(t.numero).includes(q);
+  });
+
+  const toggleTk = (id) => setTkSelIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const todosSeleccionados = tkFiltrados.length > 0 && tkFiltrados.every(t => tkSelIds.has(t.id));
+  const toggleTodos = () => {
+    if (todosSeleccionados) {
+      setTkSelIds(prev => { const n = new Set(prev); tkFiltrados.forEach(t => n.delete(t.id)); return n; });
+    } else {
+      setTkSelIds(prev => { const n = new Set(prev); tkFiltrados.forEach(t => n.add(t.id)); return n; });
+    }
+  };
 
   const runTickets = async () => {
+    const seleccionados = (tkDisponibles || []).filter(t => tkSelIds.has(t.id));
     setLoading(l => ({ ...l, tickets: true }));
     setMsgs(m => ({ ...m, tickets: null }));
     try {
-      await exportarTickets(ticketEstados);
+      await exportarTickets(seleccionados);
       setMsgs(m => ({ ...m, tickets: { ok: true, text: "Archivo descargado" } }));
     } catch (e) {
       setMsgs(m => ({ ...m, tickets: { ok: false, text: e.message || "Error al exportar" } }));
@@ -937,61 +976,122 @@ export default function ExportarPage() {
       </div>
 
       {/* Export tickets Word */}
-      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 20px", display:"flex", flexDirection:"column", gap:14 }}
-        onMouseEnter={e=>e.currentTarget.style.borderColor="#bfdbfe"}
-        onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}
-      >
+      <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:10, padding:"14px 20px", display:"flex", flexDirection:"column", gap:14 }}>
+        {/* Header */}
         <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
           <span style={{ fontSize:22, marginTop:2 }}>📄</span>
           <div style={{ flex:1 }}>
             <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>Informe de Tickets (.docx)</p>
-            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>
-              Exporta tickets con todas sus notas en formato Word, listo para presentar o enviar.
-            </p>
+            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>Exporta tickets con todas sus notas en formato Word, listo para presentar o enviar.</p>
           </div>
         </div>
 
-        {/* Selección de estados */}
-        <div style={{ display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
-          <span style={{ fontSize:11, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8" }}>Incluir</span>
+        {/* Fila: estados + botón buscar */}
+        <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase", color:"#94a3b8" }}>Estado</span>
           {[
             { key:"completada",  label:"Completados" },
             { key:"en_progreso", label:"En progreso" },
             { key:"pendiente",   label:"Pendientes"  },
           ].map(opt => (
-            <label key={opt.key} style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, color:"#475569", cursor:"pointer", userSelect:"none" }}>
-              <input
-                type="checkbox"
-                checked={ticketEstados.includes(opt.key)}
-                onChange={() => toggleTicketEstado(opt.key)}
-                style={{ width:15, height:15, accentColor:"#2563eb", cursor:"pointer" }}
-              />
+            <label key={opt.key} style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, color:"#475569", cursor:"pointer", userSelect:"none" }}>
+              <input type="checkbox" checked={tkEstados.includes(opt.key)} onChange={() => toggleTkEstado(opt.key)}
+                style={{ width:14, height:14, accentColor:"#2563eb", cursor:"pointer" }} />
               {opt.label}
             </label>
           ))}
-
-          <button
-            onClick={runTickets}
-            disabled={loading["tickets"] || ticketEstados.length === 0}
-            style={{
-              marginLeft:"auto", flexShrink:0,
-              background: (loading["tickets"] || ticketEstados.length === 0) ? "#93c5fd" : "#2563eb",
-              color:"#fff", border:"none", borderRadius:8, padding:"8px 16px",
-              fontSize:12.5, fontWeight:600,
-              cursor: (loading["tickets"] || ticketEstados.length === 0) ? "not-allowed" : "pointer",
-              whiteSpace:"nowrap",
-            }}
-            onMouseEnter={e=>{ if (!loading["tickets"] && ticketEstados.length) e.currentTarget.style.background="#1d4ed8"; }}
-            onMouseLeave={e=>{ if (!loading["tickets"] && ticketEstados.length) e.currentTarget.style.background="#2563eb"; }}
-          >
-            {loading["tickets"] ? "Generando…" : "↓ Descargar .docx"}
+          <button onClick={cargarTickets} disabled={tkCargando || !tkEstados.length} style={{
+            marginLeft:"auto", background: (!tkEstados.length || tkCargando) ? "#f1f5f9" : "#f0f7ff",
+            color: (!tkEstados.length || tkCargando) ? "#94a3b8" : "#2563eb",
+            border:"1.5px solid", borderColor: (!tkEstados.length || tkCargando) ? "#e2e8f0" : "#bfdbfe",
+            borderRadius:8, padding:"6px 14px", fontSize:12.5, fontWeight:600,
+            cursor: (!tkEstados.length || tkCargando) ? "not-allowed" : "pointer", whiteSpace:"nowrap",
+          }}>
+            {tkCargando ? "Cargando…" : tkDisponibles ? "↺ Recargar" : "Buscar tickets"}
           </button>
         </div>
 
-        {msgs["tickets"] && (
-          <p style={{ margin:0, fontSize:11.5, fontWeight:600, color: msgs["tickets"].ok ? "#16a34a" : "#dc2626" }}>
-            {msgs["tickets"].ok ? "✓ " : "✕ "}{msgs["tickets"].text}
-          </p>
+        {/* Lista de tickets */}
+        {tkDisponibles !== null && (
+          <div style={{ border:"1.5px solid #e2e8f0", borderRadius:8, overflow:"hidden" }}>
+            {/* Toolbar de la lista */}
+            <div style={{ background:"#f8fafc", borderBottom:"1px solid #e2e8f0", padding:"8px 14px", display:"flex", alignItems:"center", gap:10 }}>
+              <label style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", userSelect:"none" }}>
+                <input type="checkbox" checked={todosSeleccionados} onChange={toggleTodos}
+                  style={{ width:14, height:14, accentColor:"#2563eb", cursor:"pointer" }} />
+                <span style={{ fontSize:12, fontWeight:600, color:"#475569" }}>
+                  {tkSelIds.size} de {tkDisponibles.length} seleccionados
+                </span>
+              </label>
+              <input value={tkBusqueda} onChange={e => setTkBusqueda(e.target.value)} placeholder="Filtrar…"
+                style={{ marginLeft:"auto", border:"1.5px solid #e2e8f0", borderRadius:6, padding:"4px 10px", fontSize:12, outline:"none", background:"#fff", color:"#1e293b", width:160 }} />
+            </div>
+
+            {/* Filas de tickets */}
+            <div style={{ maxHeight:260, overflowY:"auto" }}>
+              {tkFiltrados.length === 0 ? (
+                <div style={{ padding:"20px 14px", fontSize:12, color:"#94a3b8", textAlign:"center" }}>
+                  {tkDisponibles.length === 0 ? "No hay tickets para los estados seleccionados" : "Sin resultados"}
+                </div>
+              ) : tkFiltrados.map(t => {
+                const sel = tkSelIds.has(t.id);
+                const TBADGE = { tarea:{bg:"#f1f5f9",c:"#475569"}, investigacion:{bg:"#eff6ff",c:"#2563eb"}, bug:{bg:"#fef2f2",c:"#dc2626"}, mejora:{bg:"#f5f3ff",c:"#7c3aed"} };
+                const bd = TBADGE[t.tipo] || TBADGE.tarea;
+                return (
+                  <label key={t.id} style={{
+                    display:"flex", alignItems:"center", gap:10, padding:"9px 14px",
+                    borderBottom:"1px solid #f8fafc", cursor:"pointer",
+                    background: sel ? "#fafbff" : "#fff",
+                  }}
+                    onMouseEnter={e => e.currentTarget.style.background = sel ? "#f0f7ff" : "#f8fafc"}
+                    onMouseLeave={e => e.currentTarget.style.background = sel ? "#fafbff" : "#fff"}
+                  >
+                    <input type="checkbox" checked={sel} onChange={() => toggleTk(t.id)}
+                      style={{ width:14, height:14, accentColor:"#2563eb", cursor:"pointer", flexShrink:0 }} />
+                    <span style={{ fontSize:11, fontWeight:700, color:"#94a3b8", fontFamily:"DM Mono, monospace", minWidth:36 }}>
+                      {t.numero ? `#${String(t.numero).padStart(3,"0")}` : "#---"}
+                    </span>
+                    <span style={{ fontSize:13, color:"#1e293b", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {t.titulo}
+                    </span>
+                    <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:999, background:bd.bg, color:bd.c, flexShrink:0 }}>
+                      {TIPO_LABEL_UI[t.tipo] || t.tipo}
+                    </span>
+                    <span style={{ fontSize:10, color:"#94a3b8", flexShrink:0 }}>
+                      {ESTADO_LABEL_UI[t.estado] || t.estado}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Botón descargar */}
+        {tkDisponibles !== null && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", gap:12 }}>
+            {msgs["tickets"] && (
+              <p style={{ margin:0, fontSize:11.5, fontWeight:600, color: msgs["tickets"].ok ? "#16a34a" : "#dc2626" }}>
+                {msgs["tickets"].ok ? "✓ " : "✕ "}{msgs["tickets"].text}
+              </p>
+            )}
+            <button onClick={runTickets} disabled={loading["tickets"] || tkSelIds.size === 0} style={{
+              background: (loading["tickets"] || tkSelIds.size === 0) ? "#93c5fd" : "#2563eb",
+              color:"#fff", border:"none", borderRadius:8, padding:"8px 18px",
+              fontSize:12.5, fontWeight:600,
+              cursor: (loading["tickets"] || tkSelIds.size === 0) ? "not-allowed" : "pointer",
+              whiteSpace:"nowrap",
+            }}
+              onMouseEnter={e=>{ if (!loading["tickets"] && tkSelIds.size) e.currentTarget.style.background="#1d4ed8"; }}
+              onMouseLeave={e=>{ if (!loading["tickets"] && tkSelIds.size) e.currentTarget.style.background="#2563eb"; }}
+            >
+              {loading["tickets"] ? "Generando…" : `↓ Descargar ${tkSelIds.size} ticket${tkSelIds.size !== 1 ? "s" : ""}`}
+            </button>
+          </div>
+        )}
+
+        {!tkDisponibles && msgs["tickets"] && (
+          <p style={{ margin:0, fontSize:11.5, fontWeight:600, color:"#dc2626" }}>✕ {msgs["tickets"].text}</p>
         )}
       </div>
     </div>
