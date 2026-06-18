@@ -36,6 +36,9 @@ const TODOS_MODULOS = [
   ]},
   { key: "configuracion",label: "Configuración" },
   { key: "exportar",     label: "Exportar / Importar" },
+  { key: "recibos",      label: "Recibos de Sueldo", subs: [
+    { key: "recibos", label: "Recibos de Sueldo" },
+  ]},
 ];
 
 const FORM_VACIO = { nombre: "", password: "", rol: "usuario", modulos: [], submodulos: {}, acceso_total: false };
