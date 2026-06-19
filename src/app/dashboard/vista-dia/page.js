@@ -221,7 +221,7 @@ export default function VistaDiaPage() {
                 </select>
               ) : estadoBadge(s.estado)}
             </td>
-            <td style={{...tdStyle, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", color:"#64748b"}}>{s.observaciones || "—"}</td>
+            <td style={{...tdStyle, color:"#64748b", whiteSpace:"pre-wrap", wordBreak:"break-word"}}>{s.observaciones || "—"}</td>
             {vista === "interna" && (
               <td style={{...tdStyle, textAlign:"right", whiteSpace:"nowrap"}}>
                 <button onClick={() => setEditando(s)}
