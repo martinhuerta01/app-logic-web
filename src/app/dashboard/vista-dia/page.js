@@ -150,10 +150,12 @@ export default function VistaDiaPage() {
 
   const estadoBadge = (estado) => {
     const map = {
-      REALIZADO:  { bg:"#f0fdf4", color:"#16a34a" },
-      CONFIRMADO: { bg:"#eff6ff", color:"#2563eb" },
-      PENDIENTE:  { bg:"#fffbeb", color:"#d97706" },
-      SUSPENDIDO: { bg:"#fef2f2", color:"#dc2626" },
+      REALIZADO:    { bg:"#f0fdf4", color:"#16a34a" },
+      CONFIRMADO:   { bg:"#eff6ff", color:"#2563eb" },
+      PENDIENTE:    { bg:"#fffbeb", color:"#d97706" },
+      SUSPENDIDO:   { bg:"#fef2f2", color:"#dc2626" },
+      REPROGRAMADO: { bg:"#fff7ed", color:"#ea580c" },
+      EVALUADO:     { bg:"#f5f3ff", color:"#7c3aed" },
     };
     const s = map[estado] || { bg:"#f1f5f9", color:"#64748b" };
     return (

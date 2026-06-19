@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 const DEFAULTS = {
   tipos:        ["INSTALACION", "REVISION", "DESINSTALACION"],
   dispositivos: ["GPS", "LECTORA", "GPS Y LECTORA", "CAMARA", "TRACTOR", "SEMI", "CHASIS"],
-  estados:      ["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO"],
+  estados:      ["PENDIENTE", "CONFIRMADO", "REALIZADO", "REPROGRAMADO", "SUSPENDIDO", "EVALUADO"],
 };
 
 const LS_KEY = "app_opciones_carga";

@@ -15,10 +15,12 @@ const ESTADO_COLOR = {
 };
 
 const PIE_COLORS = {
-  REALIZADO:  "#22c55e",
-  CONFIRMADO: "#3b82f6",
-  PENDIENTE:  "#eab308",
-  SUSPENDIDO: "#ef4444",
+  REALIZADO:    "#22c55e",
+  CONFIRMADO:   "#3b82f6",
+  PENDIENTE:    "#eab308",
+  SUSPENDIDO:   "#ef4444",
+  REPROGRAMADO: "#f97316",
+  EVALUADO:     "#8b5cf6",
 };
 
 // ── Íconos ────────────────────────────────────────────────────────────
@@ -118,7 +120,19 @@ export default function DashboardPage() {
   const totalHoy      = svcsHoy.length;
   const totalMes      = svcsMes.length;
   const realizadosMes = svcsMes.filter(s => s.estado === "REALIZADO").length;
-  const sinCerrar     = svcsMes.filter(s => s.estado === "PENDIENTE" || s.estado === "CONFIRMADO").length;
+  const evaluados     = svcsMes.filter(s => s.estado === "EVALUADO").length;
+
+  // REPROGRAMADO se considera resuelto si la misma patente tiene un REALIZADO posterior en el mes
+  const reprogramadoResuelto = (svc) => {
+    if (!svc.patente?.trim()) return false;
+    return svcsMes.some(r => r.patente === svc.patente && r.estado === "REALIZADO" && r.fecha > svc.fecha);
+  };
+  const sinCerrar = svcsMes.filter(s =>
+    s.estado === "PENDIENTE" ||
+    s.estado === "CONFIRMADO" ||
+    (s.estado === "REPROGRAMADO" && !reprogramadoResuelto(s))
+  ).length;
+
   const pctRealizados = totalMes > 0 ? Math.round((realizadosMes / totalMes) * 100) : 0;
 
   // ── Barras por día del mes ────────────────────────────────────────
@@ -164,7 +178,14 @@ export default function DashboardPage() {
       value: sinCerrar,
       icon: <IconClock />,
       accentColor: sinCerrar > 0 ? "#d97706" : "#94a3b8",
-      meta: { icon: sinCerrar > 0 ? "⚠" : "✓", text: "Pendientes + Confirmados", color: sinCerrar > 0 ? "#d97706" : "#94a3b8" },
+      meta: { icon: sinCerrar > 0 ? "⚠" : "✓", text: "Pendientes + Confirmados + Reprog.", color: sinCerrar > 0 ? "#d97706" : "#94a3b8" },
+    },
+    {
+      label: "Evaluados",
+      value: evaluados,
+      icon: <IconCheck />,
+      accentColor: "#8b5cf6",
+      meta: { icon: "◎", text: "Revisados este mes", color: "#8b5cf6" },
     },
   ];
 
@@ -191,7 +212,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* ── Fila 1: KPIs ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {kpis.map(k => (
               <div key={k.label}
                 className="bg-white rounded-[10px] border border-border hover:shadow-card transition-shadow duration-200"
@@ -327,10 +348,12 @@ export default function DashboardPage() {
                     <tr><td colSpan={5} style={{ padding: "16px 20px", fontSize: 12, color: "#94a3b8" }}>Sin servicios este mes.</td></tr>
                   ) : recientes.map((s, i) => {
                     const BADGE = {
-                      REALIZADO:  { bg: "#f0fdf4", color: "#16a34a" },
-                      PENDIENTE:  { bg: "#fffbeb", color: "#d97706" },
-                      CONFIRMADO: { bg: "#eff6ff", color: "#2563eb" },
-                      SUSPENDIDO: { bg: "#fef2f2", color: "#dc2626" },
+                      REALIZADO:    { bg: "#f0fdf4", color: "#16a34a" },
+                      PENDIENTE:    { bg: "#fffbeb", color: "#d97706" },
+                      CONFIRMADO:   { bg: "#eff6ff", color: "#2563eb" },
+                      SUSPENDIDO:   { bg: "#fef2f2", color: "#dc2626" },
+                      REPROGRAMADO: { bg: "#fff7ed", color: "#ea580c" },
+                      EVALUADO:     { bg: "#f5f3ff", color: "#7c3aed" },
                     };
                     const badge = BADGE[s.estado] || { bg: "#f1f5f9", color: "#64748b" };
                     return (
