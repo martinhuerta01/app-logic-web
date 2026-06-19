@@ -18,7 +18,9 @@ src/app/dashboard/
   personal/
     horario-tecnico/   → Carga movimientos camioneta + ausencias (incluye parser de Excel LogicTracker)
     historial-camioneta/ → Historial de movimientos por mes
-  stock/oficina/       → Stock de oficina (actual, entradas, salidas, búsqueda)
+  stock/
+    overview/          → Dashboard de stock: cards por producto con nivel, consumo/día, días restantes
+    oficina/           → Stock de oficina (actual, entradas, salidas, búsqueda)
   exportar-importar/   → Exportaciones Excel + informe de tickets en .docx
   tareas/              → Sistema de tickets (kanban + lista + panel de detalle con notas)
     historial/         → Tickets resueltos filtrados por período
@@ -28,6 +30,7 @@ src/components/
   Sidebar.js           → Navegación lateral con versión
 src/lib/
   auth.js              → AuthContext — expone user, rol, modulos, submodulos
+  opciones.js          → DEFAULTS de tipos/dispositivos/estados (fallback si /opciones-carga/ no responde)
 ```
 
 ## Convenciones importantes
@@ -78,7 +81,19 @@ DELETE /recibos/{id}
 | Stock KPI | `?tab=stock` |
 | Revisiones Frecuentes (patentes) | `?tab=patentes` |
 
-## Stock KPI
+## Dashboard de Stock (stock/overview/)
+
+- Primera sub-página del módulo Stock, accesible desde sidebar antes de "Oficina"
+- Fetches: `/stock/productos/`, `/stock/ubicaciones/`, `/stock/actual/?ubicacion_id=`, `/stock/movimientos/`
+- Grid de tarjetas ordenadas por urgencia: crítico → bajo → ok
+- **Niveles:** crítico ≤ 7 días (o stock 0 reciente), bajo 8–20 días, ok > 20 días
+- **Filtro automático:** productos con stock 0 y sin movimientos en los últimos 90 días se ocultan (inactivos)
+- Cada tarjeta: cantidad actual, barra de nivel coloreada, consumo/día, días restantes, fecha sugerida de pedido
+- Filtros UI por nivel de urgencia y categoría
+- Alerta banner si hay productos en stock 0 reciente
+- La lógica de consumo es idéntica al Stock KPI de estadísticas (`calcStats`)
+
+## Stock KPI (estadísticas ?tab=stock)
 
 - Productos monitoreados guardados en `localStorage` bajo key `stock_kpi_watched_v1`
 - Calcula consumo diario promedio de los últimos lotes
@@ -150,7 +165,32 @@ DELETE /recibos/{id}
 - **Tablas:** headers 9.5px uppercase `#94a3b8`, rows hover `#f8fafc`
 - **Badges semánticos:** `{ bg, color }` inline — sin clases de color de Tailwind
 
+## Estados de servicio
+
+| Estado | Color | Descripción |
+|--------|-------|-------------|
+| PENDIENTE | amarillo | cargado, sin confirmar |
+| CONFIRMADO | azul | confirmado, sin realizar |
+| REALIZADO | verde | completado |
+| REPROGRAMADO | naranja | postergado — aparece en "Sin cerrar" si no hay REALIZADO posterior con misma patente |
+| EVALUADO | violeta | revisado manualmente — se marca cuando el REPROGRAMADO fue documentado o no tiene patente |
+| SUSPENDIDO | rojo | cancelado |
+| - | gris | feriado / día sin servicio |
+
+- **Sin cerrar** en dashboard = PENDIENTE + CONFIRMADO + REPROGRAMADO sin auto-resolución
+- **Auto-resolución REPROGRAMADO:** si la misma `patente` tiene un REALIZADO en fecha posterior dentro del mes → no cuenta como sin cerrar
+- **EVALUADO** se configura desde el dropdown en carga-dia / vista-dia; aparece como KPI propio en dashboard
+- Estados disponibles vienen de `/opciones-carga/` (fallback: `src/lib/opciones.js` DEFAULTS)
+
 ## Historial de versiones
+
+### v1.8 (Jun 2026)
+- Dashboard: estado EVALUADO (violeta) — para marcar servicios "-" o REPROGRAMADO ya revisados
+- Dashboard: auto-detección de REPROGRAMADO resuelto por patente (REALIZADO posterior en el mes)
+- Dashboard: KPI "Evaluados" + grid pasa a 5 columnas; colores REPROGRAMADO (naranja) y EVALUADO (violeta)
+- Stock: nueva sub-página `/stock/overview` — dashboard de insumos con cards por urgencia, consumo estimado y fecha de pedido
+- Stock: oculta automáticamente productos en 0 sin movimientos en 90+ días (inactivos)
+- Sidebar: "Dashboard" como primera opción del módulo Stock
 
 ### v1.7 (Jun 2026)
 - Recibos de Sueldo: nuevo módulo — subida de PDF bulk, split por empleado, guardado en Supabase Storage, descarga individual por período
