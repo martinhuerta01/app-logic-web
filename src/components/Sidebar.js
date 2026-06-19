@@ -145,6 +145,9 @@ const MODULOS_BASE = [
   {
     key: "stock", nombre: "Stock",
     isDynamic: true,
+    subs: [
+      { href: "/dashboard/stock/overview", label: "Dashboard" },
+    ],
   },
   {
     key: "tareas", nombre: "Tickets",
