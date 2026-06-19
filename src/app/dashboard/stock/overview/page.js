@@ -212,6 +212,7 @@ export default function StockOverview() {
 
   // Construir lista de productos con stock
   const resumen = useMemo(() => {
+    const hace90 = addDays(HOY, -90);
     return productos
       .map(prod => {
         const stockItem = stockActual.find(s => s.producto_id === prod.id);
@@ -219,9 +220,20 @@ export default function StockOverview() {
         const movsProd = movimientos.filter(m => String(m.producto_id) === String(prod.id));
         const { diasRestantes } = calcStats(movsProd, stock);
         const nivel = urgenciaNivel(diasRestantes, stock);
-        return { prod, stock, nivel, diasRestantes };
+        // fecha del último movimiento de este producto
+        const ultimoMov = movsProd.length > 0
+          ? movsProd.reduce((max, m) => m.fecha > max ? m.fecha : max, movsProd[0].fecha)
+          : null;
+        return { prod, stock, nivel, diasRestantes, ultimoMov };
       })
-      .filter(r => r.stock > 0 || r.nivel === "critico") // ocultar productos sin stock nunca usado
+      .filter(r => {
+        // con stock > 0: siempre mostrar
+        if (r.stock > 0) return true;
+        // stock 0 pero con movimiento en los últimos 90 días: crítico real
+        if (r.ultimoMov && r.ultimoMov >= hace90) return true;
+        // stock 0 sin movimientos recientes: producto inactivo, ocultar
+        return false;
+      })
       .sort((a, b) => {
         const no = NIVEL_ORDER[a.nivel] - NIVEL_ORDER[b.nivel];
         if (no !== 0) return no;
