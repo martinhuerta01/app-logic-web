@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Line } from "recharts";
@@ -462,25 +462,7 @@ const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcu
 
 // ─── HORAS TRABAJADAS ─────────────────────────────────────────────
 
-function TablaEquipoHoras({ nombre, filas }) {
-  const storageKey = filas.length > 0
-    ? `horas_excluidos_${nombre}_${filas[0].dia.slice(0, 7)}`
-    : null;
-
-  const [excluidos, setExcluidos] = useState(() => {
-    if (!storageKey || typeof window === "undefined") return new Set();
-    try { return new Set(JSON.parse(localStorage.getItem(storageKey) || "[]")); }
-    catch { return new Set(); }
-  });
-
-  const toggleExcluido = (dia) => {
-    setExcluidos(prev => {
-      const next = new Set(prev);
-      next.has(dia) ? next.delete(dia) : next.add(dia);
-      if (storageKey) localStorage.setItem(storageKey, JSON.stringify([...next]));
-      return next;
-    });
-  };
+function TablaEquipoHoras({ nombre, filas, excluidos, onToggle }) {
 
   const filasActivas = filas.filter(f => !excluidos.has(f.dia));
   const totalHoras = +filasActivas.reduce((a, f) => a + (f.horas ?? 0), 0).toFixed(1);
@@ -540,7 +522,7 @@ function TablaEquipoHoras({ nombre, filas }) {
                         <input
                           type="checkbox"
                           checked={excluido}
-                          onChange={() => toggleExcluido(f.dia)}
+                          onChange={() => onToggle(f.dia)}
                           title="Excluir del total"
                           style={{ accentColor: "#f59e0b", width: 15, height: 15, cursor: "pointer" }}
                         />
@@ -594,7 +576,19 @@ function HorasTrabajadas() {
   const [anio, setAnio] = useState("2026");
   const [porEquipo, setPorEquipo] = useState({});
   const [porTecnico, setPorTecnico] = useState({});
+  const [excluidos, setExcluidos] = useState({});
   const [error, setError] = useState("");
+
+  const handleToggle = (equipoNombre, dia) => {
+    setExcluidos(prev => {
+      const prevSet = prev[equipoNombre] || new Set();
+      const next = new Set(prevSet);
+      next.has(dia) ? next.delete(dia) : next.add(dia);
+      const key = `horas_excluidos_${equipoNombre}_${dia.slice(0, 7)}`;
+      localStorage.setItem(key, JSON.stringify([...next]));
+      return { ...prev, [equipoNombre]: next };
+    });
+  };
 
   const calcular = async () => {
     setError("");
@@ -666,13 +660,49 @@ function HorasTrabajadas() {
       for (const nombre of Object.keys(agrupado)) {
         agrupado[nombre].sort((a, b) => a.fecha.localeCompare(b.fecha));
       }
+      // Initialize excluidos from localStorage for each equipo
+      const initExcluidos = {};
+      for (const [equipoNombre, filas] of Object.entries(agrupado)) {
+        const ym = filas[0]?.dia?.slice(0, 7);
+        if (!ym) { initExcluidos[equipoNombre] = new Set(); continue; }
+        const key = `horas_excluidos_${equipoNombre}_${ym}`;
+        try { initExcluidos[equipoNombre] = new Set(JSON.parse(localStorage.getItem(key) || "[]")); }
+        catch { initExcluidos[equipoNombre] = new Set(); }
+      }
+      setExcluidos(initExcluidos);
       setPorEquipo(agrupado);
       setPorTecnico(tecMap);
     } catch { setError("Error al calcular horas. Verificá la conexión con el servidor."); }
   };
 
   const equipos = Object.keys(porEquipo);
-  const tecnicos = Object.values(porTecnico);
+
+  // Resumen por técnico computed reactively from porEquipo + excluidos
+  const tecnicos = useMemo(() => {
+    const tecMap = {};
+    for (const [equipoNombre, filas] of Object.entries(porEquipo)) {
+      const equipoExcluidos = excluidos[equipoNombre] || new Set();
+      for (const f of filas) {
+        if (equipoExcluidos.has(f.dia)) continue;
+        for (const nombreTec of (f.tecnicos || [])) {
+          if (!tecMap[nombreTec]) tecMap[nombreTec] = { nombre: nombreTec, dias: 0, minutos: 0, ausencias: [] };
+          tecMap[nombreTec].dias++;
+          if (f.horas !== null) tecMap[nombreTec].minutos += Math.round(f.horas * 60);
+        }
+      }
+    }
+    // Merge ausencias from porTecnico (not affected by exclusions)
+    for (const [nombre, data] of Object.entries(porTecnico)) {
+      if (data.ausencias?.length) {
+        if (!tecMap[nombre]) tecMap[nombre] = { nombre, dias: 0, minutos: 0, ausencias: [] };
+        tecMap[nombre].ausencias = data.ausencias;
+        const diasAus = data.ausencias.reduce((s, a) => s + a.dias, 0);
+        tecMap[nombre].dias += diasAus;
+        tecMap[nombre].minutos += diasAus * 8 * 60;
+      }
+    }
+    return Object.values(tecMap);
+  }, [porEquipo, porTecnico, excluidos]);
 
   return (
     <div className="space-y-6">
@@ -681,7 +711,13 @@ function HorasTrabajadas() {
       {equipos.length === 0
         ? <p className="text-slate-400 text-sm">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</p>
         : equipos.map(nombre => (
-            <TablaEquipoHoras key={nombre} nombre={nombre} filas={porEquipo[nombre]} />
+            <TablaEquipoHoras
+              key={nombre}
+              nombre={nombre}
+              filas={porEquipo[nombre]}
+              excluidos={excluidos[nombre] || new Set()}
+              onToggle={(dia) => handleToggle(nombre, dia)}
+            />
           ))
       }
       {tecnicos.length > 0 && (
