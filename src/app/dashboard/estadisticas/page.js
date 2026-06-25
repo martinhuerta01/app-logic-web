@@ -463,10 +463,31 @@ const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcu
 // ─── HORAS TRABAJADAS ─────────────────────────────────────────────
 
 function TablaEquipoHoras({ nombre, filas }) {
-  const totalHoras = +filas.reduce((a, f) => a + (f.horas ?? 0), 0).toFixed(1);
-  const totalBase = filas.length * 8;
+  const storageKey = filas.length > 0
+    ? `horas_excluidos_${nombre}_${filas[0].dia.slice(0, 7)}`
+    : null;
+
+  const [excluidos, setExcluidos] = useState(() => {
+    if (!storageKey || typeof window === "undefined") return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem(storageKey) || "[]")); }
+    catch { return new Set(); }
+  });
+
+  const toggleExcluido = (dia) => {
+    setExcluidos(prev => {
+      const next = new Set(prev);
+      next.has(dia) ? next.delete(dia) : next.add(dia);
+      if (storageKey) localStorage.setItem(storageKey, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const filasActivas = filas.filter(f => !excluidos.has(f.dia));
+  const totalHoras = +filasActivas.reduce((a, f) => a + (f.horas ?? 0), 0).toFixed(1);
+  const totalBase = filasActivas.length * 8;
   const totalBalance = +(totalHoras - totalBase).toFixed(1);
   const conTecnicos = filas.some(f => f.tecnicos?.length > 0);
+  const colSpanBase = conTecnicos ? 7 : 6;
 
   return (
     <div>
@@ -482,50 +503,69 @@ function TablaEquipoHoras({ nombre, filas }) {
               <th className="text-left px-4 py-3">Horas base (8h)</th>
               <th className="text-left px-4 py-3">Balance</th>
               {conTecnicos && <th className="text-left px-4 py-3">Técnicos</th>}
+              <th className="text-center px-4 py-3">No contar</th>
             </tr>
           </thead>
           <tbody>
             {filas.length === 0 ? (
-              <tr><td colSpan={conTecnicos ? 7 : 6} className="px-4 py-4 text-slate-400 text-xs">Sin movimientos registrados</td></tr>
+              <tr><td colSpan={colSpanBase + 1} className="px-4 py-4 text-slate-400 text-xs">Sin movimientos registrados</td></tr>
             ) : (
               <>
-                {filas.map((f, i) => (
-                  <tr key={i} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-2.5 text-xs font-medium">{f.dia}</td>
-                    <td className="px-4 py-2.5 text-xs">{f.hora_salida || "—"}</td>
-                    <td className="px-4 py-2.5 text-xs">{f.hora_llegada || "—"}</td>
-                    <td className="px-4 py-2.5 text-xs">{fmtHM(f.horas)}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400">8:00</td>
-                    <td className="px-4 py-2.5 text-xs">
-                      {f.balance !== null
-                        ? <span className={`font-semibold ${f.balance >= 0 ? "text-green-600" : "text-red-600"}`}>{fmtHM(f.balance, true)}</span>
-                        : "—"}
-                    </td>
-                    {conTecnicos && (
-                      <td className="px-4 py-2.5">
-                        {f.tecnicos?.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {f.tecnicos.map((n, j) => (
-                              <span key={j} className={`text-xs px-2 py-0.5 rounded-full ${f.esDiaNormal ? "bg-slate-100 text-slate-500" : "bg-indigo-50 text-indigo-700 font-medium"}`}>{n}</span>
-                            ))}
-                          </div>
-                        ) : <span className="text-xs text-slate-400">—</span>}
+                {filas.map((f, i) => {
+                  const excluido = excluidos.has(f.dia);
+                  return (
+                    <tr key={i} className={`border-b border-slate-100 ${excluido ? "bg-slate-50 opacity-50" : "hover:bg-slate-50"}`}>
+                      <td className="px-4 py-2.5 text-xs font-medium">{f.dia}</td>
+                      <td className="px-4 py-2.5 text-xs">{f.hora_salida || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs">{f.hora_llegada || "—"}</td>
+                      <td className="px-4 py-2.5 text-xs">{fmtHM(f.horas)}</td>
+                      <td className="px-4 py-2.5 text-xs text-slate-400">8:00</td>
+                      <td className="px-4 py-2.5 text-xs">
+                        {f.balance !== null
+                          ? <span className={`font-semibold ${f.balance >= 0 ? "text-green-600" : "text-red-600"}`}>{fmtHM(f.balance, true)}</span>
+                          : "—"}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      {conTecnicos && (
+                        <td className="px-4 py-2.5">
+                          {f.tecnicos?.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {f.tecnicos.map((n, j) => (
+                                <span key={j} className={`text-xs px-2 py-0.5 rounded-full ${f.esDiaNormal ? "bg-slate-100 text-slate-500" : "bg-indigo-50 text-indigo-700 font-medium"}`}>{n}</span>
+                              ))}
+                            </div>
+                          ) : <span className="text-xs text-slate-400">—</span>}
+                        </td>
+                      )}
+                      <td className="px-4 py-2.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={excluido}
+                          onChange={() => toggleExcluido(f.dia)}
+                          title="Excluir del total"
+                          style={{ accentColor: "#f59e0b", width: 15, height: 15, cursor: "pointer" }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
                 <tr className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-xs">
-                  <td className="px-4 py-3 text-slate-700">TOTAL ({filas.length} días)</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    TOTAL ({filasActivas.length} días)
+                    {excluidos.size > 0 && (
+                      <span className="ml-2 font-normal text-amber-600">({excluidos.size} excluido{excluidos.size > 1 ? "s" : ""})</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3 text-blue-700">{fmtHM(totalHoras)}</td>
-                  <td className="px-4 py-3 text-slate-500">8:00 × {filas.length}</td>
+                  <td className="px-4 py-3 text-slate-500">8:00 × {filasActivas.length}</td>
                   <td className="px-4 py-3">
                     <span className={`font-bold ${totalBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {fmtHM(totalBalance, true)}
                     </span>
                   </td>
                   {conTecnicos && <td className="px-4 py-3"></td>}
+                  <td className="px-4 py-3"></td>
                 </tr>
               </>
             )}
