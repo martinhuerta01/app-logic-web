@@ -222,7 +222,7 @@ function SubLink({ href, label, pathname }) {
         paddingBottom: 5,
         borderRadius: 6,
         fontSize: 12.5,
-        color: isActive ? "#60a5fa" : "rgba(255,255,255,0.55)",
+        color: isActive ? "#60a5fa" : "#c8d3e0",
         fontWeight: isActive ? 500 : 400,
         background: isActive ? "rgba(37,99,235,0.09)" : "transparent",
         textDecoration: "none",
@@ -276,7 +276,7 @@ function ModuleItem({ mod, isOpen, onToggle, pathname, openGrupo, setOpenGrupo }
           borderRadius: 7,
           flexShrink: 0,
           background: isOpen ? "var(--sidebar-icon-active)" : "var(--sidebar-icon-bg)",
-          color: isOpen ? "#60a5fa" : "rgba(255,255,255,0.55)",
+          color: isOpen ? "#60a5fa" : "#c8d3e0",
           transition: "background 150ms, color 150ms",
         }}>
           {icon}
@@ -287,7 +287,7 @@ function ModuleItem({ mod, isOpen, onToggle, pathname, openGrupo, setOpenGrupo }
           flex: 1,
           fontSize: 13,
           fontWeight: 500,
-          color: isOpen ? "#e2e8f0" : "rgba(255,255,255,0.55)",
+          color: isOpen ? "#e2e8f0" : "#c8d3e0",
           transition: "color 150ms",
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -342,7 +342,7 @@ function ModuleItem({ mod, isOpen, onToggle, pathname, openGrupo, setOpenGrupo }
                     paddingTop: 5, paddingBottom: 5,
                     border: "none", background: "transparent", cursor: "pointer",
                     fontSize: 12.5, fontWeight: 500,
-                    color: "rgba(255,255,255,0.55)",
+                    color: "#c8d3e0",
                     textAlign: "left",
                     transition: "color 120ms",
                   }}
