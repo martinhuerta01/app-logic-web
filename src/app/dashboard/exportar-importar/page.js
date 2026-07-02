@@ -332,7 +332,8 @@ async function exportarStock() {
 
 // ── Export 4: Servicios ─────────────────────────────────────────────
 async function exportarServicios(mes, anio) {
-  const data = await api.get("/servicios/", { mes, anio });
+  const params = mes ? { mes, anio } : { anio };
+  const data = await api.get("/servicios/", params);
   if (!data?.length) throw new Error("Sin datos para el período seleccionado");
 
   const sorted = [...data].sort((a, b) => {
@@ -372,12 +373,14 @@ async function exportarServicios(mes, anio) {
   applyRowStyle(wsSum, sumRows.length - 1, 5, S_TOTAL);
   XS.utils.book_append_sheet(wb, wsSum, "Por responsable");
 
-  XS.writeFile(wb, `Servicios_${MESES[mes - 1]}_${anio}.xlsx`);
+  const labelServicios = mes ? `${MESES[mes - 1]}_${anio}` : String(anio);
+  XS.writeFile(wb, `Servicios_${labelServicios}.xlsx`);
 }
 
 // ── Export 5: Clientes vs Responsables ─────────────────────────────
 async function exportarClienteResponsable(mes, anio) {
-  const data = await api.get("/servicios/", { mes, anio });
+  const params = mes ? { mes, anio } : { anio };
+  const data = await api.get("/servicios/", params);
   if (!data?.length) throw new Error("Sin datos para el período seleccionado");
 
   const responsables = [...new Set(data.map(s => s.responsable || "Sin responsable"))].sort();
@@ -429,7 +432,8 @@ async function exportarClienteResponsable(mes, anio) {
   applyRowStyle(wsDet, 0, 3, S_HEADER);
   XS.utils.book_append_sheet(wb, wsDet, "Detalle");
 
-  XS.writeFile(wb, `Clientes_vs_Responsables_${MESES[mes - 1]}_${anio}.xlsx`);
+  const labelCliResp = mes ? `${MESES[mes - 1]}_${anio}` : String(anio);
+  XS.writeFile(wb, `Clientes_vs_Responsables_${labelCliResp}.xlsx`);
 }
 
 // ── Export 6: Servicios por Cliente ────────────────────────────────
@@ -902,7 +906,7 @@ export default function ExportarPage() {
             <span style={{ fontSize:22, flexShrink:0 }}>{exp.icon}</span>
             <div style={{ flex:1, minWidth:0 }}>
               <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>{exp.title}</p>
-              <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>{exp.desc}</p>
+              <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#64748b" }}>{exp.desc}</p>
               {msgs[exp.key] && (
                 <p style={{ margin:"6px 0 0", fontSize:11.5, fontWeight:600, color: msgs[exp.key].ok ? "#16a34a" : "#dc2626" }}>
                   {msgs[exp.key].ok ? "✓ " : "✕ "}{msgs[exp.key].text}
@@ -932,7 +936,7 @@ export default function ExportarPage() {
           <span style={{ fontSize:22 }}>🏢</span>
           <div>
             <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>Servicios por Cliente</p>
-            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>Todos los servicios de un cliente específico. Podés filtrar por año completo o solo un mes.</p>
+            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#64748b" }}>Todos los servicios de un cliente específico. Podés filtrar por año completo o solo un mes.</p>
           </div>
         </div>
 
@@ -982,7 +986,7 @@ export default function ExportarPage() {
           <span style={{ fontSize:22, marginTop:2 }}>📄</span>
           <div style={{ flex:1 }}>
             <p style={{ margin:0, fontSize:14, fontWeight:600, color:"#1e293b" }}>Informe de Tickets (.docx)</p>
-            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#94a3b8" }}>Exporta tickets con todas sus notas en formato Word, listo para presentar o enviar.</p>
+            <p style={{ margin:"3px 0 0", fontSize:11.5, color:"#64748b" }}>Exporta tickets con todas sus notas en formato Word, listo para presentar o enviar.</p>
           </div>
         </div>
 
