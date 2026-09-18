@@ -59,19 +59,19 @@ function urgenciaNivel(diasRestantes, stock) {
     if (diasRestantes <= 20) return "bajo";
     return "ok";
   }
-  // sin datos de consumo: usar cantidad absoluta
-  if (stock <= 2)  return "critico";
-  if (stock <= 8)  return "bajo";
-  return "ok";
+  // sin historial de entradas: no hay patrón de consumo real, no se puede estimar
+  // recurrencia — no forzar crítico/bajo solo por tener poca cantidad absoluta
+  return "sinpatron";
 }
 
 const NIVEL_STYLE = {
-  critico: { bar: "#ef4444", badge: { bg: "#fef2f2", color: "#dc2626" }, label: "Crítico" },
-  bajo:    { bar: "#f97316", badge: { bg: "#fff7ed", color: "#ea580c" }, label: "Bajo"    },
-  ok:      { bar: "#22c55e", badge: { bg: "#f0fdf4", color: "#16a34a" }, label: "OK"      },
+  critico:   { bar: "#ef4444", badge: { bg: "#fef2f2", color: "#dc2626" }, label: "Crítico"  },
+  bajo:      { bar: "#f97316", badge: { bg: "#fff7ed", color: "#ea580c" }, label: "Bajo"     },
+  ok:        { bar: "#22c55e", badge: { bg: "#f0fdf4", color: "#16a34a" }, label: "OK"       },
+  sinpatron: { bar: "#94a3b8", badge: { bg: "#f8fafc", color: "#64748b" }, label: "Ocasional" },
 };
 
-const NIVEL_ORDER = { critico: 0, bajo: 1, ok: 2 };
+const NIVEL_ORDER = { critico: 0, bajo: 1, ok: 2, sinpatron: 3 };
 
 // ── Componente tarjeta ─────────────────────────────────────────────────────────
 function ProductoCard({ prod, stock, movimientos, oficina, onClick }) {
@@ -250,10 +250,11 @@ export default function StockOverview() {
     return ["todas", ...Array.from(cats).sort()];
   }, [resumen]);
 
-  const criticos  = resumen.filter(r => r.nivel === "critico").length;
-  const bajos     = resumen.filter(r => r.nivel === "bajo").length;
-  const ok        = resumen.filter(r => r.nivel === "ok").length;
-  const conStock0 = resumen.filter(r => r.stock === 0).length;
+  const criticos   = resumen.filter(r => r.nivel === "critico").length;
+  const bajos      = resumen.filter(r => r.nivel === "bajo").length;
+  const ok         = resumen.filter(r => r.nivel === "ok").length;
+  const ocasionales = resumen.filter(r => r.nivel === "sinpatron").length;
+  const conStock0  = resumen.filter(r => r.stock === 0).length;
 
   const visibles = resumen.filter(r => {
     if (filtroNivel !== "todos" && r.nivel !== filtroNivel) return false;
@@ -300,12 +301,13 @@ export default function StockOverview() {
       ) : (
         <>
           {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
             {[
-              { label: "Productos", value: resumen.length, accent: "#0f172a", meta: "en oficina" },
-              { label: "Crítico",   value: criticos,       accent: "#dc2626", meta: criticos > 0 ? "≤ 7 días o sin stock" : "todo bien" },
-              { label: "Bajo",      value: bajos,          accent: "#f97316", meta: "8 – 20 días" },
-              { label: "OK",        value: ok,             accent: "#16a34a", meta: "> 20 días" },
+              { label: "Productos",   value: resumen.length, accent: "#0f172a", meta: "en oficina" },
+              { label: "Crítico",     value: criticos,       accent: "#dc2626", meta: criticos > 0 ? "≤ 7 días o sin stock" : "todo bien" },
+              { label: "Bajo",        value: bajos,          accent: "#f97316", meta: "8 – 20 días" },
+              { label: "OK",          value: ok,             accent: "#16a34a", meta: "> 20 días" },
+              { label: "Ocasionales", value: ocasionales,    accent: "#94a3b8", meta: "sin patrón de consumo" },
             ].map(k => (
               <div key={k.label} style={{
                 background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10,
@@ -323,10 +325,11 @@ export default function StockOverview() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             {/* Nivel */}
             {[
-              { key: "todos",   label: "Todos" },
-              { key: "critico", label: "Crítico" },
-              { key: "bajo",    label: "Bajo" },
-              { key: "ok",      label: "OK" },
+              { key: "todos",     label: "Todos" },
+              { key: "critico",   label: "Crítico" },
+              { key: "bajo",      label: "Bajo" },
+              { key: "ok",        label: "OK" },
+              { key: "sinpatron", label: "Ocasional" },
             ].map(f => (
               <button key={f.key} onClick={() => setFiltroNivel(f.key)} style={chipStyle(filtroNivel === f.key)}>
                 {f.label}

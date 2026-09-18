@@ -109,7 +109,7 @@ export default function Modal({ open, onClose, title, icon, width = "520px", foo
         </div>
 
         {/* ── Body ── */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 4px" }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px 20px 4px" }}>
           {children}
         </div>
 

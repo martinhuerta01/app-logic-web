@@ -212,7 +212,7 @@ function ModalUsuario({ usuario, onClose, onGuardado }) {
                 const expandido = expandidos[m.key];
                 const tieneRestricciones = activo && m.subs?.length > 1 && form.submodulos[m.key];
                 return (
-                  <div key={m.key} style={{ borderRadius:7, border:"1px solid", borderColor: activo ? "#bfdbfe" : "#f1f5f9", background: activo ? "#f0f7ff" : "#f8fafc", overflow:"hidden" }}>
+                  <div key={m.key} style={{ borderRadius:7, border:"1px solid", borderColor: activo ? "#bfdbfe" : "#f1f5f9", background: activo ? "#f0f7ff" : "#f8fafc", overflow:"hidden", flexShrink:0 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 10px" }}>
                       <input type="checkbox" checked={activo} onChange={() => toggleModulo(m.key)}
                         style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer", flexShrink:0 }} />

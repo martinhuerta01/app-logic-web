@@ -86,7 +86,7 @@ DELETE /recibos/{id}
 - Primera sub-página del módulo Stock, accesible desde sidebar antes de "Oficina"
 - Fetches: `/stock/productos/`, `/stock/ubicaciones/`, `/stock/actual/?ubicacion_id=`, `/stock/movimientos/`
 - Grid de tarjetas ordenadas por urgencia: crítico → bajo → ok
-- **Niveles:** crítico ≤ 7 días (o stock 0 reciente), bajo 8–20 días, ok > 20 días
+- **Niveles:** crítico ≤ 7 días (o stock 0 reciente), bajo 8–20 días, ok > 20 días, ocasional = sin historial de entradas (no se clasifica por cantidad absoluta; va al final)
 - **Filtro automático:** productos con stock 0 y sin movimientos en los últimos 90 días se ocultan (inactivos)
 - Cada tarjeta: cantidad actual, barra de nivel coloreada, consumo/día, días restantes, fecha sugerida de pedido
 - Filtros UI por nivel de urgencia y categoría
@@ -183,6 +183,13 @@ DELETE /recibos/{id}
 - Estados disponibles vienen de `/opciones-carga/` (fallback: `src/lib/opciones.js` DEFAULTS)
 
 ## Historial de versiones
+
+### v1.9 (Sep 2026)
+- Usuarios: fix del modal de módulos — las filas expandidas (con `overflow:hidden`) se comprimían a ~0px dentro del contenedor flex con `maxHeight`; ahora `flexShrink:0` y la lista scrollea normal
+- Modal compartido: `minHeight:0` en el body para que el scroll interno funcione en todos los modales
+- Stock Dashboard: nuevo nivel "Ocasional" — insumos sin historial de entradas (sin patrón de consumo) ya no se marcan Crítico/Bajo por cantidad absoluta; nuevo KPI "Ocasionales" y chip de filtro
+- Stock Oficina: al buscar en Historial de entradas/salidas se muestra el total sumado de los resultados filtrados
+- globals.css: `@import` de Google Fonts movido antes de `@import "tailwindcss"` (fix de build con Tailwind v4/Turbopack)
 
 ### v1.8 (Jun 2026)
 - Dashboard: estado EVALUADO (violeta) — para marcar servicios "-" o REPROGRAMADO ya revisados

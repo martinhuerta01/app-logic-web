@@ -450,12 +450,18 @@ function OficinaEntradas() {
               return prod?.descripcion?.toLowerCase().includes(q) || prod?.codigo?.toLowerCase().includes(q);
             })
           : historial;
+        const totalFiltrado = histFiltrado.reduce((s, m) => s + Number(m.cantidad || 0), 0);
         return (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <h3 className="text-sm font-semibold text-slate-700">Historial de entradas</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{histFiltrado.length} registro{histFiltrado.length !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {histFiltrado.length} registro{histFiltrado.length !== 1 ? "s" : ""}
+                  {busqueda && histFiltrado.length > 0 && (
+                    <span className="ml-2 font-semibold text-green-600">· total +{totalFiltrado}</span>
+                  )}
+                </p>
               </div>
               <input
                 type="text"
@@ -755,12 +761,18 @@ function OficinaSalidas() {
                 || dest?.nombre?.toLowerCase().includes(q);
             })
           : historial;
+        const totalFiltrado = histFiltrado.reduce((s, m) => s + Number(m.cantidad || 0), 0);
         return (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <h3 className="text-sm font-semibold text-slate-700">Historial de salidas</h3>
-                <p className="text-xs text-slate-400 mt-0.5">{histFiltrado.length} registro{histFiltrado.length !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {histFiltrado.length} registro{histFiltrado.length !== 1 ? "s" : ""}
+                  {busqueda && histFiltrado.length > 0 && (
+                    <span className="ml-2 font-semibold text-red-600">· total -{totalFiltrado}</span>
+                  )}
+                </p>
               </div>
               <input
                 type="text"
