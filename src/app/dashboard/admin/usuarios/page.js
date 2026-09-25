@@ -3,43 +3,13 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { MODULOS } from "@/lib/modulos";
 import Modal, { BtnPrimary, BtnSecondary, KeyboardHint, FieldLabel, FieldInput, FieldSelect } from "@/components/Modal";
 
-const TODOS_MODULOS = [
-  { key: "servicios",    label: "Servicios", subs: [
-    { key: "carga-dia",  label: "Carga del día" },
-    { key: "vista-dia",  label: "Vista del día" },
-    { key: "historial",  label: "Historial" },
-  ]},
-  { key: "personal",     label: "Personal", subs: [
-    { key: "horario-tecnico",     label: "Horario Técnico" },
-    { key: "historial-camioneta", label: "Historial camioneta" },
-  ]},
-  { key: "contactos",    label: "Contactos", subs: [
-    { key: "clientes",          label: "Clientes" },
-    { key: "proveedores",       label: "Proveedores" },
-    { key: "tecnicos-talleres", label: "Técnicos / Talleres" },
-  ]},
-  { key: "estadisticas", label: "Estadísticas", subs: [
-    { key: "dashboard",   label: "Dashboard" },
-    { key: "horas",       label: "Horas trabajadas" },
-    { key: "responsable", label: "Por Responsable" },
-    { key: "clientes",    label: "Por Cliente" },
-    { key: "cruzado",     label: "Reporte cruzado" },
-    { key: "stock-kpi",   label: "Stock KPI" },
-    { key: "patentes",    label: "Revisiones frecuentes" },
-  ]},
-  { key: "stock",        label: "Stock" },
-  { key: "tareas",       label: "Tickets", subs: [
-    { key: "tickets",   label: "Tickets" },
-    { key: "historial", label: "Historial" },
-  ]},
-  { key: "configuracion",label: "Configuración" },
-  { key: "exportar",     label: "Exportar / Importar" },
-  { key: "recibos",      label: "Recibos de Sueldo", subs: [
-    { key: "recibos", label: "Recibos de Sueldo" },
-  ]},
-];
+const TODOS_MODULOS = MODULOS.map(m => {
+  const subs = (m.subs || []).filter(s => s.key);
+  return subs.length ? { key: m.key, label: m.nombre, subs } : { key: m.key, label: m.nombre };
+});
 
 const FORM_VACIO = { nombre: "", password: "", rol: "usuario", modulos: [], submodulos: {}, acceso_total: false };
 
