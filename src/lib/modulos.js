@@ -9,6 +9,7 @@ export const MODULOS = [
       { key: "carga-dia",  href: "/dashboard/carga-dia",  label: "Carga del día" },
       { key: "vista-dia",  href: "/dashboard/vista-dia",  label: "Vista del día" },
       { key: "historial",  href: "/dashboard/historial",  label: "Historial" },
+      { key: "opciones",   href: "/dashboard/opciones-carga", label: "Opciones de carga" },
     ],
   },
   {
@@ -16,6 +17,7 @@ export const MODULOS = [
     subs: [
       { key: "horario-tecnico",     href: "/dashboard/personal/horario-tecnico",     label: "Horario Técnico" },
       { key: "historial-camioneta", href: "/dashboard/personal/historial-camioneta", label: "Historial" },
+      { key: "equipos",             href: "/dashboard/personal/equipos",             label: "Equipos" },
     ],
   },
   {
@@ -49,6 +51,7 @@ export const MODULOS = [
       { href: "/dashboard/stock/herramientas", label: "Herramientas" },
       { href: "/dashboard/stock/kits",     label: "Kits" },
       { href: "/dashboard/stock/talleres", label: "Mapeo de talleres" },
+      { href: "/dashboard/stock/catalogos", label: "Catálogos" },
     ],
   },
   {
@@ -62,18 +65,6 @@ export const MODULOS = [
     key: "recibos", nombre: "Recibos",
     subs: [
       { key: "recibos", href: "/dashboard/recibos", label: "Recibos de Sueldo" },
-    ],
-  },
-  {
-    key: "configuracion", nombre: "Configuración",
-    subs: [
-      { key: "configuracion", href: "/dashboard/configuracion", label: "Equipos, Ubicaciones, Productos" },
-    ],
-  },
-  {
-    key: "exportar", nombre: "Exportar",
-    subs: [
-      { key: "exportar", href: "/dashboard/exportar-importar", label: "Exportar" },
     ],
   },
 ];

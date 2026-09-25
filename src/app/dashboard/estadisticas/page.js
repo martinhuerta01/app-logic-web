@@ -2,6 +2,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import BotonExportar from "@/components/BotonExportar";
+import { exportarHoras, exportarServicios, exportarClienteResponsable, exportarPorCliente } from "@/lib/exportaciones";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart, Line } from "recharts";
 
 const ESTADO_COLOR = {
@@ -439,7 +441,7 @@ const titleCase = s => s.replace(/\b\w/g, c => c.toUpperCase());
 
 const MESES_NOMBRES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
-const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcular" }) => (
+const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcular", extra = null }) => (
   <div className="flex items-end gap-3">
     <div>
       <label className="block text-xs text-slate-500 mb-1">Mes</label>
@@ -457,6 +459,7 @@ const FiltrosMesAnio = ({ mes, setMes, anio, setAnio, onCalcular, label = "Calcu
     <button onClick={onCalcular} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
       {label}
     </button>
+    {extra}
   </div>
 );
 
@@ -707,7 +710,8 @@ function HorasTrabajadas() {
   return (
     <div className="space-y-6">
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
-      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular} />
+      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular}
+        extra={<BotonExportar onExportar={() => exportarHoras(mes ? Number(mes) : "", Number(anio))}>Exportar informe de personal</BotonExportar>} />
       {equipos.length === 0
         ? <p className="text-slate-400 text-sm">Sin datos — cargá movimientos en Personal &gt; Horario Técnico</p>
         : equipos.map(nombre => (
@@ -818,7 +822,8 @@ function ServiciosResponsable() {
   return (
     <div className="space-y-4">
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
-      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={buscar} label="Buscar" />
+      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={buscar} label="Buscar"
+        extra={<BotonExportar onExportar={() => exportarServicios(mes ? Number(mes) : "", Number(anio))}>Exportar servicios del período</BotonExportar>} />
       {totalGeneral > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl px-5 py-3 inline-block">
           <span className="text-xs text-slate-500">Total servicios: </span>
@@ -985,6 +990,7 @@ function ServiciosCliente() {
         <button onClick={buscar} className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-lg text-sm transition">
           Buscar
         </button>
+        <BotonExportar onExportar={() => exportarPorCliente(clienteFiltro, Number(anio), mes ? Number(mes) : "")}>Exportar este cliente</BotonExportar>
       </div>
 
       {resumen && (
@@ -1267,7 +1273,8 @@ function ReporteCruzado() {
         ))}
       </div>
 
-      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular} />
+      <FiltrosMesAnio mes={mes} setMes={setMes} anio={anio} setAnio={setAnio} onCalcular={calcular}
+        extra={<BotonExportar onExportar={() => exportarClienteResponsable(mes ? Number(mes) : "", Number(anio))}>Exportar clientes contra responsables</BotonExportar>} />
 
       {/* Productividad */}
       {subTab === "productividad" && (

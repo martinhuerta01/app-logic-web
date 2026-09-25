@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import BotonExportar from "@/components/BotonExportar";
+import { exportarStock } from "@/lib/exportaciones";
 
 const IconChevron = ({ open }) => (
   <svg className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
@@ -1010,6 +1012,7 @@ export default function OficinaStockPage() {
     <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
         <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:"#0f172a" }}>Stock — Oficina</h1>
+        {tab === "actual" && <BotonExportar onExportar={() => exportarStock()}>Exportar stock a Excel</BotonExportar>}
         <div style={{ display:"flex", gap:4, background:"#f1f5f9", borderRadius:8, padding:4 }}>
           {tabs.map((t) => (
             <a key={t.key} href={`/dashboard/stock/oficina?tab=${t.key}`} style={{

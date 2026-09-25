@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
+import BotonExportar from "@/components/BotonExportar";
+import { exportarServicios } from "@/lib/exportaciones";
 import { api } from "@/lib/api";
 import Modal, { BtnSecondary } from "@/components/Modal";
 
@@ -319,6 +321,9 @@ export default function HistorialPage() {
           <h1 style={{fontSize:22, fontWeight:700, color:"#0f172a", margin:0}}>Historial de Servicios</h1>
           <p style={{fontSize:13, color:"#64748b", marginTop:4}}>Navegá por mes o buscá en todo el año</p>
         </div>
+        <BotonExportar onExportar={() => exportarServicios(filtroMes ? Number(filtroMes) : "", Number(filtroAnio))}>
+          Exportar {filtroMes ? "el mes" : "el año"} a Excel
+        </BotonExportar>
       </div>
 
       {error && (

@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import BotonExportar from "@/components/BotonExportar";
+import { exportarTickets } from "@/lib/exportaciones";
 import { useAuth } from "@/lib/auth";
 import Modal, { BtnPrimary, BtnSecondary, KeyboardHint, FieldLabel, FieldInput, FieldTextarea, ChipGroup } from "@/components/Modal";
 
@@ -660,6 +662,9 @@ function VistaLista({ tickets, onDetalle }) {
           onFocus={e=>{e.target.style.borderColor="#2563eb"; e.target.style.boxShadow="0 0 0 3px rgba(37,99,235,0.08)";}}
           onBlur={e=>{e.target.style.borderColor="#e2e8f0"; e.target.style.boxShadow="none";}}
         />
+        <div style={{ marginLeft:"auto" }}>
+          <BotonExportar onExportar={() => exportarTickets(filtrados)}>Exportar informe en Word</BotonExportar>
+        </div>
       </div>
 
       {filtrados.length === 0 ? (
