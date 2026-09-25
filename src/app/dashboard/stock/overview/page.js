@@ -22,11 +22,20 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
-function calcStats(movsProd, stockActual) {
-  const entradas = movsProd
-    .filter(m => m.tipo === "ENTRADA" || m.tipo === "COMPRA" ||
-                 m.tipo?.toLowerCase() === "entrada" || m.tipo?.toLowerCase() === "compra")
-    .sort((a, b) => a.fecha > b.fecha ? 1 : -1);
+// "Entrada" (evento de reposición) depende de la vista: en Oficina es lo que
+// llega del proveedor (ENTRADA/COMPRA); en La Serenísima o una camioneta es
+// lo que Oficina les transfiere (TRANSFERENCIA hacia adentro del pool, sin
+// contar traslados internos entre ubicaciones del mismo pool).
+function obtenerEntradas(movsProd, ubicacionIdsSet, esOficina) {
+  const filtradas = esOficina
+    ? movsProd.filter(m => m.tipo === "ENTRADA" || m.tipo === "COMPRA" ||
+                           m.tipo?.toLowerCase() === "entrada" || m.tipo?.toLowerCase() === "compra")
+    : movsProd.filter(m => ubicacionIdsSet.has(m.destino_id) && !ubicacionIdsSet.has(m.origen_id));
+  return filtradas.sort((a, b) => a.fecha > b.fecha ? 1 : -1);
+}
+
+function calcStats(movsProd, stockActual, ubicacionIdsSet, esOficina) {
+  const entradas = obtenerEntradas(movsProd, ubicacionIdsSet, esOficina);
 
   if (entradas.length === 0) return { consumoDiario: null, diasRestantes: null, fechaCompra: null };
 
@@ -73,19 +82,23 @@ const NIVEL_STYLE = {
 
 const NIVEL_ORDER = { critico: 0, bajo: 1, ok: 2, sinpatron: 3 };
 
+const VISTAS = [
+  { key: "oficina",    label: "Oficina" },
+  { key: "serenisima", label: "La Serenísima" },
+  { key: "camioneta1", label: "Camioneta 1" },
+  { key: "camioneta2", label: "Camioneta 2" },
+];
+
 // ── Componente tarjeta ─────────────────────────────────────────────────────────
-function ProductoCard({ prod, stock, movimientos, oficina, onClick }) {
+function ProductoCard({ prod, stock, movimientos, ubicacionIdsSet, esOficina, onClick }) {
   const movsProd = movimientos.filter(m => String(m.producto_id) === String(prod.id));
-  const { consumoDiario, diasRestantes, fechaCompra } = calcStats(movsProd, stock);
+  const { consumoDiario, diasRestantes, fechaCompra } = calcStats(movsProd, stock, ubicacionIdsSet, esOficina);
   const nivel = urgenciaNivel(diasRestantes, stock);
   const ns = NIVEL_STYLE[nivel];
 
   // Barra de nivel: % visual relativo a un "máximo estimado"
   const maxEstimado = useMemo(() => {
-    const entradas = movsProd
-      .filter(m => m.tipo === "ENTRADA" || m.tipo === "COMPRA" ||
-                   m.tipo?.toLowerCase() === "entrada" || m.tipo?.toLowerCase() === "compra")
-      .map(m => m.cantidad);
+    const entradas = obtenerEntradas(movsProd, ubicacionIdsSet, esOficina).map(m => m.cantidad);
     return entradas.length > 0 ? Math.max(...entradas) : Math.max(stock, 10);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movimientos, prod.id, stock]);
@@ -176,31 +189,27 @@ function ProductoCard({ prod, stock, movimientos, oficina, onClick }) {
 export default function StockOverview() {
   const router = useRouter();
   const [productos,   setProductos]   = useState([]);
+  const [ubicaciones, setUbicaciones] = useState([]);
   const [stockActual, setStockActual] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
-  const [oficina,     setOficina]     = useState(null);
   const [loading,     setLoading]     = useState(true);
+  const [vista,       setVista]       = useState("oficina");
   const [filtroNivel, setFiltroNivel] = useState("todos");
   const [filtroCat,   setFiltroCat]   = useState("todas");
 
   useEffect(() => {
     const cargar = async () => {
       try {
-        const [prods, ubics] = await Promise.all([
+        const [prods, ubics, stock, movs] = await Promise.all([
           api.get("/stock/productos/"),
           api.get("/stock/ubicaciones/"),
+          api.get("/stock/actual/"),
+          api.get("/stock/movimientos/"),
         ]);
         setProductos(prods || []);
-        const ofic = (ubics || []).find(u => u.nombre?.toLowerCase() === "oficina" || u.tipo === "oficina");
-        setOficina(ofic);
-        if (ofic) {
-          const [stock, movs] = await Promise.all([
-            api.get("/stock/actual/", { ubicacion_id: ofic.id }),
-            api.get("/stock/movimientos/"),
-          ]);
-          setStockActual(stock || []);
-          setMovimientos(movs || []);
-        }
+        setUbicaciones(ubics || []);
+        setStockActual(stock || []);
+        setMovimientos(movs || []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -210,15 +219,48 @@ export default function StockOverview() {
     cargar();
   }, []);
 
+  // Ubicaciones que agrupa la vista elegida: Oficina y las camionetas son una
+  // sola ubicación; "La Serenísima" es el pool combinado de todos los CD.
+  const ubicacionIdsVista = useMemo(() => {
+    if (vista === "serenisima") return ubicaciones.filter(u => u.tipo === "cd").map(u => u.id);
+    if (vista === "camioneta1" || vista === "camioneta2") {
+      const nombre = vista === "camioneta1" ? "camioneta 1" : "camioneta 2";
+      const u = ubicaciones.find(uu => uu.nombre?.toLowerCase() === nombre);
+      return u ? [u.id] : [];
+    }
+    const ofic = ubicaciones.find(u => u.tipo === "oficina");
+    return ofic ? [ofic.id] : [];
+  }, [ubicaciones, vista]);
+
+  const ubicacionIdsSet = useMemo(() => new Set(ubicacionIdsVista), [ubicacionIdsVista]);
+  const esOficina = vista === "oficina";
+
+  const stockPorProducto = useMemo(() => {
+    const m = new Map();
+    for (const s of stockActual) {
+      if (!ubicacionIdsSet.has(s.ubicacion_id)) continue;
+      m.set(s.producto_id, (m.get(s.producto_id) || 0) + (s.cantidad || 0));
+    }
+    return m;
+  }, [stockActual, ubicacionIdsSet]);
+
+  // Movimientos de esta vista: solo los que entran o salen de sus ubicaciones.
+  // Sin esto, un insumo que solo se usa en Oficina (mechas, cinta, baterías)
+  // aparecía como "crítico" en La Serenísima porque tuvo movimiento reciente
+  // en OTRO lado — acá no le corresponde ni mostrarse.
+  const movimientosVista = useMemo(() => {
+    return movimientos.filter(m => ubicacionIdsSet.has(m.origen_id) || ubicacionIdsSet.has(m.destino_id));
+  }, [movimientos, ubicacionIdsSet]);
+
   // Construir lista de productos con stock
   const resumen = useMemo(() => {
     const hace90 = addDays(HOY, -90);
     return productos
+      .filter(prod => prod.activo !== false && prod.categoria?.toLowerCase() !== "herramientas")
       .map(prod => {
-        const stockItem = stockActual.find(s => s.producto_id === prod.id);
-        const stock = stockItem?.cantidad ?? 0;
-        const movsProd = movimientos.filter(m => String(m.producto_id) === String(prod.id));
-        const { diasRestantes } = calcStats(movsProd, stock);
+        const stock = stockPorProducto.get(prod.id) ?? 0;
+        const movsProd = movimientosVista.filter(m => String(m.producto_id) === String(prod.id));
+        const { diasRestantes } = calcStats(movsProd, stock, ubicacionIdsSet, esOficina);
         const nivel = urgenciaNivel(diasRestantes, stock);
         // fecha del último movimiento de este producto
         const ultimoMov = movsProd.length > 0
@@ -243,7 +285,7 @@ export default function StockOverview() {
         if (b.diasRestantes != null) return 1;
         return a.stock - b.stock;
       });
-  }, [productos, stockActual, movimientos]);
+  }, [productos, stockPorProducto, movimientosVista, ubicacionIdsSet, esOficina]);
 
   const categorias = useMemo(() => {
     const cats = new Set(resumen.map(r => r.prod.categoria).filter(Boolean));
@@ -282,10 +324,12 @@ export default function StockOverview() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Dashboard de Stock</h1>
-          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8" }}>Insumos de oficina — nivel actual y estimación de pedido</p>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8" }}>
+            Insumos de {VISTAS.find(v => v.key === vista)?.label} — nivel actual y estimación de pedido
+          </p>
         </div>
         <button
-          onClick={() => router.push("/dashboard/stock/oficina?tab=actual")}
+          onClick={() => router.push(vista === "oficina" ? "/dashboard/stock/oficina?tab=actual" : "/dashboard/stock/ubicacion")}
           style={{
             padding: "7px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600,
             background: "#f8fafc", border: "1.5px solid #e2e8f0", color: "#475569",
@@ -296,6 +340,15 @@ export default function StockOverview() {
         </button>
       </div>
 
+      {/* Selector de vista */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {VISTAS.map(v => (
+          <button key={v.key} onClick={() => setVista(v.key)} style={chipStyle(vista === v.key)}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div style={{ color: "#94a3b8", fontSize: 13 }}>Cargando stock…</div>
       ) : (
@@ -303,7 +356,7 @@ export default function StockOverview() {
           {/* KPIs */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
             {[
-              { label: "Productos",   value: resumen.length, accent: "#0f172a", meta: "en oficina" },
+              { label: "Productos",   value: resumen.length, accent: "#0f172a", meta: `en ${VISTAS.find(v => v.key === vista)?.label}` },
               { label: "Crítico",     value: criticos,       accent: "#dc2626", meta: criticos > 0 ? "≤ 7 días o sin stock" : "todo bien" },
               { label: "Bajo",        value: bajos,          accent: "#f97316", meta: "8 – 20 días" },
               { label: "OK",          value: ok,             accent: "#16a34a", meta: "> 20 días" },
@@ -373,9 +426,10 @@ export default function StockOverview() {
                   key={prod.id}
                   prod={prod}
                   stock={stock}
-                  movimientos={movimientos}
-                  oficina={oficina}
-                  onClick={() => router.push(`/dashboard/stock/oficina?tab=busqueda`)}
+                  movimientos={movimientosVista}
+                  ubicacionIdsSet={ubicacionIdsSet}
+                  esOficina={esOficina}
+                  onClick={() => router.push(vista === "oficina" ? "/dashboard/stock/oficina?tab=busqueda" : "/dashboard/stock/ubicacion")}
                 />
               ))}
             </div>

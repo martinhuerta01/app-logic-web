@@ -250,6 +250,28 @@ function FormProducto({ onDone }) {
   );
 }
 
+function ToggleActivo({ item, onChange }) {
+  const [guardando, setGuardando] = useState(false);
+  const activo = item.activo !== false;
+
+  const cambiar = async () => {
+    setGuardando(true);
+    try {
+      await api.put(`/stock/productos/${item.id}`, { activo: !activo });
+      onChange();
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <label className={`inline-flex items-center gap-1.5 cursor-pointer ${guardando ? "opacity-50" : ""}`}>
+      <input type="checkbox" checked={activo} disabled={guardando} onChange={cambiar} className="accent-green-600" />
+      <span className={activo ? "text-slate-600" : "text-slate-400"}>{activo ? "Activo" : "Inactivo"}</span>
+    </label>
+  );
+}
+
 function EditFormProducto({ item, onDone, onCancel }) {
   const [codigo, setCodigo] = useState(item.codigo || "");
   const [descripcion, setDescripcion] = useState(item.descripcion || "");
@@ -616,6 +638,7 @@ export default function ConfiguracionPage() {
           { key: "codigo", label: "Código" },
           { key: "descripcion", label: "Descripción" },
           { key: "categoria", label: "Categoría" },
+          { key: "activo", label: "Estado", render: (item) => <ToggleActivo item={item} onChange={cargarProductos} /> },
         ]}
         onAdd={cargarProductos}
         onDelete={eliminarProducto}

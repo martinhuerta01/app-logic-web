@@ -147,6 +147,12 @@ const MODULOS_BASE = [
     isDynamic: true,
     subs: [
       { href: "/dashboard/stock/overview", label: "Dashboard" },
+      { href: "/dashboard/stock/ubicacion",   label: "Stock por ubicación" },
+      { href: "/dashboard/stock/movimientos", label: "Movimientos" },
+      { href: "/dashboard/stock/tickets",  label: "Descontar por tickets" },
+      { href: "/dashboard/stock/herramientas", label: "Herramientas" },
+      { href: "/dashboard/stock/kits",     label: "Kits" },
+      { href: "/dashboard/stock/talleres", label: "Mapeo de talleres" },
     ],
   },
   {
