@@ -414,14 +414,14 @@ Cada fase se hace en su propia rama, con confirmaciones descriptivas y migracion
 | Fase | Contenido | Por qué en este orden | Rama |
 |---|---|---|---|
 | **A. Cimientos** | Confirmar Stock; carpeta de migraciones; control de rol en servidor; limpieza; componentes compartidos mínimos; lista única de módulos | Protege el trabajo, cierra el riesgo de seguridad y evita repetir código en todo lo demás | `mejoras/fase-a-cimientos` |
-| **B. Ganancias rápidas** | Anti-duplicado y carga rápida; localidad automática; botones de exportar; repartir y retirar Configuraciones; retirar Exportar | Resuelven dolores de todos los días con poco riesgo | `mejoras/fase-b-servicios-rapido` |
+| **B. Ganancias rápidas** | Anti-duplicado y carga rápida; localidad automática; botones de exportar; repartir y retirar Configuraciones; retirar Exportar (la migración de clientes pasó a la Fase E) | Resuelven dolores de todos los días con poco riesgo | `mejoras/fase-b-servicios-rapido` |
 | **C. Stock completo** | Carga inicial con plantilla; instructivo; enlace Camioneta con Equipo; Indicadores de Stock integrado; stock mínimo y alertas; pantalla de Equipos | Es el bloque en el que ya estás trabajando y tiene datos pendientes de cargar | `mejoras/fase-c-stock` |
 | **D. Tickets y agenda** | Tabla de tickets; cruce de servicios con tickets; número de ticket en servicios; "Mandar al grupo" | Los tickets guardados son base de Estadísticas (Unidades) y de las alertas | `mejoras/fase-d-tickets-agenda` |
 | **E. Estadísticas** | Un solo cálculo en el servidor; Dashboard; horas e informe mensual; productividad comparable; talleres; Equipo 2 contra bases; Unidades; consumo de insumos | Necesita maestro de clientes (4.5), componentes compartidos (A) y tickets guardados (D) | `mejoras/fase-e-estadisticas` |
 | **F. Personas y pendientes** | Personal y Contactos con maestros; Recibos independientes del formato; Proyecto | Recibos necesita el control de rol (A) y los datos de Personal | `mejoras/fase-f-personas` |
 | **G. Automatización e inteligencia artificial** | Informe mensual automático por correo; base para consultas en lenguaje natural | Requiere todo lo anterior y decisiones de proveedores | `mejoras/fase-g-automatizacion` |
 
-Nota sobre el maestro de clientes: se necesita antes del rediseño de Estadísticas, así que su migración de datos (parte de 4.5) se adelanta y se hace al final de la Fase B, dejando la pantalla de fichas para la Fase F.
+Nota sobre el maestro de clientes: se necesita para los reportes de Estadísticas, así que su migración de datos (parte de 4.5) se hace **al comienzo de la Fase E** (decisión tomada al cerrar la Fase B, para llegar antes a Stock), dejando la pantalla de fichas para la Fase F. Mientras tanto la carga del día ya guarda el identificador del cliente (`cliente_ref`) en los servicios nuevos.
 
 ---
 

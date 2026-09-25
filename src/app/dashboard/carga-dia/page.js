@@ -3,6 +3,19 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { fetchOpciones } from "@/lib/opciones";
+import Link from "next/link";
+import Modal, { BtnPrimary, BtnSecondary } from "@/components/Modal";
+
+// Sin espacios, puntos ni guiones y en mayúsculas (igual que hace el servidor al guardar)
+const limpiarPatente = (v) => v.toUpperCase().replace(/[\s.\-]/g, "");
+// Formatos vigentes: AAA999 (antiguo), AA999AA (Mercosur), 999AAA y A999AAA (motos)
+const patenteValida = (p) => /^([A-Z]{3}\d{3}|[A-Z]{2}\d{3}[A-Z]{2}|\d{3}[A-Z]{3}|[A-Z]\d{3}[A-Z]{3})$/.test(p);
+const textoCliente = (c) => (c.base ? `${c.empresa || c.nombre} / ${c.base}` : (c.empresa || c.nombre));
+
+// El servidor devuelve el conflicto como texto con el detalle adentro
+const detalleDeError = (err) => {
+  try { return JSON.parse(err.message)?.detail; } catch { return null; }
+};
 
 const IconTrash = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,8 +64,19 @@ export default function CargaDiaPage() {
   const [svcMsg,    setSvcMsg]    = useState("");
   const [guardando, setGuardando] = useState(false);
   const [errorCarga,setErrorCarga]= useState("");
+  const [duplicados,  setDuplicados]  = useState(null);
+  const [pegarAbierto,setPegarAbierto]= useState(false);
+  const [pegarTexto,  setPegarTexto]  = useState("");
+  const [guardadosOk, setGuardadosOk] = useState(false);
 
-  const esInterior = interior.some(t => t.nombre === svcResponsable);
+  const tecnicoInterior = interior.find(t => t.nombre === svcResponsable);
+  const esInterior = !!tecnicoInterior;
+  const clienteElegido = clientes.find(c => textoCliente(c) === svcCliente);
+
+  // La localidad se toma de Contactos al elegir el técnico o taller del interior
+  useEffect(() => {
+    setSvcLocalidad(tecnicoInterior?.localidad || "");
+  }, [svcResponsable, interior]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchOpciones().then(opts => {
@@ -90,6 +114,32 @@ export default function CargaDiaPage() {
     }
   };
 
+  const repetirFila = (fila) => {
+    const nueva = { ...filaVacia(opciones), tipo: fila.tipo, dispositivo: fila.dispositivo, estado: fila.estado, observaciones: fila.observaciones };
+    setFilas(prev => {
+      const idx = prev.findIndex(f => f._id === fila._id);
+      const arr = [...prev];
+      arr.splice(idx + 1, 0, nueva);
+      return arr;
+    });
+  };
+
+  const agregarPatentesPegadas = () => {
+    const nuevas = [...new Set(pegarTexto.split(/[\s,;]+/).map(limpiarPatente).filter(Boolean))];
+    if (nuevas.length === 0) return;
+    setFilas(prev => {
+      const conPatente = prev.filter(f => f.patente.trim());
+      const existentes = new Set(conPatente.map(f => f.patente));
+      const modelo = conPatente[conPatente.length - 1] || prev[prev.length - 1] || filaVacia(opciones);
+      const agregadas = nuevas
+        .filter(p => !existentes.has(p))
+        .map(p => ({ ...filaVacia(opciones), tipo: modelo.tipo, dispositivo: modelo.dispositivo, estado: modelo.estado, patente: p }));
+      return [...conPatente, ...agregadas, ...(agregadas.length || conPatente.length ? [] : [filaVacia(opciones)])];
+    });
+    setPegarTexto("");
+    setPegarAbierto(false);
+  };
+
   const toggleFeriado = (checked) => {
     setFeriado(checked);
     if (checked) {
@@ -101,45 +151,63 @@ export default function CargaDiaPage() {
     }
   };
 
-  const guardarBloque = async (e) => {
-    e.preventDefault();
-    setSvcMsg("");
+  const enviarLote = async (confirmarDuplicado) => {
     const filasValidas = feriado ? filas.slice(0, 1) : filas.filter(f => f.patente.trim());
-    if (!feriado && filasValidas.length === 0) {
-      setSvcMsg("Completá al menos una patente antes de guardar.");
-      return;
-    }
+    const equipo = equipos.find(eq => eq.nombre === svcResponsable);
     setGuardando(true);
     try {
-      const equipo = equipos.find(eq => eq.nombre === svcResponsable);
-      await Promise.all(filasValidas.map(f =>
-        api.post("/servicios/", {
+      // Un solo pedido: se guardan todos los servicios del bloque o ninguno
+      await api.post("/servicios/lote/", {
+        confirmar_duplicado: confirmarDuplicado,
+        servicios: filasValidas.map(f => ({
           fecha:          svcFecha,
           equipo_id:      equipo?.id || null,
           responsable:    svcResponsable,
           localidad:      esInterior ? svcLocalidad : null,
           hora_programada:svcHora || null,
           cliente:        svcCliente,
+          cliente_ref:    clienteElegido?.id || null,
           tipo_servicio:  f.tipo,
           dispositivo:    f.dispositivo,
           patente:        f.patente,
           estado:         f.estado,
           observaciones:  f.observaciones || null,
           cargado_por:    user,
-        })
-      ));
+        })),
+      });
       const n = filasValidas.length;
+      setDuplicados(null);
       setSvcMsg(`✓ ${n} servicio${n > 1 ? "s" : ""} guardado${n > 1 ? "s" : ""}`);
+      setGuardadosOk(true);
       setFilas([filaVacia(opciones)]);
       setSvcHora("");
       setSvcLocalidad("");
       setFeriado(false);
       setSvcCliente("");
     } catch (err) {
-      setSvcMsg("Error: " + err.message);
+      const detalle = detalleDeError(err);
+      if (detalle?.codigo === "DUPLICADO") {
+        setDuplicados(detalle.duplicados);
+      } else {
+        setDuplicados(null);
+        setSvcMsg("Error: " + (detalle?.mensaje || (typeof detalle === "string" ? detalle : err.message)));
+        setGuardadosOk(false);
+      }
     } finally {
       setGuardando(false);
     }
+  };
+
+  const guardarBloque = async (e) => {
+    e.preventDefault();
+    setSvcMsg("");
+    setGuardadosOk(false);
+    const filasValidas = feriado ? filas.slice(0, 1) : filas.filter(f => f.patente.trim());
+    if (!feriado && filasValidas.length === 0) {
+      setSvcMsg("Completá al menos una patente antes de guardar.");
+      return;
+    }
+    await enviarLote(false);
   };
 
   const ClienteDropdown = () => {
@@ -149,8 +217,8 @@ export default function CargaDiaPage() {
       if (!grupos[key]) grupos[key] = [];
       grupos[key].push(c);
     });
-    const label = (c) => c.base ? `${c.empresa || c.nombre} / ${c.base}` : (c.empresa || c.nombre);
-    const val   = (c) => c.base ? `${c.empresa || c.nombre} / ${c.base}` : (c.empresa || c.nombre);
+    const label = textoCliente;
+    const val   = textoCliente;
     return (
       <select value={svcCliente} onChange={e => setSvcCliente(e.target.value)}
         disabled={feriado}
@@ -228,6 +296,11 @@ export default function CargaDiaPage() {
               <input type="text" value={svcLocalidad} onChange={e => setSvcLocalidad(e.target.value)}
                 placeholder="Ej: Rosario"
                 style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+              <p style={{fontSize:10.5, marginTop:4, color: tecnicoInterior?.localidad ? "#94a3b8" : "#d97706"}}>
+                {tecnicoInterior?.localidad
+                  ? "Tomada de Contactos; podés cambiarla para este bloque."
+                  : "Este contacto no tiene localidad cargada. Completala en Contactos → Técnicos / Talleres."}
+              </p>
             </div>
           )}
 
@@ -293,11 +366,15 @@ export default function CargaDiaPage() {
                     <td style={{padding:"8px 14px"}}>
                       <input type="text"
                         value={fila.patente}
-                        onChange={e => actualizarFila(fila._id, "patente", e.target.value.toUpperCase())}
+                        onChange={e => actualizarFila(fila._id, "patente", limpiarPatente(e.target.value))}
                         onKeyDown={e => onPatenteKeyDown(e, fila)}
                         disabled={feriado}
                         placeholder="AB123CD"
-                        style={{...cellInputStyle, fontFamily:"DM Mono, monospace", opacity: feriado ? 0.5 : 1}}
+                        title={fila.patente && !patenteValida(fila.patente) ? "El formato no coincide con una patente argentina (por ejemplo AB123CD o ABC123). Se puede guardar igual." : undefined}
+                        style={{
+                          ...cellInputStyle, fontFamily:"DM Mono, monospace", opacity: feriado ? 0.5 : 1,
+                          ...(fila.patente && !patenteValida(fila.patente) ? { borderColor:"#f59e0b", background:"#fffbeb" } : {}),
+                        }}
                         onFocus={inputFocus} onBlur={inputBlur} />
                     </td>
                     <td style={{padding:"8px 14px"}}>
@@ -318,7 +395,14 @@ export default function CargaDiaPage() {
                         style={cellInputStyle}
                         onFocus={inputFocus} onBlur={inputBlur} />
                     </td>
-                    <td style={{padding:"8px 14px", textAlign:"center"}}>
+                    <td style={{padding:"8px 14px", textAlign:"center", whiteSpace:"nowrap"}}>
+                      <div style={{display:"flex", alignItems:"center", justifyContent:"center", gap:10}}>
+                      {!feriado && (
+                        <button type="button" onClick={() => repetirFila(fila)} title="Repetir esta fila (mismo tipo, dispositivo y estado)"
+                          style={{color:"#2563eb", background:"none", border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600}}>
+                          Repetir
+                        </button>
+                      )}
                       <button type="button"
                         onClick={() => eliminarFila(fila._id)}
                         disabled={filas.length === 1}
@@ -327,6 +411,7 @@ export default function CargaDiaPage() {
                         onMouseLeave={e => e.currentTarget.style.color="#fca5a5"}>
                         <IconTrash />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -335,12 +420,28 @@ export default function CargaDiaPage() {
 
             {!feriado && (
               <div style={{borderTop:"1px solid #f1f5f9", padding:"8px 14px"}}>
-                <button type="button" onClick={agregarFila}
-                  style={{display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#2563eb", background:"none", border:"none", cursor:"pointer", fontWeight:500}}
-                  onMouseEnter={e => e.currentTarget.style.color="#1d4ed8"}
-                  onMouseLeave={e => e.currentTarget.style.color="#2563eb"}>
-                  <span style={{fontSize:16, lineHeight:1}}>+</span> Agregar fila
-                </button>
+                <div style={{display:"flex", alignItems:"center", gap:20}}>
+                  <button type="button" onClick={agregarFila}
+                    style={{display:"flex", alignItems:"center", gap:4, fontSize:12, color:"#2563eb", background:"none", border:"none", cursor:"pointer", fontWeight:500}}
+                    onMouseEnter={e => e.currentTarget.style.color="#1d4ed8"}
+                    onMouseLeave={e => e.currentTarget.style.color="#2563eb"}>
+                    <span style={{fontSize:16, lineHeight:1}}>+</span> Agregar fila
+                  </button>
+                  <button type="button" onClick={() => setPegarAbierto(v => !v)}
+                    style={{fontSize:12, color:"#2563eb", background:"none", border:"none", cursor:"pointer", fontWeight:500}}>
+                    {pegarAbierto ? "Cerrar" : "Pegar lista de patentes"}
+                  </button>
+                </div>
+                {pegarAbierto && (
+                  <div style={{marginTop:10, display:"flex", flexDirection:"column", gap:8}}>
+                    <textarea value={pegarTexto} onChange={e => setPegarTexto(e.target.value)} rows={4}
+                      placeholder="Pegá una patente por línea (o separadas por coma). Se crea una fila por patente con el mismo tipo, dispositivo y estado de la última fila."
+                      style={{...inputStyle, fontFamily:"DM Mono, monospace", resize:"vertical"}} />
+                    <div>
+                      <BtnPrimary onClick={agregarPatentesPegadas} disabled={!pegarTexto.trim()}>Agregar patentes</BtnPrimary>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -370,10 +471,46 @@ export default function CargaDiaPage() {
           {svcMsg && (
             <span style={{fontSize:13, fontWeight:500, color: svcMsg.startsWith("Error") ? "#dc2626" : "#16a34a"}}>
               {svcMsg}
+              {guardadosOk && (
+                <> &middot; <Link href="/dashboard/vista-dia" style={{color:"#2563eb", textDecoration:"underline"}}>Ver la vista del día</Link></>
+              )}
             </span>
           )}
         </div>
       </form>
+
+      <Modal
+        open={!!duplicados}
+        onClose={() => { if (!guardando) setDuplicados(null); }}
+        title="Ya existe un servicio igual"
+        width="560px"
+        footer={
+          <>
+            <span style={{fontSize:11.5, color:"#94a3b8"}}>No se guardó nada todavía.</span>
+            <div style={{display:"flex", gap:8}}>
+              <BtnSecondary onClick={() => setDuplicados(null)}>Cancelar</BtnSecondary>
+              <BtnPrimary onClick={() => enviarLote(true)} loading={guardando}>Cargar igual</BtnPrimary>
+            </div>
+          </>
+        }
+      >
+        <p style={{margin:"0 0 12px", fontSize:13, color:"#334155", lineHeight:1.5}}>
+          Hay servicios con la misma patente, tipo y fecha. Revisá si es un error de carga o si de verdad hace falta cargarlo dos veces.
+          Si confirmás, se guardan todos los servicios del bloque y los repetidos quedan anotados como &ldquo;Duplicado confirmado&rdquo;.
+        </p>
+        <div style={{border:"1px solid #e2e8f0", borderRadius:8, overflow:"hidden", marginBottom:16}}>
+          {(duplicados || []).map((d, i) => (
+            <div key={i} style={{padding:"9px 12px", fontSize:12.5, color:"#334155", borderBottom: i < duplicados.length - 1 ? "1px solid #f1f5f9" : "none"}}>
+              <strong style={{fontFamily:"DM Mono, monospace"}}>{d.patente}</strong> &middot; {d.tipo_servicio} &middot; {d.fecha.split("-").reverse().join("/")}
+              <div style={{fontSize:11.5, color:"#94a3b8", marginTop:2}}>
+                {d.en_este_lote
+                  ? "Está repetido dentro de este mismo bloque"
+                  : `Ya cargado: ${d.estado}${d.responsable ? " · " + d.responsable : ""}${d.cliente ? " · " + d.cliente : ""}`}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

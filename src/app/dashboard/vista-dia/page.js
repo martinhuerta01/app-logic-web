@@ -27,9 +27,20 @@ function ModalEditar({ servicio, onClose, onSave, estadosOpts = [] }) {
     fetchOpciones().then(opts => setDispositivos(opts.dispositivos || []));
   }, []);
 
-  const guardar = async () => {
-    await onSave(servicio.id, form);
-    onClose();
+  const [duplicados, setDuplicados] = useState(null);
+  const [errorGuardar, setErrorGuardar] = useState("");
+
+  const guardar = async (confirmarDuplicado = false) => {
+    setErrorGuardar("");
+    try {
+      await onSave(servicio.id, form, confirmarDuplicado);
+      onClose();
+    } catch (err) {
+      let detalle = null;
+      try { detalle = JSON.parse(err.message)?.detail; } catch {}
+      if (detalle?.codigo === "DUPLICADO") setDuplicados(detalle.duplicados);
+      else setErrorGuardar(detalle?.mensaje || "No se pudo guardar el servicio.");
+    }
   };
 
   return (
@@ -43,11 +54,21 @@ function ModalEditar({ servicio, onClose, onSave, estadosOpts = [] }) {
           <KeyboardHint />
           <div style={{display:"flex", gap:8}}>
             <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-            <BtnPrimary onClick={guardar}>Guardar</BtnPrimary>
+            <BtnPrimary onClick={() => guardar(!!duplicados)}>{duplicados ? "Guardar igual" : "Guardar"}</BtnPrimary>
           </div>
         </>
       }
     >
+      {duplicados && (
+        <div style={{background:"#fffbeb", border:"1px solid #fde68a", borderRadius:8, padding:"10px 12px", fontSize:12.5, color:"#92400e", marginBottom:14, lineHeight:1.5}}>
+          Ya existe un servicio con la misma patente, tipo y fecha
+          ({duplicados.map(d => `${d.estado}${d.responsable ? " · " + d.responsable : ""}`).join("; ")}).
+          Si es correcto, tocá &ldquo;Guardar igual&rdquo;.
+        </div>
+      )}
+      {errorGuardar && (
+        <div style={{background:"#fef2f2", border:"1px solid #fecaca", borderRadius:8, padding:"10px 12px", fontSize:12.5, color:"#b91c1c", marginBottom:14}}>{errorGuardar}</div>
+      )}
       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:14}}>
         <div>
           <FieldLabel required>Fecha</FieldLabel>
@@ -128,7 +149,13 @@ export default function VistaDiaPage() {
     try {
       await api.put(`/servicios/${svcId}`, { estado: nuevoEstado });
       setServicios(prev => prev.map(s => s.id === svcId ? { ...s, estado: nuevoEstado } : s));
-    } catch { setError("No se pudo actualizar el estado."); }
+    } catch (err) {
+      let detalle = null;
+      try { detalle = JSON.parse(err.message)?.detail; } catch {}
+      setError(detalle?.codigo === "DUPLICADO"
+        ? "Ya existe otro servicio igual (misma patente, tipo y fecha) que no está suspendido; no se puede reactivar este sin revisarlo."
+        : "No se pudo actualizar el estado.");
+    }
   };
 
   const eliminar = async (svcId) => {
@@ -139,8 +166,8 @@ export default function VistaDiaPage() {
     } catch { setError("No se pudo eliminar el servicio."); }
   };
 
-  const guardarEdicion = async (id, form) => {
-    await api.put(`/servicios/${id}`, form);
+  const guardarEdicion = async (id, form, confirmarDuplicado = false) => {
+    await api.put(`/servicios/${id}`, { ...form, confirmar_duplicado: confirmarDuplicado });
     setServicios(prev => prev.map(s => s.id === id ? { ...s, ...form } : s));
   };
 
