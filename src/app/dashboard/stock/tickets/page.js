@@ -17,7 +17,7 @@ const TH = {
 const TD = { padding: "10px 12px", fontSize: 12.5, color: "#334155", verticalAlign: "top", borderBottom: "1px solid #f1f5f9" };
 const MONO = { fontFamily: "DM Mono, monospace" };
 
-function Chip({ item, onQuitar }) {
+function Chip({ item, origen, onQuitar }) {
   return (
     <span title={item.descripcion || ""} style={{
       display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 4px 2px 8px",
@@ -25,6 +25,7 @@ function Chip({ item, onQuitar }) {
       background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe",
     }}>
       {item.codigo || "?"} ×{item.cantidad}
+      {origen && <span style={{ fontWeight: 500, opacity: 0.8 }}>desde {origen}</span>}
       <button type="button" onClick={onQuitar} title="Quitar"
         style={{ border: "none", background: "none", color: "inherit", cursor: "pointer", fontSize: 12, padding: "0 3px", lineHeight: 1 }}>×</button>
     </span>
@@ -117,7 +118,7 @@ export default function DescontarPorTickets() {
     patchFila(ticket, (f) =>
       f.items.some((i) => i.producto_id === prod.id)
         ? f
-        : { ...f, items: [...f.items, { producto_id: prod.id, cantidad: 1, codigo: prod.codigo, descripcion: prod.descripcion }] }
+        : { ...f, items: [...f.items, { producto_id: prod.id, cantidad: 1, codigo: prod.codigo, descripcion: prod.descripcion, esMaterial: prod.categoria === "Insumos" }] }
     );
   };
 
@@ -141,13 +142,17 @@ export default function DescontarPorTickets() {
     return [...m];
   }, [ops, ubicPorId]);
 
+  // Los materiales de instalación salen de la ubicación configurada para la del ticket (por ejemplo, la camioneta)
+  const origenDeItem = (f, it) =>
+    (it.esMaterial && ubicPorId.get(f.ubicacionId)?.ubicacion_materiales_id) || f.ubicacionId;
+
   const armarMovimientos = (f) => {
     const base = { fecha: f.fecha, observacion: `Ticket #${f.ticket} · ${f.patente || ""} · ${f.servicio}` };
     const movimientos = f.items.map((it) => ({
       ...base,
       tipo: "INSTALACION",
       producto_id: it.producto_id,
-      origen_id: f.ubicacionId,
+      origen_id: origenDeItem(f, it),
       cantidad: it.cantidad,
       serial: it.producto_id === f.productoGpsId ? (f.serialInstalado || null) : null,
       configuracion: it.producto_id === f.productoGpsId ? (f.configuracion || null) : null,
@@ -305,7 +310,9 @@ export default function DescontarPorTickets() {
                     <td style={TD}>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
                         {f.items.map((it) => (
-                          <Chip key={it.producto_id} item={it} onQuitar={() => quitarItem(f.ticket, it.producto_id)} />
+                          <Chip key={it.producto_id} item={it}
+                            origen={origenDeItem(f, it) !== f.ubicacionId ? ubicPorId.get(origenDeItem(f, it))?.nombre : null}
+                            onQuitar={() => quitarItem(f.ticket, it.producto_id)} />
                         ))}
                         <input list="codigos-productos" placeholder="+ código"
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarItem(f.ticket, e.target.value); e.target.value = ""; } }}

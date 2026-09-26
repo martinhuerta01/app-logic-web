@@ -9,15 +9,23 @@ function useEquipos() {
   return equipos;
 }
 
+function useUbicaciones() {
+  const [ubicaciones, setUbicaciones] = useState([]);
+  useEffect(() => { api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => {}); }, []);
+  return ubicaciones;
+}
+
 function FormUbicacion({ onDone }) {
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState("");
   const [equipoId, setEquipoId] = useState("");
+  const [materialesId, setMaterialesId] = useState("");
+  const todasUbicaciones = useUbicaciones();
   const equipos = useEquipos();
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, equipo_id: equipoId || null });
+    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
     onDone();
   };
 
@@ -46,6 +54,14 @@ function FormUbicacion({ onDone }) {
           {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
         </select>
       </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Materiales de instalación salen de</label>
+        <select value={materialesId} onChange={e => setMaterialesId(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">La misma ubicación</option>
+          {todasUbicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+        </select>
+      </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
     </form>
   );
@@ -55,11 +71,13 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
   const [nombre, setNombre] = useState(item.nombre || "");
   const [tipo, setTipo] = useState(item.tipo || "");
   const [equipoId, setEquipoId] = useState(item.equipo_id || "");
+  const [materialesId, setMaterialesId] = useState(item.ubicacion_materiales_id || "");
+  const todasUbicaciones = useUbicaciones().filter(u => u.id !== item.id);
   const equipos = useEquipos();
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, equipo_id: equipoId || null });
+    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
     onDone();
   };
 
@@ -86,6 +104,14 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">Sin equipo</option>
           {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Materiales de instalación salen de</label>
+        <select value={materialesId} onChange={e => setMaterialesId(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">La misma ubicación</option>
+          {todasUbicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
         </select>
       </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
@@ -397,6 +423,7 @@ export default function CatalogosStock() {
           { key: "nombre", label: "Nombre" },
           { key: "tipo", label: "Tipo" },
           { key: "equipo_id", label: "Equipo", render: (item) => equiposCatalogo.find(e => e.id === item.equipo_id)?.nombre || "—" },
+          { key: "ubicacion_materiales_id", label: "Materiales desde", render: (item) => ubicaciones.find(u => u.id === item.ubicacion_materiales_id)?.nombre || "—" },
         ]}
         onAdd={cargarUbicaciones}
         onDelete={eliminarUbicacion}

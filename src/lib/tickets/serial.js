@@ -6,7 +6,8 @@ export function extraerDispositivo(ticket) {
 }
 
 export function extraerDispoEliminado(descripcion) {
-  const m = /dispo\s*eliminado\s*:\s*(\d+)/i.exec(descripcion || "");
+  // También se lee "disp eliminado" y "dispo eliminada" (errores de tipeo frecuentes)
+  const m = /dispo?\s*eliminad[oa]\s*:\s*(\d+)/i.exec(descripcion || "");
   return m ? m[1] : null;
 }
 

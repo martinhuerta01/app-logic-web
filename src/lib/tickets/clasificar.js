@@ -64,13 +64,16 @@ export function clasificarTicket(ticket, ctx) {
     for (const s of sueltos) {
       const prod = productoPorCodigo.get(s.codigo);
       if (!prod) { advertencias.push(`Código ${s.codigo} no existe en Productos`); continue; }
+      if (cantidadPorProducto.has(prod.id)) continue; // ya lo trae el kit (por ejemplo la SIM del kit de equipo)
       acumular(prod.id, s.cantidad);
     }
   }
 
   const items = [...cantidadPorProducto].map(([producto_id, cantidad]) => {
     const prod = productoPorId.get(producto_id);
-    return { producto_id, cantidad, codigo: prod?.codigo, descripcion: prod?.descripcion };
+    // Los materiales de instalación (categoría Insumos: cable, cajas, pasacables) salen de la camioneta
+    // del equipo que trabaja en esa base, no del centro de distribución (ver ubicacion_materiales_id).
+    return { producto_id, cantidad, codigo: prod?.codigo, descripcion: prod?.descripcion, esMaterial: prod?.categoria === "Insumos" };
   });
 
   if (!consume && !generaRetiro) {
