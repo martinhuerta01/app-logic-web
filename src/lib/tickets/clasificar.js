@@ -121,7 +121,21 @@ export function clasificarTicket(ticket, ctx) {
     const productoKit = productoPorId.get(productoGpsId);
     const yaUsado = !!ctx.serialesUsados?.has(String(serialInstalado));
     if (modelo === "D05" && productoKit?.codigo !== "D05") {
-      advertencias.push("El serial instalado es Queclink pero el kit es de S40: revisá los insumos a mano");
+      // Queclink nuevo: el equipo es D05 y su cableado C07 (no el de S40)
+      const d05 = productoPorCodigo.get("D05");
+      const c07 = productoPorCodigo.get("C07");
+      const c03 = items.find((it) => it.codigo === "C03");
+      if (d05 && c07) {
+        items = items.map((it) => {
+          if (it.producto_id === productoGpsId) return { ...it, producto_id: d05.id, codigo: d05.codigo, descripcion: d05.descripcion };
+          if (c03 && it === c03) return { ...it, producto_id: c07.id, codigo: c07.codigo, descripcion: c07.descripcion };
+          return it;
+        });
+        productoGpsId = d05.id;
+        advertenciasInformativas.push("Serial Queclink: se descuenta el equipo Queclink y su cableado (C07) en lugar del kit de S40");
+      } else {
+        advertencias.push("El serial instalado es Queclink pero no están D05 o C07 en Productos: revisá los insumos a mano");
+      }
     } else if (yaUsado || modelo !== productoKit?.codigo) {
       const productoModelo = (modelo && productoPorCodigo.get(modelo)) || productoKit;
       const otroModelo = modelo !== productoKit?.codigo;
