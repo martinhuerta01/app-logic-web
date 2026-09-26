@@ -20,12 +20,13 @@ function FormUbicacion({ onDone }) {
   const [tipo, setTipo] = useState("");
   const [equipoId, setEquipoId] = useState("");
   const [materialesId, setMaterialesId] = useState("");
+  const [camarasId, setCamarasId] = useState("");
   const todasUbicaciones = useUbicaciones();
   const equipos = useEquipos();
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
+    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null, ubicacion_camaras_id: camarasId || null });
     onDone();
   };
 
@@ -62,6 +63,14 @@ function FormUbicacion({ onDone }) {
           {todasUbicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
         </select>
       </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Cámaras salen de</label>
+        <select value={camarasId} onChange={e => setCamarasId(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">La misma ubicación</option>
+          {todasUbicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+        </select>
+      </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
     </form>
   );
@@ -72,12 +81,13 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
   const [tipo, setTipo] = useState(item.tipo || "");
   const [equipoId, setEquipoId] = useState(item.equipo_id || "");
   const [materialesId, setMaterialesId] = useState(item.ubicacion_materiales_id || "");
+  const [camarasId, setCamarasId] = useState(item.ubicacion_camaras_id || "");
   const todasUbicaciones = useUbicaciones().filter(u => u.id !== item.id);
   const equipos = useEquipos();
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
+    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null, ubicacion_camaras_id: camarasId || null });
     onDone();
   };
 
@@ -109,6 +119,14 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
       <div>
         <label className="block text-xs text-slate-500 mb-1">Materiales de instalación salen de</label>
         <select value={materialesId} onChange={e => setMaterialesId(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">La misma ubicación</option>
+          {todasUbicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Cámaras salen de</label>
+        <select value={camarasId} onChange={e => setCamarasId(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">La misma ubicación</option>
           {todasUbicaciones.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
@@ -424,6 +442,7 @@ export default function CatalogosStock() {
           { key: "tipo", label: "Tipo" },
           { key: "equipo_id", label: "Equipo", render: (item) => equiposCatalogo.find(e => e.id === item.equipo_id)?.nombre || "—" },
           { key: "ubicacion_materiales_id", label: "Materiales desde", render: (item) => ubicaciones.find(u => u.id === item.ubicacion_materiales_id)?.nombre || "—" },
+          { key: "ubicacion_camaras_id", label: "Cámaras desde", render: (item) => ubicaciones.find(u => u.id === item.ubicacion_camaras_id)?.nombre || "—" },
         ]}
         onAdd={cargarUbicaciones}
         onDelete={eliminarUbicacion}
