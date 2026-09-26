@@ -74,9 +74,7 @@ export function clasificarTicket(ticket, ctx) {
     const prod = productoPorId.get(producto_id);
     // Los materiales de instalación (categoría Insumos: cable, cajas, pasacables) salen de la camioneta
     // del equipo que trabaja en esa base, no del centro de distribución (ver ubicacion_materiales_id).
-    // Las cámaras (categoría Dispositivos) salen de la ubicación configurada en ubicacion_camaras_id (por ejemplo, General Rodríguez para el interior).
-    const esCamara = prod?.categoria === "Dispositivos" && /camara/i.test(prod?.descripcion || "");
-    return { producto_id, cantidad, codigo: prod?.codigo, descripcion: prod?.descripcion, esMaterial: prod?.categoria === "Insumos", esCamara };
+    return { producto_id, cantidad, codigo: prod?.codigo, descripcion: prod?.descripcion, esMaterial: prod?.categoria === "Insumos" };
   });
 
   if (!consume && !generaRetiro) {

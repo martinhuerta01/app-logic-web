@@ -124,7 +124,7 @@ export default function DescontarPorTickets() {
     patchFila(ticket, (f) =>
       f.items.some((i) => i.producto_id === prod.id)
         ? f
-        : { ...f, items: [...f.items, { producto_id: prod.id, cantidad: 1, codigo: prod.codigo, descripcion: prod.descripcion, esMaterial: prod.categoria === "Insumos", esCamara: prod.categoria === "Dispositivos" && /camara/i.test(prod.descripcion || "") }] }
+        : { ...f, items: [...f.items, { producto_id: prod.id, cantidad: 1, codigo: prod.codigo, descripcion: prod.descripcion, esMaterial: prod.categoria === "Insumos" }] }
     );
   };
 
@@ -149,10 +149,8 @@ export default function DescontarPorTickets() {
   }, [ops, ubicPorId]);
 
   // Los materiales de instalación salen de la ubicación configurada para la del ticket (por ejemplo, la camioneta)
-  const origenDeItem = (f, it) => {
-    const u = ubicPorId.get(f.ubicacionId);
-    return (it.esMaterial && u?.ubicacion_materiales_id) || (it.esCamara && u?.ubicacion_camaras_id) || f.ubicacionId;
-  };
+  const origenDeItem = (f, it) =>
+    (it.esMaterial && ubicPorId.get(f.ubicacionId)?.ubicacion_materiales_id) || f.ubicacionId;
 
   const armarMovimientos = (f) => {
     const base = { fecha: f.fecha, observacion: `Ticket #${f.ticket} · ${f.patente || ""} · ${f.servicio}` };
