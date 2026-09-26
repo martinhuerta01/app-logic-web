@@ -205,6 +205,9 @@ DELETE /recibos/{id}
 - Ubicación: La Serenísima Distribución usa la base; La Serenísima LD y los demás clientes buscan el taller en Base + descripción contra `mapeo_talleres` (`aplica_a` = serenisima u otros); si no coincide, General Rodríguez o Camioneta 1
 - Lo negado con "sin ..." se ignora; "cambio" + equipo sin la línea automática "Dispo eliminado" no es un cambio de equipo
 - El modelo de un equipo se identifica por el prefijo de su serie (`detectarModeloPorSerial`)
+- En un semirremolque ("semi" o "temperatura ok") el sensor de puerta es el de embutir (A08), no el de cabina (A07)
+- "antena gps" es la antena (no dispara el kit del equipo); "ficha de alimentación" no es la ficha de enganche; la batería solo cuenta si se cambió
+- Un equipo con serie de otro modelo (no S40 nuevo) o ya retirado antes se instala en cantidad 0 (reutilizado)
 - La confirmación es una función atómica de la base (`fn_confirmar_ticket_stock`), un ticket por llamada
 
 ## Historial de versiones
