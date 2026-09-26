@@ -12,7 +12,12 @@ export function resolverUbicacionSerenisima(ticket, { ubicaciones, mapeoTalleres
       const un = norm(u.nombre);
       return un === baseNorm || un.includes(baseNorm) || baseNorm.includes(un);
     });
-    if (!match) return { ubicacionId: null, advertencia: `No existe la ubicación "${ticket.base}": elegí una a mano` };
+    if (!match) {
+      // Base sin CD propio (por ejemplo San Juan, que depende de Mendoza): se resuelve por la tabla de talleres
+      const alias = (mapeoTalleres || []).find((m) => m.activo !== false && (m.aplica_a || "serenisima") === "serenisima" && baseNorm.includes(norm(m.keyword)));
+      if (alias) return { ubicacionId: alias.ubicacion_id };
+      return { ubicacionId: null, advertencia: `No existe la ubicación "${ticket.base}": elegí una a mano` };
+    }
     return { ubicacionId: match.id };
   }
 

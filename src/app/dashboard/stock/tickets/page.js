@@ -39,6 +39,7 @@ export default function DescontarPorTickets() {
   const [mapeoTalleres, setMapeoTalleres] = useState([]);
   const [recetas,       setRecetas]       = useState([]);
   const [importados,    setImportados]    = useState([]);
+  const [equipos,       setEquipos]       = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [errorCarga,    setErrorCarga]    = useState("");
 
@@ -56,15 +57,16 @@ export default function DescontarPorTickets() {
   useEffect(() => {
     (async () => {
       try {
-        const [prods, ubics, talleres, rec, imp] = await Promise.all([
+        const [prods, ubics, talleres, rec, imp, eqs] = await Promise.all([
           api.get("/stock/productos/"),
           api.get("/stock/ubicaciones/"),
           api.get("/stock/mapeo-talleres/"),
           api.get("/stock/recetas/"),
           api.get("/stock/tickets/importados/"),
+          api.get("/stock/equipos/"),
         ]);
         setProductos(prods || []); setUbicaciones(ubics || []);
-        setMapeoTalleres(talleres || []); setRecetas(rec || []); setImportados(imp || []);
+        setMapeoTalleres(talleres || []); setRecetas(rec || []); setImportados(imp || []); setEquipos(eqs || []);
       } catch {
         setErrorCarga("No se pudieron cargar productos y ubicaciones. Verificá la conexión con el servidor.");
       } finally {
@@ -90,8 +92,12 @@ export default function DescontarPorTickets() {
         return;
       }
       const nuevas = [], omit = [];
-      for (const t of tickets) {
-        const c = clasificarTicket(t, ctx);
+      // En orden cronológico: un equipo retirado en un ticket y reinstalado en otro posterior no descuenta unidad nueva
+      const serialesUsados = new Set(equipos.filter((e) => e.estado !== "EN_STOCK").map((e) => String(e.serial)));
+      const ordenados = [...tickets].sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "") || Number(a.ticket) - Number(b.ticket));
+      for (const t of ordenados) {
+        const c = clasificarTicket(t, { ...ctx, serialesUsados });
+        if (c.serialRetirado) serialesUsados.add(String(c.serialRetirado));
         if (c.omitir) { omit.push({ ...t, motivo: c.omitir }); continue; }
         nuevas.push({
           ...t, ...c,
@@ -305,6 +311,9 @@ export default function DescontarPorTickets() {
                       <div style={{ fontWeight: 500 }}>{f.servicio}</div>
                       {f.advertencias.map((a, i) => (
                         <div key={i} style={{ fontSize: 10.5, color: "#d97706", marginTop: 2 }}>⚠ {a}</div>
+                      ))}
+                      {(f.informativas || []).map((a, i) => (
+                        <div key={"i" + i} style={{ fontSize: 10.5, color: "#64748b", marginTop: 2 }}>ℹ {a}</div>
                       ))}
                     </td>
                     <td style={TD}>

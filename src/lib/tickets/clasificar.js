@@ -29,6 +29,7 @@ export function clasificarTicket(ticket, ctx) {
   const dispoEliminado = extraerDispoEliminado(ticket.descripcion);
 
   const advertencias = [];
+  const advertenciasInformativas = []; // avisos que no bloquean (por ejemplo, equipo reutilizado)
   if (ticket.estado !== ESTADO_CERRADO) advertencias.push(`Estado ${ticket.estado} (no cerrado)`);
 
   // El sistema marca "*Dispo eliminado*" automáticamente cada vez que se
@@ -69,7 +70,7 @@ export function clasificarTicket(ticket, ctx) {
     }
   }
 
-  const items = [...cantidadPorProducto].map(([producto_id, cantidad]) => {
+  let items = [...cantidadPorProducto].map(([producto_id, cantidad]) => {
     const prod = productoPorId.get(producto_id);
     // Los materiales de instalación (categoría Insumos: cable, cajas, pasacables) salen de la camioneta
     // del equipo que trabaja en esa base, no del centro de distribución (ver ubicacion_materiales_id).
@@ -110,6 +111,31 @@ export function clasificarTicket(ticket, ctx) {
     // del propio serial, no por el kit del ticket.
     const modeloRetirado = detectarModeloPorSerial(serialRetirado);
     productoRetiroId = (modeloRetirado && productoPorCodigo.get(modeloRetirado)?.id) || productoGpsId;
+  }
+
+  // Equipo reutilizado: si el número de serie instalado no es una unidad nueva de S40 (es un equipo viejo
+  // S15/16 u otro modelo) o ya fue retirado antes (ctx.serialesUsados), no sale de las unidades nuevas del stock:
+  // se registra en 0 para conservar el serial. El cable básico de S40 tampoco se descuenta si el modelo es otro.
+  if (tieneGps && consume && serialInstalado && productoGpsId) {
+    const modelo = detectarModeloPorSerial(serialInstalado);
+    const productoKit = productoPorId.get(productoGpsId);
+    const yaUsado = !!ctx.serialesUsados?.has(String(serialInstalado));
+    if (modelo === "D05" && productoKit?.codigo !== "D05") {
+      advertencias.push("El serial instalado es Queclink pero el kit es de S40: revisá los insumos a mano");
+    } else if (yaUsado || modelo !== productoKit?.codigo) {
+      const productoModelo = (modelo && productoPorCodigo.get(modelo)) || productoKit;
+      const otroModelo = modelo !== productoKit?.codigo;
+      items = items
+        .filter((it) => !(otroModelo && it.codigo === "C03"))
+        .map((it) => (it.producto_id === productoGpsId
+          ? { ...it, producto_id: productoModelo.id, cantidad: 0, codigo: productoModelo.codigo, descripcion: productoModelo.descripcion, reutilizado: true }
+          : it));
+      productoGpsId = productoModelo.id;
+      advertenciasInformativas.push(
+        yaUsado ? "Equipo ya retirado antes: se reinstala sin descontar unidad nueva"
+                : "Equipo de otro modelo (no S40 nuevo): se instala sin descontar unidad nueva de S40 ni su cable"
+      );
+    }
   }
 
   // Configuración del equipo: La Serenísima Distribución siempre carga
@@ -154,6 +180,7 @@ export function clasificarTicket(ticket, ctx) {
     serialInstalado,
     serialRetirado,
     configuracion,
+    informativas: advertenciasInformativas,
     incluir: !!resUb.ubicacionId && ticket.estado === ESTADO_CERRADO && (items.length > 0 || generaRetiro),
     advertencias,
   };
