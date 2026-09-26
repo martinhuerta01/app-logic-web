@@ -38,7 +38,7 @@ export function detectarSueltos(descripcionOriginalNorm) {
   };
 
   if (/antena/.test(descripcionNorm)) push("A02"); // ANTENA GPS (USADOS) — ajustar código si corresponde nueva
-  if (/\bsim\b/.test(descripcionNorm)) push("A05"); // SIM CLARO - NUEVOS
+  if (/\bsim\b/.test(descripcionNorm)) push("A05"); // SIM (una sola, ya no se distingue nueva de usada)
   if (/buzzer/.test(descripcionNorm)) push("A21");
   if (/soporte/.test(descripcionNorm)) push("IS29"); // solo cuando el ticket lo nombra: no es parte del kit de cámara
   if (/puerta/.test(descripcionNorm)) push("A07");

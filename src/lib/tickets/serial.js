@@ -21,6 +21,7 @@ const PREFIJOS_MODELO = [
   { prefijo: "300", codigo: "D01" },
   { prefijo: "310", codigo: "D01" },
   { prefijo: "410", codigo: "D02" },     // TRAX S15/16 ficha blanca
+  { prefijo: "710", codigo: "D13" },     // TRAX S17
   { prefijo: "86", codigo: "D05" },      // Queclink
 ];
 
