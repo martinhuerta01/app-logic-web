@@ -121,8 +121,12 @@ export default function DescontarPorTickets() {
     );
   };
 
+  // Se confirman de la fecha más vieja a la más nueva: el estado final de cada número de serie
+  // (instalado, retirado) tiene que reflejar el último ticket, sin importar el orden del archivo.
   const ops = useMemo(
-    () => filas.filter((f) => f.incluir && f.ubicacionId && !f.yaImportado),
+    () => filas
+      .filter((f) => f.incluir && f.ubicacionId && !f.yaImportado)
+      .sort((a, b) => (a.fecha || "").localeCompare(b.fecha || "") || Number(a.ticket) - Number(b.ticket)),
     [filas]
   );
 
