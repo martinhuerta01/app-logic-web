@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { VISTAS_STOCK as VISTAS } from "@/lib/stockTipos";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const HOY = new Date().toISOString().slice(0, 10);
@@ -34,7 +35,7 @@ function obtenerEntradas(movsProd, ubicacionIdsSet, esOficina) {
   return filtradas.sort((a, b) => a.fecha > b.fecha ? 1 : -1);
 }
 
-function calcStats(movsProd, stockActual, ubicacionIdsSet, esOficina) {
+function calcStats(movsProd, stockActual, ubicacionIdsSet, esOficina, anticipacion = 3) {
   const entradas = obtenerEntradas(movsProd, ubicacionIdsSet, esOficina);
 
   if (entradas.length === 0) return { consumoDiario: null, diasRestantes: null, fechaCompra: null };
@@ -56,7 +57,7 @@ function calcStats(movsProd, stockActual, ubicacionIdsSet, esOficina) {
   const diasRestantes = consumoDiario && stockActual != null
     ? Math.round(stockActual / consumoDiario) : null;
   const fechaCompra = diasRestantes != null
-    ? addDays(HOY, Math.max(0, diasRestantes - 3)) : null;
+    ? addDays(HOY, Math.max(0, diasRestantes - anticipacion)) : null;
 
   return { consumoDiario, diasRestantes, fechaCompra };
 }
@@ -82,19 +83,19 @@ const NIVEL_STYLE = {
 
 const NIVEL_ORDER = { critico: 0, bajo: 1, ok: 2, sinpatron: 3 };
 
-const VISTAS = [
-  { key: "oficina",    label: "Oficina" },
-  { key: "serenisima", label: "La Serenísima" },
-  { key: "camioneta1", label: "Camioneta 1" },
-  { key: "camioneta2", label: "Camioneta 2" },
-];
-
 // ── Componente tarjeta ─────────────────────────────────────────────────────────
-function ProductoCard({ prod, stock, movimientos, ubicacionIdsSet, esOficina, onClick }) {
+function ProductoCard({ prod, stock, movimientos, ubicacionIdsSet, esOficina, minimo, bajoMinimo, ambitoLabel, onGuardarMinimo, onClick }) {
+  const [editandoMinimo, setEditandoMinimo] = useState(false);
   const movsProd = movimientos.filter(m => String(m.producto_id) === String(prod.id));
-  const { consumoDiario, diasRestantes, fechaCompra } = calcStats(movsProd, stock, ubicacionIdsSet, esOficina);
+  const { consumoDiario, diasRestantes, fechaCompra } = calcStats(movsProd, stock, ubicacionIdsSet, esOficina, prod.plazo_entrega_dias ?? 3);
   const nivel = urgenciaNivel(diasRestantes, stock);
   const ns = NIVEL_STYLE[nivel];
+
+  const guardarMinimo = (valor) => {
+    setEditandoMinimo(false);
+    const nuevo = valor === "" ? null : Math.max(0, parseInt(valor, 10));
+    if (nuevo !== minimo && !Number.isNaN(nuevo)) onGuardarMinimo(prod.id, nuevo);
+  };
 
   // Barra de nivel: % visual relativo a un "máximo estimado"
   const maxEstimado = useMemo(() => {
@@ -110,7 +111,7 @@ function ProductoCard({ prod, stock, movimientos, ubicacionIdsSet, esOficina, on
       onClick={onClick}
       style={{
         background: "#fff",
-        border: `1.5px solid ${nivel === "critico" ? "#fecaca" : nivel === "bajo" ? "#fed7aa" : "#e2e8f0"}`,
+        border: `1.5px solid ${bajoMinimo || nivel === "critico" ? "#fecaca" : nivel === "bajo" ? "#fed7aa" : "#e2e8f0"}`,
         borderRadius: 12,
         padding: "16px 18px",
         cursor: "pointer",
@@ -147,6 +148,13 @@ function ProductoCard({ prod, stock, movimientos, ubicacionIdsSet, esOficina, on
         {stock}
         <span style={{ fontSize: 12, fontWeight: 500, color: "#94a3b8", marginLeft: 4 }}>u.</span>
       </p>
+      {bajoMinimo && (
+        <p style={{ margin: "-4px 0 10px" }}>
+          <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "#fef2f2", color: "#dc2626" }}>
+            Bajo el mínimo ({minimo} u.)
+          </span>
+        </p>
+      )}
 
       {/* Barra */}
       <div style={{ background: "#f1f5f9", borderRadius: 999, height: 5, marginBottom: 12, overflow: "hidden" }}>
@@ -175,6 +183,24 @@ function ProductoCard({ prod, stock, movimientos, ubicacionIdsSet, esOficina, on
             </p>
           </div>
         )}
+        <div style={{ gridColumn: "1/-1" }} onClick={e => e.stopPropagation()}>
+          <p style={{ margin: 0, fontSize: 9.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>
+            Mínimo en {ambitoLabel}
+          </p>
+          {editandoMinimo ? (
+            <input type="number" min="0" autoFocus defaultValue={minimo ?? ""}
+              placeholder="Sin mínimo"
+              onBlur={e => guardarMinimo(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") setEditandoMinimo(false); }}
+              style={{ marginTop: 3, width: 90, fontSize: 12, padding: "3px 6px", borderRadius: 6, border: "1.5px solid #2563eb", fontFamily: "DM Mono, monospace" }} />
+          ) : (
+            <button type="button" onClick={() => setEditandoMinimo(true)}
+              style={{ margin: "2px 0 0", padding: 0, border: "none", background: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
+                       color: minimo != null ? "#334155" : "#2563eb", fontFamily: "DM Mono, monospace" }}>
+              {minimo != null ? `${minimo} u.` : "Definir mínimo"}
+            </button>
+          )}
+        </div>
         {prod.categoria && (
           <div style={{ gridColumn: "1/-1" }}>
             <span style={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 500 }}>{prod.categoria}</span>
@@ -193,6 +219,8 @@ export default function StockOverview() {
   const [stockActual, setStockActual] = useState([]);
   const [movimientos, setMovimientos] = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [minimos,     setMinimos]     = useState([]);
+  const [errorMinimo, setErrorMinimo] = useState("");
   const [vista,       setVista]       = useState("oficina");
   const [filtroNivel, setFiltroNivel] = useState("todos");
   const [filtroCat,   setFiltroCat]   = useState("todas");
@@ -200,12 +228,14 @@ export default function StockOverview() {
   useEffect(() => {
     const cargar = async () => {
       try {
-        const [prods, ubics, stock, movs] = await Promise.all([
+        const [prods, ubics, stock, movs, mins] = await Promise.all([
           api.get("/stock/productos/"),
           api.get("/stock/ubicaciones/"),
           api.get("/stock/actual/"),
           api.get("/stock/movimientos/"),
+          api.get("/stock/minimos/").catch(() => []),
         ]);
+        setMinimos(mins || []);
         setProductos(prods || []);
         setUbicaciones(ubics || []);
         setStockActual(stock || []);
@@ -252,6 +282,23 @@ export default function StockOverview() {
     return movimientos.filter(m => ubicacionIdsSet.has(m.origen_id) || ubicacionIdsSet.has(m.destino_id));
   }, [movimientos, ubicacionIdsSet]);
 
+  const minimoPorProducto = useMemo(() => {
+    const m = new Map();
+    minimos.filter(x => x.ambito === vista).forEach(x => m.set(x.producto_id, x.cantidad_minima));
+    return m;
+  }, [minimos, vista]);
+
+  const guardarMinimo = async (productoId, valor) => {
+    setErrorMinimo("");
+    try {
+      if (valor == null) await api.delete(`/stock/minimos/?producto_id=${productoId}&ambito=${vista}`);
+      else await api.put("/stock/minimos/", { producto_id: productoId, ambito: vista, cantidad_minima: valor });
+      setMinimos(await api.get("/stock/minimos/"));
+    } catch {
+      setErrorMinimo("No se pudo guardar el mínimo. Si es la primera vez, falta aplicar la migración 003 en Supabase.");
+    }
+  };
+
   // Construir lista de productos con stock
   const resumen = useMemo(() => {
     const hace90 = addDays(HOY, -90);
@@ -260,15 +307,18 @@ export default function StockOverview() {
       .map(prod => {
         const stock = stockPorProducto.get(prod.id) ?? 0;
         const movsProd = movimientosVista.filter(m => String(m.producto_id) === String(prod.id));
-        const { diasRestantes } = calcStats(movsProd, stock, ubicacionIdsSet, esOficina);
+        const { diasRestantes } = calcStats(movsProd, stock, ubicacionIdsSet, esOficina, prod.plazo_entrega_dias ?? 3);
         const nivel = urgenciaNivel(diasRestantes, stock);
         // fecha del último movimiento de este producto
         const ultimoMov = movsProd.length > 0
           ? movsProd.reduce((max, m) => m.fecha > max ? m.fecha : max, movsProd[0].fecha)
           : null;
-        return { prod, stock, nivel, diasRestantes, ultimoMov };
+        const minimo = minimoPorProducto.get(prod.id) ?? null;
+        return { prod, stock, nivel, diasRestantes, ultimoMov, minimo, bajoMinimo: minimo != null && stock < minimo };
       })
       .filter(r => {
+        // con mínimo definido: siempre mostrar
+        if (r.minimo != null) return true;
         // con stock > 0: siempre mostrar
         if (r.stock > 0) return true;
         // stock 0 pero con movimiento en los últimos 90 días: crítico real
@@ -277,6 +327,7 @@ export default function StockOverview() {
         return false;
       })
       .sort((a, b) => {
+        if (a.bajoMinimo !== b.bajoMinimo) return a.bajoMinimo ? -1 : 1;
         const no = NIVEL_ORDER[a.nivel] - NIVEL_ORDER[b.nivel];
         if (no !== 0) return no;
         // dentro del mismo nivel: menor días restantes primero
@@ -285,7 +336,7 @@ export default function StockOverview() {
         if (b.diasRestantes != null) return 1;
         return a.stock - b.stock;
       });
-  }, [productos, stockPorProducto, movimientosVista, ubicacionIdsSet, esOficina]);
+  }, [productos, stockPorProducto, movimientosVista, ubicacionIdsSet, esOficina, minimoPorProducto]);
 
   const categorias = useMemo(() => {
     const cats = new Set(resumen.map(r => r.prod.categoria).filter(Boolean));
@@ -297,9 +348,11 @@ export default function StockOverview() {
   const ok         = resumen.filter(r => r.nivel === "ok").length;
   const ocasionales = resumen.filter(r => r.nivel === "sinpatron").length;
   const conStock0  = resumen.filter(r => r.stock === 0).length;
+  const bajoElMinimo = resumen.filter(r => r.bajoMinimo);
 
   const visibles = resumen.filter(r => {
-    if (filtroNivel !== "todos" && r.nivel !== filtroNivel) return false;
+    if (filtroNivel === "minimo") { if (!r.bajoMinimo) return false; }
+    else if (filtroNivel !== "todos" && r.nivel !== filtroNivel) return false;
     if (filtroCat !== "todas" && r.prod.categoria !== filtroCat) return false;
     return true;
   });
@@ -383,6 +436,7 @@ export default function StockOverview() {
               { key: "bajo",      label: "Bajo" },
               { key: "ok",        label: "OK" },
               { key: "sinpatron", label: "Ocasional" },
+              { key: "minimo",    label: `Bajo el mínimo${bajoElMinimo.length ? ` (${bajoElMinimo.length})` : ""}` },
             ].map(f => (
               <button key={f.key} onClick={() => setFiltroNivel(f.key)} style={chipStyle(filtroNivel === f.key)}>
                 {f.label}
@@ -401,6 +455,22 @@ export default function StockOverview() {
               </>
             )}
           </div>
+
+          {errorMinimo && (
+            <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, padding: "10px 16px", fontSize: 13, color: "#92400e" }}>{errorMinimo}</div>
+          )}
+
+          {/* Alerta bajo el mínimo */}
+          {bajoElMinimo.length > 0 && (
+            <div style={{
+              background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10,
+              padding: "12px 16px", fontSize: 13, color: "#b91c1c", lineHeight: 1.5,
+            }}>
+              <strong>{bajoElMinimo.length} producto{bajoElMinimo.length !== 1 ? "s" : ""} por debajo del mínimo en {VISTAS.find(v => v.key === vista)?.label}:</strong>{" "}
+              {bajoElMinimo.slice(0, 6).map(r => `${r.prod.descripcion} (${r.stock} de ${r.minimo})`).join(" · ")}
+              {bajoElMinimo.length > 6 ? ` · y ${bajoElMinimo.length - 6} más` : ""}
+            </div>
+          )}
 
           {/* Alerta stock 0 */}
           {conStock0 > 0 && (
@@ -421,7 +491,7 @@ export default function StockOverview() {
             <p style={{ color: "#94a3b8", fontSize: 13 }}>No hay productos para mostrar con ese filtro.</p>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
-              {visibles.map(({ prod, stock }) => (
+              {visibles.map(({ prod, stock, bajoMinimo }) => (
                 <ProductoCard
                   key={prod.id}
                   prod={prod}
@@ -429,6 +499,10 @@ export default function StockOverview() {
                   movimientos={movimientosVista}
                   ubicacionIdsSet={ubicacionIdsSet}
                   esOficina={esOficina}
+                  minimo={minimoPorProducto.get(prod.id) ?? null}
+                  bajoMinimo={bajoMinimo}
+                  ambitoLabel={VISTAS.find(v => v.key === vista)?.label}
+                  onGuardarMinimo={guardarMinimo}
                   onClick={() => router.push(vista === "oficina" ? "/dashboard/stock/oficina?tab=busqueda" : "/dashboard/stock/ubicacion")}
                 />
               ))}

@@ -3,13 +3,21 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { CrudSection, IconChevron } from "./CrudSection";
 
+function useEquipos() {
+  const [equipos, setEquipos] = useState([]);
+  useEffect(() => { api.get("/equipos/").then(setEquipos).catch(() => {}); }, []);
+  return equipos;
+}
+
 function FormUbicacion({ onDone }) {
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState("");
+  const [equipoId, setEquipoId] = useState("");
+  const equipos = useEquipos();
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null });
+    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, equipo_id: equipoId || null });
     onDone();
   };
 
@@ -30,6 +38,14 @@ function FormUbicacion({ onDone }) {
           <option value="general">General</option>
         </select>
       </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Equipo (opcional)</label>
+        <select value={equipoId} onChange={e => setEquipoId(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">Sin equipo</option>
+          {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
+        </select>
+      </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
     </form>
   );
@@ -38,10 +54,12 @@ function FormUbicacion({ onDone }) {
 function EditFormUbicacion({ item, onDone, onCancel }) {
   const [nombre, setNombre] = useState(item.nombre || "");
   const [tipo, setTipo] = useState(item.tipo || "");
+  const [equipoId, setEquipoId] = useState(item.equipo_id || "");
+  const equipos = useEquipos();
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null });
+    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, equipo_id: equipoId || null });
     onDone();
   };
 
@@ -62,6 +80,14 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
           <option value="general">General</option>
         </select>
       </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Equipo (opcional)</label>
+        <select value={equipoId} onChange={e => setEquipoId(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">Sin equipo</option>
+          {equipos.map(eq => <option key={eq.id} value={eq.id}>{eq.nombre}</option>)}
+        </select>
+      </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
       <button type="button" onClick={onCancel} className="text-slate-500 hover:underline text-sm">Cancelar</button>
     </form>
@@ -74,10 +100,11 @@ function FormProducto({ onDone }) {
   const [codigo, setCodigo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [categoria, setCategoria] = useState("");
+  const [plazo, setPlazo] = useState("");
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.post("/stock/productos/", { codigo, descripcion, categoria });
+    await api.post("/stock/productos/", { codigo, descripcion, categoria, plazo_entrega_dias: plazo === "" ? null : parseInt(plazo, 10) });
     onDone();
   };
 
@@ -97,6 +124,11 @@ function FormProducto({ onDone }) {
         <label className="block text-xs text-slate-500 mb-1">Categoría</label>
         <input type="text" value={categoria} onChange={e => setCategoria(e.target.value)}
           placeholder="Ej: DISPOSITIVOS" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-36" required />
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Plazo de entrega (días)</label>
+        <input type="number" min="0" value={plazo} onChange={e => setPlazo(e.target.value)}
+          placeholder="Ej: 15" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-28" />
       </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
     </form>
@@ -129,10 +161,11 @@ function EditFormProducto({ item, onDone, onCancel }) {
   const [codigo, setCodigo] = useState(item.codigo || "");
   const [descripcion, setDescripcion] = useState(item.descripcion || "");
   const [categoria, setCategoria] = useState(item.categoria || "");
+  const [plazo, setPlazo] = useState(item.plazo_entrega_dias ?? "");
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.put(`/stock/productos/${item.id}`, { codigo, descripcion, categoria });
+    await api.put(`/stock/productos/${item.id}`, { codigo, descripcion, categoria, plazo_entrega_dias: plazo === "" ? null : parseInt(plazo, 10) });
     onDone();
   };
 
@@ -152,6 +185,11 @@ function EditFormProducto({ item, onDone, onCancel }) {
         <label className="block text-xs text-slate-500 mb-1">Categoría</label>
         <input type="text" value={categoria} onChange={e => setCategoria(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-36" required />
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Plazo de entrega (días)</label>
+        <input type="number" min="0" value={plazo} onChange={e => setPlazo(e.target.value)}
+          placeholder="Ej: 15" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-28" />
       </div>
       <button type="submit" className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm">Guardar</button>
       <button type="button" onClick={onCancel} className="text-slate-500 hover:underline text-sm">Cancelar</button>
@@ -326,6 +364,7 @@ export default function CatalogosStock() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [productos, setProductos] = useState([]);
   const [errorCarga, setErrorCarga] = useState("");
+  const equiposCatalogo = useEquipos();
 
   const cargarUbicaciones = () => api.get("/stock/ubicaciones/").then(setUbicaciones).catch(() => setErrorCarga("No se pudieron cargar las ubicaciones."));
   const cargarProductos = () => api.get("/stock/productos/").then(setProductos).catch(() => setErrorCarga("No se pudieron cargar los productos."));
@@ -357,6 +396,7 @@ export default function CatalogosStock() {
         columnas={[
           { key: "nombre", label: "Nombre" },
           { key: "tipo", label: "Tipo" },
+          { key: "equipo_id", label: "Equipo", render: (item) => equiposCatalogo.find(e => e.id === item.equipo_id)?.nombre || "—" },
         ]}
         onAdd={cargarUbicaciones}
         onDelete={eliminarUbicacion}
@@ -372,6 +412,7 @@ export default function CatalogosStock() {
           { key: "codigo", label: "Código" },
           { key: "descripcion", label: "Descripción" },
           { key: "categoria", label: "Categoría" },
+          { key: "plazo_entrega_dias", label: "Plazo de entrega", render: (item) => item.plazo_entrega_dias != null ? `${item.plazo_entrega_dias} días` : "—" },
           { key: "activo", label: "Estado", render: (item) => <ToggleActivo item={item} onChange={cargarProductos} /> },
         ]}
         onAdd={cargarProductos}

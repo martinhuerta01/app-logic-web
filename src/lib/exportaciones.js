@@ -734,3 +734,14 @@ export async function exportarTickets(tickets) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// Descarga cualquier tabla simple: una fila de encabezados y las filas de datos.
+export function descargarTabla(nombreArchivo, nombreHoja, encabezados, filas, anchos) {
+  if (!filas.length) throw new Error("Sin datos para exportar");
+  const ws = makeSheet([encabezados, ...filas]);
+  setColWidths(ws, anchos || encabezados.map((_, i) => (i === 0 ? 34 : 14)));
+  applyRowStyle(ws, 0, encabezados.length, S_HEADER);
+  const wb = XS.utils.book_new();
+  XS.utils.book_append_sheet(wb, ws, nombreHoja.slice(0, 31));
+  XS.writeFile(wb, nombreArchivo);
+}

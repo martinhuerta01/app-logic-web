@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import Modal, { BtnPrimary, BtnSecondary } from "@/components/Modal";
 import { parsearFilas, clasificarTicket, ESTADO_CERRADO } from "@/lib/tickets";
+import { CONFIGURACIONES } from "@/lib/stockTipos";
 
 const fmtFecha = (iso) => (iso ? iso.split("-").reverse().join("/") : "—");
 
@@ -15,7 +16,6 @@ const TH = {
 };
 const TD = { padding: "10px 12px", fontSize: 12.5, color: "#334155", verticalAlign: "top", borderBottom: "1px solid #f1f5f9" };
 const MONO = { fontFamily: "DM Mono, monospace" };
-const CONFIGURACIONES = ["CHASIS", "SEMI", "TRACTOR", "RFID", "BASICO"];
 
 function Chip({ item, onQuitar }) {
   return (

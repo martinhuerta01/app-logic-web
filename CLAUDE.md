@@ -14,14 +14,21 @@ Frontend: Next.js 16 + Tailwind. Backend: FastAPI + Supabase (repo separado: App
 
 ```
 src/app/dashboard/
-  estadisticas/        → Estadísticas (dashboard, horas, responsable, clientes, cruzado, stock KPI, patentes)
+  estadisticas/        → Estadísticas (dashboard, horas, responsable, clientes, cruzado, consumo de insumos, patentes)
   personal/
     horario-tecnico/   → Carga movimientos camioneta + ausencias (incluye parser de Excel LogicTracker)
     historial-camioneta/ → Historial de movimientos por mes
   stock/
     overview/          → Dashboard de stock: cards por producto con nivel, consumo/día, días restantes
     oficina/           → Stock de oficina (actual, entradas, salidas, búsqueda)
-  exportar-importar/   → Exportaciones Excel + informe de tickets en .docx
+    equipos/           → Equipos por número de serie: estado, ubicación, configuración, cliente, control de retirados
+    tickets/           → Importación del Excel de tickets de soporte (descuento de stock, seriales)
+    kits/, talleres/   → Kits (recetas) y mapeo de talleres editables
+    catalogos/         → Ubicaciones, productos y mapeo de La Serenísima (antes en Configuración)
+    herramientas/      → Herramientas por ubicación
+  personal/equipos/    → Equipos (antes en Configuración)
+  opciones-carga/      → Opciones de carga de servicios (antes en Configuración)
+  configuracion/, exportar-importar/ → solo redirigen (ya no son módulos)
   tareas/              → Sistema de tickets (kanban + lista + panel de detalle con notas)
     historial/         → Tickets resueltos filtrados por período
   recibos/             → Recibos de sueldo (subir PDF bulk, split por empleado, descarga individual)
@@ -91,14 +98,16 @@ DELETE /recibos/{id}
 - Cada tarjeta: cantidad actual, barra de nivel coloreada, consumo/día, días restantes, fecha sugerida de pedido
 - Filtros UI por nivel de urgencia y categoría
 - Alerta banner si hay productos en stock 0 reciente
-- La lógica de consumo es idéntica al Stock KPI de estadísticas (`calcStats`)
+- Vistas: Oficina, La Serenísima (todos los CD juntos), Camioneta 1 y 2 (`VISTAS_STOCK` en `src/lib/stockTipos.js`)
+- Una "entrada" para el cálculo de consumo es ENTRADA/COMPRA en Oficina y una TRANSFERENCIA hacia adentro del pool en las demás vistas
+- Stock mínimo por producto y vista (tabla `stock_minimo`, editable en la tarjeta) y plazo de entrega por producto (`productos.plazo_entrega_dias`, reemplaza los 3 días fijos)
+- Las herramientas no aparecen acá (ver Stock → Herramientas)
 
-## Stock KPI (estadísticas ?tab=stock)
+## Consumo de insumos (estadísticas ?tab=consumo)
 
-- Productos monitoreados guardados en `localStorage` bajo key `stock_kpi_watched_v1`
-- Calcula consumo diario promedio de los últimos lotes
-- Filtra `stock_actual` solo por `ubicaciones.tipo === "oficina"`
-- Fecha de compra sugerida = hoy + días restantes - 3 días de anticipación
+- Reemplaza al Stock KPI (que usaba una lista guardada en el navegador). Unidades consumidas por mes, producto y vista
+- Consumo = movimientos INSTALACION, o SALIDA sin destino, con origen en las ubicaciones de la vista
+- Exporta a Excel con `descargarTabla` (`src/lib/exportaciones.js`)
 
 ## Revisiones Frecuentes (patentes)
 
@@ -181,6 +190,22 @@ DELETE /recibos/{id}
 - **Auto-resolución REPROGRAMADO:** si la misma `patente` tiene un REALIZADO en fecha posterior dentro del mes → no cuenta como sin cerrar
 - **EVALUADO** se configura desde el dropdown en carga-dia / vista-dia; aparece como KPI propio en dashboard
 - Estados disponibles vienen de `/opciones-carga/` (fallback: `src/lib/opciones.js` DEFAULTS)
+
+## Estructura de módulos y permisos (v2.0)
+
+- `src/lib/modulos.js` es la fuente única de módulos y submódulos: el menú (`Sidebar.js`) y la pantalla de usuarios leen de ahí. Un módulo nuevo se agrega solo en ese archivo
+- Los permisos también se validan en el servidor (`requiere_admin` y `requiere_modulo`, ver `auth_middleware.py` del backend)
+- Los informes en Excel y Word viven en `src/lib/exportaciones.js` y cada pantalla los usa con `BotonExportar` (exporta lo que se está viendo)
+- Los cambios de la base de datos se versionan en `migraciones/` del backend
+- Plan y decisiones: `docs/PLAN_MEJORAS.md`. Instructivo para técnicos: `docs/INSTRUCTIVO_TECNICOS_STOCK.md`
+
+## Importación de tickets de soporte (stock/tickets/)
+
+- Interpretación de la descripción en `src/lib/tickets/` (módulos puros: exclusión, acción, insumos, serial, ubicación por taller, clasificación)
+- Ubicación: La Serenísima Distribución usa la base; La Serenísima LD y los demás clientes buscan el taller en Base + descripción contra `mapeo_talleres` (`aplica_a` = serenisima u otros); si no coincide, General Rodríguez o Camioneta 1
+- Lo negado con "sin ..." se ignora; "cambio" + equipo sin la línea automática "Dispo eliminado" no es un cambio de equipo
+- El modelo de un equipo se identifica por el prefijo de su serie (`detectarModeloPorSerial`)
+- La confirmación es una función atómica de la base (`fn_confirmar_ticket_stock`), un ticket por llamada
 
 ## Historial de versiones
 

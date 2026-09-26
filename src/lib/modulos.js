@@ -36,7 +36,7 @@ export const MODULOS = [
       { key: "responsable", href: "/dashboard/estadisticas?tab=responsable", label: "Por Responsable" },
       { key: "clientes",    href: "/dashboard/estadisticas?tab=clientes",    label: "Por Cliente" },
       { key: "cruzado",     href: "/dashboard/estadisticas?tab=cruzado",     label: "Reporte cruzado" },
-      { key: "stock-kpi",   href: "/dashboard/estadisticas?tab=stock",       label: "Stock KPI" },
+      { key: "consumo",     href: "/dashboard/estadisticas?tab=consumo",     label: "Consumo de insumos" },
       { key: "patentes",    href: "/dashboard/estadisticas?tab=patentes",    label: "Revisiones frecuentes" },
     ],
   },
@@ -46,6 +46,7 @@ export const MODULOS = [
     subs: [
       { href: "/dashboard/stock/overview", label: "Dashboard" },
       { href: "/dashboard/stock/ubicacion",   label: "Stock por ubicación" },
+      { href: "/dashboard/stock/equipos", label: "Equipos por serie" },
       { href: "/dashboard/stock/movimientos", label: "Movimientos" },
       { href: "/dashboard/stock/tickets",  label: "Descontar por tickets" },
       { href: "/dashboard/stock/herramientas", label: "Herramientas" },
