@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  ordenarUbicaciones, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
+  ordenarUbicaciones, agruparPorSegmento, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -45,6 +45,7 @@ function Pantalla() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState(null);
   const [cerradas, setCerradas] = useState({});
+  const [segmentosCerrados, setSegmentosCerrados] = useState({});
   const [seriesAbiertas, setSeriesAbiertas] = useState({});
   const [listasSeries, setListasSeries] = useState({});
 
@@ -85,6 +86,7 @@ function Pantalla() {
     setConteoAbierto(false); setSeriesAbiertas({}); setListasSeries({});
   }, [sel, cargarStock]);
 
+  const segmentos = useMemo(() => agruparPorSegmento(ubicaciones), [ubicaciones]);
   const ubicacion = ubicaciones.find((u) => u.id === sel);
   const esOficina = ubicacion?.tipo === "oficina";
   const filas = datos?.filas || [];
@@ -188,20 +190,36 @@ function Pantalla() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(200px, 250px) 1fr", gap: 18, alignItems: "start" }}>
-        <nav aria-label="Ubicaciones" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-          {ubicaciones.map((u) => (
-            <button key={u.id} type="button" onClick={() => setSel(u.id)} aria-current={u.id === sel}
-              style={{
-                textAlign: "left", border: "none", borderRadius: 8, padding: "9px 12px", cursor: "pointer", fontFamily: "inherit",
-                background: u.id === sel ? "#1d4e89" : "transparent", color: u.id === sel ? "#ffffff" : "#1e293b",
-                display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
-              }}>
-              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.nombre.trim()}</span>
-              {u.negativos > 0 && (
-                <span title="Productos sin explicar" style={{ ...MONO, fontSize: 11, fontWeight: 700, background: "#b91c1c", color: "#fff", borderRadius: 999, padding: "1px 7px" }}>{u.negativos}</span>
-              )}
-            </button>
-          ))}
+        <nav aria-label="Ubicaciones" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+          {segmentos.map(([segmento, lista]) => {
+            const cerrado = !!segmentosCerrados[segmento.clave] && !lista.some((u) => u.id === sel);
+            const sinExplicar = lista.reduce((a, u) => a + u.negativos, 0);
+            return (
+              <div key={segmento.clave} style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 6 }}>
+                <button type="button" aria-expanded={!cerrado} onClick={() => setSegmentosCerrados((c) => ({ ...c, [segmento.clave]: !c[segmento.clave] }))}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", padding: "6px 8px", color: "#475569" }}>
+                  <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{segmento.nombre}</span>
+                  <span style={{ fontSize: 11, display: "flex", gap: 6, alignItems: "center" }}>
+                    {cerrado && sinExplicar > 0 && <span style={{ ...MONO, fontWeight: 700, background: "#b91c1c", color: "#fff", borderRadius: 999, padding: "0 7px" }}>{sinExplicar}</span>}
+                    {cerrado ? "▸" : "▾"}
+                  </span>
+                </button>
+                {!cerrado && lista.map((u) => (
+                  <button key={u.id} type="button" onClick={() => setSel(u.id)} aria-current={u.id === sel}
+                    style={{
+                      textAlign: "left", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit",
+                      background: u.id === sel ? "#1d4e89" : "transparent", color: u.id === sel ? "#ffffff" : "#1e293b",
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
+                    }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.nombre.trim()}</span>
+                    {u.negativos > 0 && (
+                      <span title="Productos sin explicar" style={{ ...MONO, fontSize: 11, fontWeight: 700, background: "#b91c1c", color: "#fff", borderRadius: 999, padding: "1px 7px" }}>{u.negativos}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>

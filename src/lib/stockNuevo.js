@@ -7,21 +7,36 @@ export const ordenCategoria = (c) => {
   return i === -1 ? ORDEN_CATEGORIAS.length : i;
 };
 
-// La oficina primero, después centros de distribución, camionetas, talleres y el resto
-const tipoDe = (u) => {
-  if (u.tipo === "oficina") return 0;
-  if (u.tipo === "cd") return 1;
-  if (/camioneta/i.test(u.nombre)) return 2;
-  if (/taller/i.test(u.nombre)) return 3;
-  return 4;
+// Segmentos en los que se agrupan las ubicaciones. Se editan en Stock → Catálogos → Ubicaciones.
+export const SEGMENTOS = [
+  { clave: "oficina", nombre: "Oficina" },
+  { clave: "cd", nombre: "Centros de distribución" },
+  { clave: "taller", nombre: "Talleres" },
+  { clave: "tecnico", nombre: "Técnicos" },
+  { clave: "equipo", nombre: "Equipos" },
+  { clave: "otras", nombre: "Otras ubicaciones" },
+];
+
+// Si la ubicación todavía no tiene segmento cargado, se propone uno según su tipo y su nombre
+export const segmentoDe = (u) => {
+  if (u.segmento) return u.segmento;
+  if (u.tipo === "oficina") return "oficina";
+  if (/^camioneta/i.test(u.nombre.trim())) return "equipo";
+  if (/^(taller|vitaco)/i.test(u.nombre.trim())) return "taller";
+  if (u.tipo === "cd") return "cd";
+  return "otras";
 };
 
+const ordenSegmento = (u) => SEGMENTOS.findIndex((s) => s.clave === segmentoDe(u));
+
 export const ordenarUbicaciones = (lista) =>
-  [...lista].sort((a, b) => tipoDe(a) - tipoDe(b) || a.nombre.trim().localeCompare(b.nombre.trim()));
+  [...lista].sort((a, b) => ordenSegmento(a) - ordenSegmento(b) || a.nombre.trim().localeCompare(b.nombre.trim()));
 
-export const GRUPOS_UBICACION = ["Oficina", "Camionetas", "Centros de distribución", "Talleres", "Otras ubicaciones"];
-
-export const grupoDeUbicacion = (u) => GRUPOS_UBICACION[[0, 2, 1, 3, 4][tipoDe(u)]];
+// Ubicaciones agrupadas por segmento, en orden y sin los segmentos vacíos: [[{clave, nombre}, [ubicaciones]], ...]
+export const agruparPorSegmento = (lista) =>
+  SEGMENTOS
+    .map((s) => [s, ordenarUbicaciones(lista).filter((u) => segmentoDe(u) === s.clave)])
+    .filter(([, l]) => l.length > 0);
 
 // Series separadas por línea, coma, punto y coma o espacio
 export const parseSeries = (texto) => [...new Set((texto || "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean))];

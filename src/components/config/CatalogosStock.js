@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { SEGMENTOS, segmentoDe } from "@/lib/stockNuevo";
 import { api } from "@/lib/api";
 import { CrudSection, IconChevron } from "./CrudSection";
 
@@ -18,6 +19,7 @@ function useUbicaciones() {
 function FormUbicacion({ onDone }) {
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState("");
+  const [segmento, setSegmento] = useState("");
   const [equipoId, setEquipoId] = useState("");
   const [materialesId, setMaterialesId] = useState("");
   const todasUbicaciones = useUbicaciones();
@@ -25,7 +27,7 @@ function FormUbicacion({ onDone }) {
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
+    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, segmento: segmento || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
     onDone();
   };
 
@@ -44,6 +46,14 @@ function FormUbicacion({ onDone }) {
           <option value="oficina">Oficina</option>
           <option value="cd">CD (Centro Distribución)</option>
           <option value="general">General</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Segmento (Stock nuevo)</label>
+        <select value={segmento} onChange={e => setSegmento(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">Automático</option>
+          {SEGMENTOS.map(s => <option key={s.clave} value={s.clave}>{s.nombre}</option>)}
         </select>
       </div>
       <div>
@@ -70,6 +80,7 @@ function FormUbicacion({ onDone }) {
 function EditFormUbicacion({ item, onDone, onCancel }) {
   const [nombre, setNombre] = useState(item.nombre || "");
   const [tipo, setTipo] = useState(item.tipo || "");
+  const [segmento, setSegmento] = useState(item.segmento || "");
   const [equipoId, setEquipoId] = useState(item.equipo_id || "");
   const [materialesId, setMaterialesId] = useState(item.ubicacion_materiales_id || "");
   const todasUbicaciones = useUbicaciones().filter(u => u.id !== item.id);
@@ -77,7 +88,7 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
+    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, segmento: segmento || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
     onDone();
   };
 
@@ -96,6 +107,14 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
           <option value="oficina">Oficina</option>
           <option value="cd">CD (Centro Distribución)</option>
           <option value="general">General</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Segmento (Stock nuevo)</label>
+        <select value={segmento} onChange={e => setSegmento(e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+          <option value="">Automático</option>
+          {SEGMENTOS.map(s => <option key={s.clave} value={s.clave}>{s.nombre}</option>)}
         </select>
       </div>
       <div>
@@ -422,6 +441,7 @@ export default function CatalogosStock() {
         columnas={[
           { key: "nombre", label: "Nombre" },
           { key: "tipo", label: "Tipo" },
+          { key: "segmento", label: "Segmento", render: (item) => SEGMENTOS.find(s => s.clave === segmentoDe(item))?.nombre || "—" },
           { key: "equipo_id", label: "Equipo", render: (item) => equiposCatalogo.find(e => e.id === item.equipo_id)?.nombre || "—" },
           { key: "ubicacion_materiales_id", label: "Materiales desde", render: (item) => ubicaciones.find(u => u.id === item.ubicacion_materiales_id)?.nombre || "—" },
         ]}

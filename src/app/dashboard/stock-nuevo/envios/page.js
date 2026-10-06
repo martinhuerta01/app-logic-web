@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  ordenarUbicaciones, ordenCategoria, ORDEN_CATEGORIAS, GRUPOS_UBICACION, grupoDeUbicacion, parseSeries, mensajeDeError,
+  ordenarUbicaciones, agruparPorSegmento, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -68,11 +68,8 @@ function Pantalla() {
   const esOficina = origenU?.tipo === "oficina";
   const destinoU = ubicaciones.find((u) => u.id === destino);
 
-  const gruposDestino = useMemo(() => {
-    const m = new Map(GRUPOS_UBICACION.map((g) => [g, []]));
-    ubicaciones.filter((u) => u.id !== origen).forEach((u) => m.get(grupoDeUbicacion(u)).push(u));
-    return [...m.entries()].filter(([, l]) => l.length);
-  }, [ubicaciones, origen]);
+  const gruposOrigen = useMemo(() => agruparPorSegmento(ubicaciones), [ubicaciones]);
+  const gruposDestino = useMemo(() => agruparPorSegmento(ubicaciones.filter((u) => u.id !== origen)), [ubicaciones, origen]);
 
   useEffect(() => { if (destino === origen) setDestino(""); }, [origen, destino]);
 
@@ -157,9 +154,14 @@ function Pantalla() {
 
       <div style={tarjeta}>
         <div style={subtitulo}>Desde</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {ubicaciones.map((u) => (
-            <button key={u.id} type="button" onClick={() => setOrigen(u.id)} aria-pressed={u.id === origen} style={chip(u.id === origen)}>{u.nombre.trim()}</button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {gruposOrigen.map(([segmento, lista]) => (
+            <div key={segmento.clave} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{segmento.nombre}</span>
+              {lista.map((u) => (
+                <button key={u.id} type="button" onClick={() => setOrigen(u.id)} aria-pressed={u.id === origen} style={chip(u.id === origen)}>{u.nombre.trim()}</button>
+              ))}
+            </div>
           ))}
         </div>
       </div>
@@ -167,9 +169,9 @@ function Pantalla() {
       <div style={tarjeta}>
         <div style={subtitulo}>Hacia</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {gruposDestino.map(([grupo, lista]) => (
-            <div key={grupo} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{grupo}</span>
+          {gruposDestino.map(([segmento, lista]) => (
+            <div key={segmento.clave} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{segmento.nombre}</span>
               {lista.map((u) => (
                 <button key={u.id} type="button" onClick={() => setDestino(u.id)} aria-pressed={u.id === destino} style={chip(u.id === destino)}>{u.nombre.trim()}</button>
               ))}
