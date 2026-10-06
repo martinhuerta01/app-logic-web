@@ -1,6 +1,9 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell, LabelList, Legend, PieChart, Pie,
+} from "recharts";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { agruparPorSegmento, localidadAMostrar, diasDesde, fmtFecha, hace, mensajeDeError, ordenCategoria } from "@/lib/stockNuevo";
@@ -8,23 +11,28 @@ import { agruparPorSegmento, localidadAMostrar, diasDesde, fmtFecha, hace, mensa
 const BASE = "/stock-nuevo";
 const RUTA = "/dashboard/stock-nuevo";
 const MONO = { fontFamily: "DM Mono, monospace" };
+const tarjeta = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12 };
 const TH = {
   textAlign: "left", padding: "9px 12px", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.07em",
   textTransform: "uppercase", color: "#94a3b8", background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
 };
-const TD = { padding: "10px 12px", fontSize: 13, color: "#334155", borderBottom: "1px solid #f1f5f9", verticalAlign: "middle" };
-const NUM = { ...MONO, textAlign: "right", fontSize: 13.5 };
-const tarjeta = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10 };
+const TD = { padding: "9px 12px", fontSize: 13, color: "#334155", borderBottom: "1px solid #f1f5f9", verticalAlign: "middle" };
 
-// Niveles de la reposición de la Oficina (días de stock con el consumo de los últimos 90 días)
+// Colores de estado: rojo = actuar ya, ámbar = atención, verde = bien, gris = sin dato
+const COLOR = { critico: "#dc2626", bajo: "#f59e0b", ok: "#16a34a", sinconsumo: "#94a3b8" };
 const NIVELES = {
   critico: { texto: "Crítico", fondo: "#fee2e2", color: "#991b1b", orden: 0 },
-  bajo: { texto: "Bajo", fondo: "#ffedd5", color: "#9a3412", orden: 1 },
+  bajo: { texto: "Bajo", fondo: "#fef3c7", color: "#92400e", orden: 1 },
   ok: { texto: "Con stock", fondo: "#dcfce7", color: "#166534", orden: 2 },
   sinconsumo: { texto: "Sin consumo", fondo: "#e2e8f0", color: "#475569", orden: 3 },
 };
 const DIAS_CRITICO = 7;
 const DIAS_BAJO = 20;
+const CATEGORIAS = [
+  ["Dispositivos", "#1d4e89"], ["Cables", "#0e7490"], ["Accesorios", "#7c3aed"], ["Insumos", "#c2410c"],
+];
+const COLOR_EDAD = ["#16a34a", "#84cc16", "#f59e0b", "#ea580c", "#b91c1c", "#94a3b8"];
+const MES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 const nivelDe = (r) => {
   if (r.minimo != null && r.stock < r.minimo) return "critico";
@@ -35,24 +43,44 @@ const nivelDe = (r) => {
   }
   return "sinconsumo";
 };
+const corto = (s, n = 28) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 function Indicador({ titulo, valor, detalle, color, href }) {
   const contenido = (
-    <div style={{ ...tarjeta, padding: "14px 16px", height: "100%", borderTop: `3px solid ${color}` }}>
-      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8" }}>{titulo}</div>
-      <div style={{ ...MONO, fontSize: 28, fontWeight: 700, color, marginTop: 6, lineHeight: 1 }}>{valor}</div>
-      <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 6 }}>{detalle}</div>
+    <div style={{ ...tarjeta, padding: "16px 18px", height: "100%", borderTop: `4px solid ${color}` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#64748b" }}>{titulo}</div>
+      <div style={{ ...MONO, fontSize: 34, fontWeight: 700, color, marginTop: 8, lineHeight: 1 }}>{valor}</div>
+      <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 8, lineHeight: 1.35 }}>{detalle}</div>
     </div>
   );
   return href ? <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>{contenido}</Link> : contenido;
 }
+
+function Bloque({ titulo, ayuda, children, derecha }) {
+  return (
+    <section style={{ ...tarjeta, padding: 18, display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 17, color: "#0f172a" }}>{titulo}</h2>
+          {ayuda && <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 3, maxWidth: 760, lineHeight: 1.4 }}>{ayuda}</div>}
+        </div>
+        {derecha}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+const CuadroInfo = ({ children }) => (
+  <div style={{ background: "#0f172a", color: "#fff", borderRadius: 8, padding: "8px 12px", fontSize: 12.5, lineHeight: 1.5, boxShadow: "0 4px 14px rgba(0,0,0,.25)" }}>{children}</div>
+);
 
 export default function DashboardStock() {
   const { rol } = useAuth();
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState(null);
-  const [nivel, setNivel] = useState("todos");
+  const [verTabla, setVerTabla] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [editando, setEditando] = useState(null);
   const [diasConteo, setDiasConteo] = useState("");
@@ -65,37 +93,40 @@ export default function DashboardStock() {
       setError(mensajeDeError(e));
     }
   }, []);
-
   useEffect(() => { cargar(); }, [cargar]);
 
   const reposicion = useMemo(() => (datos?.reposicion || []).map((r) => ({ ...r, nivel: nivelDe(r) })), [datos]);
 
-  const cuentaNiveles = useMemo(() => {
-    const c = { todos: reposicion.length, critico: 0, bajo: 0, ok: 0, sinconsumo: 0 };
+  const cuenta = useMemo(() => {
+    const c = { critico: 0, bajo: 0, ok: 0, sinconsumo: 0 };
     reposicion.forEach((r) => { c[r.nivel]++; });
     return c;
   }, [reposicion]);
 
-  const lista = useMemo(() => {
+  // Barras: los productos con consumo que se acaban primero
+  const barras = useMemo(() => reposicion
+    .filter((r) => r.dias_de_stock != null && r.consumo_por_dia > 0)
+    .sort((a, b) => a.dias_de_stock - b.dias_de_stock).slice(0, 12)
+    .map((r) => ({ ...r, nombre: `${r.codigo} · ${corto(r.descripcion, 24)}`, dias: r.dias_de_stock })), [reposicion]);
+
+  const bajoMinimo = useMemo(() => reposicion.filter((r) => r.minimo != null && r.stock < r.minimo), [reposicion]);
+
+  const donut = useMemo(() => Object.entries(cuenta).filter(([, n]) => n > 0)
+    .map(([clave, n]) => ({ clave, name: NIVELES[clave].texto, value: n, fill: COLOR[clave] })), [cuenta]);
+
+  const tabla = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return reposicion
-      .filter((r) => nivel === "todos" || r.nivel === nivel)
-      .filter((r) => !q || r.codigo.toLowerCase().includes(q) || r.descripcion.toLowerCase().includes(q))
-      .sort((a, b) => NIVELES[a.nivel].orden - NIVELES[b.nivel].orden
-        || (a.dias_de_stock ?? 99999) - (b.dias_de_stock ?? 99999)
+    return reposicion.filter((r) => !q || r.codigo.toLowerCase().includes(q) || r.descripcion.toLowerCase().includes(q))
+      .sort((a, b) => NIVELES[a.nivel].orden - NIVELES[b.nivel].orden || (a.dias_de_stock ?? 99999) - (b.dias_de_stock ?? 99999)
         || ordenCategoria(a.categoria) - ordenCategoria(b.categoria) || a.codigo.localeCompare(b.codigo));
-  }, [reposicion, nivel, busqueda]);
+  }, [reposicion, busqueda]);
 
   const guardarMinimo = async (r, valor) => {
     setEditando(null);
     const nuevo = valor === "" ? null : Math.max(0, parseInt(valor, 10));
     if (nuevo === r.minimo || Number.isNaN(nuevo)) return;
-    try {
-      await api.put(`${BASE}/minimos/`, { producto_id: r.producto_id, cantidad_minima: nuevo });
-      await cargar();
-    } catch (e) {
-      setMensaje({ tipo: "error", texto: mensajeDeError(e) });
-    }
+    try { await api.put(`${BASE}/minimos/`, { producto_id: r.producto_id, cantidad_minima: nuevo }); await cargar(); }
+    catch (e) { setMensaje({ tipo: "error", texto: mensajeDeError(e) }); }
   };
 
   const guardarDiasConteo = async () => {
@@ -103,9 +134,7 @@ export default function DashboardStock() {
       await api.put(`${BASE}/alertas/`, { clave: "dias_alerta_conteo", dias: parseInt(diasConteo, 10) });
       setMensaje({ tipo: "ok", texto: "Días de alerta de conteo guardados." });
       await cargar();
-    } catch (e) {
-      setMensaje({ tipo: "error", texto: mensajeDeError(e) });
-    }
+    } catch (e) { setMensaje({ tipo: "error", texto: mensajeDeError(e) }); }
   };
 
   if (error) return <div role="alert" style={{ padding: 16, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, color: "#991b1b", fontSize: 13 }}>{error}</div>;
@@ -113,17 +142,22 @@ export default function DashboardStock() {
 
   const ubicaciones = datos.ubicaciones;
   const sinExplicar = ubicaciones.reduce((a, u) => a + u.negativos, 0);
-  const ubicacionesConNegativos = ubicaciones.filter((u) => u.negativos > 0).length;
+  const conNegativos = ubicaciones.filter((u) => u.negativos > 0).length;
   const conteoVencido = (u) => !u.ultimo_conteo || diasDesde(u.ultimo_conteo) > datos.dias_alerta_conteo;
   const sinConteo = ubicaciones.filter(conteoVencido).length;
-  const aPedir = cuentaNiveles.critico + cuentaNiveles.bajo;
+  const aPedir = cuenta.critico + cuenta.bajo;
+  const maxDias = Math.max(30, ...barras.map((b) => b.dias));
+
+  const consumo = datos.consumo_mensual.map((m) => ({ ...m, etiqueta: MES_CORTO[parseInt(m.mes.slice(5), 10) - 1] }));
+  const hayConsumo = consumo.some((m) => CATEGORIAS.some(([c]) => m[c] > 0));
+  const edades = datos.retirados_por_edad.filter((e) => e.tramo !== "Sin fecha" || e.cantidad > 0);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#c2410c" }}>Stock nuevo</div>
-        <h1 style={{ margin: "2px 0 0", fontSize: 24, color: "#0f172a" }}>Dashboard</h1>
-        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Qué hay que pedir, qué no cierra y qué falta contar. Hoy es {fmtFecha(datos.hoy)}.</div>
+        <h1 style={{ margin: "2px 0 0", fontSize: 26, color: "#0f172a" }}>Dashboard</h1>
+        <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Qué hay que pedir, qué no cierra y qué falta contar · {fmtFecha(datos.hoy)}</div>
       </div>
 
       {mensaje && (
@@ -133,150 +167,227 @@ export default function DashboardStock() {
         }}>{mensaje.texto}</div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
-        <Indicador titulo="Para pedir (Oficina)" valor={aPedir} color={aPedir ? "#b91c1c" : "#15803d"}
-          detalle={`${cuentaNiveles.critico} críticos y ${cuentaNiveles.bajo} bajos`} />
-        <Indicador titulo="Productos sin explicar" valor={sinExplicar} color={sinExplicar ? "#b45309" : "#15803d"}
-          detalle={sinExplicar ? `En ${ubicacionesConNegativos} ubicaciones: falta un envío o un conteo` : "Todo cierra"} href={`${RUTA}/ubicaciones`} />
-        <Indicador titulo="Sin conteo reciente" valor={sinConteo} color={sinConteo ? "#b45309" : "#15803d"}
-          detalle={`Ubicaciones sin conteo o con más de ${datos.dias_alerta_conteo} días`} />
-        <Indicador titulo="Retirados atrasados" valor={datos.retirados.atrasados} color={datos.retirados.atrasados ? "#b91c1c" : "#15803d"}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+        <Indicador titulo="Para pedir" valor={aPedir} color={aPedir ? COLOR.critico : COLOR.ok} detalle={`Oficina: ${cuenta.critico} críticos y ${cuenta.bajo} bajos`} />
+        <Indicador titulo="Sin explicar" valor={sinExplicar} color={sinExplicar ? COLOR.bajo : COLOR.ok}
+          detalle={sinExplicar ? `Productos en ${conNegativos} ubicaciones: falta un envío o un conteo` : "Todo cierra"} href={`${RUTA}/ubicaciones`} />
+        <Indicador titulo="Sin conteo reciente" valor={sinConteo} color={sinConteo ? COLOR.bajo : COLOR.ok} detalle={`Ubicaciones sin conteo o con más de ${datos.dias_alerta_conteo} días`} />
+        <Indicador titulo="Retirados atrasados" valor={datos.retirados.atrasados} color={datos.retirados.atrasados ? COLOR.critico : COLOR.ok}
           detalle={`De ${datos.retirados.pendientes} pendientes, más de ${datos.retirados.dias_alerta} días`} href={`${RUTA}/retirados`} />
-        <Indicador titulo="Faltantes sin resolver" valor={datos.faltantes} color={datos.faltantes ? "#b45309" : "#15803d"}
-          detalle="Piezas que no volvieron con un retirado" href={`${RUTA}/retirados`} />
+        <Indicador titulo="Faltantes" valor={datos.faltantes} color={datos.faltantes ? COLOR.bajo : COLOR.ok} detalle="Piezas que no volvieron con un retirado" href={`${RUTA}/retirados`} />
       </div>
 
-      <section aria-label="Reposición de la Oficina" style={{ ...tarjeta, overflow: "hidden" }}>
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Reposición de la Oficina</h2>
-            <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 2, maxWidth: 820 }}>
-              El consumo es el promedio diario de los últimos {datos.ventana_dias} días (tickets y salidas). Crítico: stock por debajo del mínimo o {DIAS_CRITICO} días o menos. Bajo: hasta {DIAS_BAJO} días.
-              La fecha para pedir descuenta el plazo de entrega de cada producto (si no tiene, 3 días).
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            {[["todos", "Todos"], ["critico", "Críticos"], ["bajo", "Bajos"], ["ok", "Con stock"], ["sinconsumo", "Sin consumo"]].map(([clave, texto]) => (
-              <button key={clave} type="button" aria-pressed={nivel === clave} onClick={() => setNivel(clave)}
-                style={{ minHeight: 36, padding: "0 14px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: nivel === clave ? "#c2410c" : "#4a5463" }}>
-                {texto} ({cuentaNiveles[clave]})
-              </button>
-            ))}
-            <label htmlFor="buscar-repos" className="sr-only">Buscar producto</label>
-            <input id="buscar-repos" type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o código"
-              style={{ marginLeft: "auto", width: 240, fontSize: 13.5, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 12px" }} />
-          </div>
+      <div className="stock-fila-2" style={{ display: "grid", gap: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <Bloque titulo="Qué se acaba primero en la Oficina"
+            ayuda={`Días que alcanza el stock con el consumo de los últimos ${datos.ventana_dias} días. Rojo: ${DIAS_CRITICO} días o menos. Ámbar: hasta ${DIAS_BAJO}.`}>
+            {barras.length === 0 ? (
+              <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>Todavía no hay consumo registrado para calcular cuánto dura el stock.</div>
+            ) : (
+              <div role="img" aria-label={`Días de stock de los ${barras.length} productos que se acaban primero. El primero es ${barras[0].descripcion} con ${barras[0].dias} días.`}
+                style={{ width: "100%", height: Math.max(260, barras.length * 34 + 40) }}>
+                <ResponsiveContainer>
+                  <BarChart data={barras} layout="vertical" margin={{ top: 8, right: 44, left: 8, bottom: 8 }}>
+                    <CartesianGrid horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" domain={[0, maxDias]} tick={{ fontSize: 12, fill: "#475569" }} unit=" d" />
+                    <YAxis type="category" dataKey="nombre" width={190} tick={{ fontSize: 12, fill: "#1e293b" }} />
+                    <Tooltip cursor={{ fill: "#f1f5f9" }} content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const r = payload[0].payload;
+                      return (
+                        <CuadroInfo>
+                          <b>{r.descripcion}</b><br />
+                          Stock: {r.stock}{r.minimo != null ? ` (mínimo ${r.minimo})` : ""}<br />
+                          Consumo: {r.consumo_por_dia} por día<br />
+                          Alcanza: {r.dias} días<br />
+                          Pedir antes del {fmtFecha(r.pedir_el)}
+                        </CuadroInfo>
+                      );
+                    }} />
+                    <ReferenceLine x={DIAS_CRITICO} stroke={COLOR.critico} strokeDasharray="5 4" />
+                    <ReferenceLine x={DIAS_BAJO} stroke={COLOR.bajo} strokeDasharray="5 4" />
+                    <Bar dataKey="dias" radius={[0, 5, 5, 0]} maxBarSize={22}>
+                      {barras.map((b) => <Cell key={b.producto_id} fill={COLOR[b.nivel]} />)}
+                      <LabelList dataKey="dias" position="right" formatter={(v) => `${v} d`} style={{ fontSize: 12, fontWeight: 700, fill: "#0f172a" }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {bajoMinimo.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", fontSize: 12.5, color: "#7f1d1d" }}>
+                <b>Por debajo del mínimo:</b>
+                {bajoMinimo.map((r) => (
+                  <span key={r.producto_id} style={{ background: "#fee2e2", borderRadius: 999, padding: "2px 10px", fontWeight: 600 }}>{r.codigo} · {r.stock} de {r.minimo}</span>
+                ))}
+              </div>
+            )}
+          </Bloque>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
-            <thead>
-              <tr>
-                <th style={TH}>Producto</th>
-                <th style={{ ...TH, textAlign: "right" }}>Stock</th>
-                <th style={{ ...TH, textAlign: "right" }}>Mínimo</th>
-                <th style={{ ...TH, textAlign: "right" }}>Consumo por día</th>
-                <th style={{ ...TH, textAlign: "right" }}>Días de stock</th>
-                <th style={TH}>Pedir antes del</th>
-                <th style={TH}>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lista.length === 0 && <tr><td colSpan={7} style={{ ...TD, color: "#64748b" }}>No hay productos con ese filtro.</td></tr>}
-              {lista.map((r) => {
-                const n = NIVELES[r.nivel];
-                return (
-                  <tr key={r.producto_id}>
-                    <td style={TD}><div style={{ fontWeight: 600 }}>{r.descripcion}</div><div style={{ ...MONO, fontSize: 11, color: "#94a3b8" }}>{r.codigo}</div></td>
-                    <td style={{ ...TD, ...NUM, fontWeight: 700 }}>{r.stock}</td>
-                    <td style={{ ...TD, textAlign: "right" }}>
-                      {editando === r.producto_id ? (
-                        <input type="number" min="0" autoFocus defaultValue={r.minimo ?? ""} aria-label={`Mínimo de ${r.descripcion}`}
-                          onBlur={(e) => guardarMinimo(r, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") setEditando(null); }}
-                          style={{ ...MONO, width: 70, textAlign: "right", fontSize: 13.5, border: "1px solid #1d4e89", borderRadius: 6, padding: "4px 6px" }} />
-                      ) : (
-                        <button type="button" onClick={() => setEditando(r.producto_id)} aria-label={`Cambiar el mínimo de ${r.descripcion}`}
-                          style={{ ...MONO, border: "1px dashed #94a3b8", borderRadius: 6, background: "transparent", cursor: "pointer", fontSize: 13.5, padding: "3px 10px", color: r.minimo == null ? "#94a3b8" : "#0f172a" }}>
-                          {r.minimo ?? "Fijar"}
-                        </button>
-                      )}
-                    </td>
-                    <td style={{ ...TD, ...NUM, color: r.consumo_por_dia ? "#0f172a" : "#cbd5e1" }}>{r.consumo_por_dia || "—"}</td>
-                    <td style={{ ...TD, ...NUM, fontWeight: 700, color: r.nivel === "critico" ? "#b91c1c" : "#0f172a" }}>{r.dias_de_stock == null ? "—" : r.dias_de_stock}</td>
-                    <td style={{ ...TD, ...MONO, fontSize: 13 }}>{r.pedir_el ? fmtFecha(r.pedir_el) : "—"}</td>
-                    <td style={TD}><span style={{ background: n.fondo, color: n.color, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "2px 10px", whiteSpace: "nowrap" }}>{n.texto}</span></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
-      <section aria-label="Estado por ubicación" style={{ ...tarjeta, overflow: "hidden" }}>
-        <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Estado de cada ubicación</h2>
-            <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 2 }}>Cuándo se contó por última vez y cuántos productos no cierran.</div>
+        <Bloque titulo="Estado de los productos" ayuda="Cuántos productos hay en cada nivel.">
+          <div role="img" aria-label={`Productos por nivel: ${donut.map((d) => `${d.value} ${d.name.toLowerCase()}`).join(", ")}.`} style={{ width: "100%", height: 230 }}>
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={donut} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2} stroke="#fff" />
+                <Tooltip content={({ active, payload }) => active && payload?.length ? <CuadroInfo>{payload[0].name}: <b>{payload[0].value}</b> productos</CuadroInfo> : null} />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-          {rol === "admin" && (
-            <span style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, color: "#64748b" }}>
-              <label htmlFor="dias-conteo">Alertar el conteo después de</label>
-              <input id="dias-conteo" type="number" min="1" max="365" value={diasConteo} onChange={(e) => setDiasConteo(e.target.value)}
-                style={{ ...MONO, width: 64, textAlign: "right", border: "1px solid #cbd5e1", borderRadius: 6, padding: "6px 8px" }} />
-              <span>días</span>
-              <button type="button" onClick={guardarDiasConteo} style={{ border: "none", borderRadius: 8, background: "#1d4e89", color: "#ffffff", fontWeight: 700, fontSize: 12.5, padding: "7px 14px", cursor: "pointer", fontFamily: "inherit" }}>Guardar</button>
-            </span>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+            {Object.keys(NIVELES).map((k) => (
+              <li key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                <span aria-hidden style={{ width: 12, height: 12, borderRadius: 3, background: COLOR[k] }} />
+                <span style={{ flex: 1 }}>{NIVELES[k].texto}</span>
+                <b style={MONO}>{cuenta[k]}</b>
+              </li>
+            ))}
+          </ul>
+        </Bloque>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 14 }}>
+        <Bloque titulo="Consumo por mes" ayuda="Unidades instaladas o dadas de salida en los últimos 6 meses, por tipo de producto.">
+          {!hayConsumo ? (
+            <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>No hay consumo en estos meses.</div>
+          ) : (
+            <div role="img" aria-label="Unidades consumidas por mes, separadas por categoría de producto" style={{ width: "100%", height: 280 }}>
+              <ResponsiveContainer>
+                <BarChart data={consumo} margin={{ top: 8, right: 8, left: -10, bottom: 4 }}>
+                  <CartesianGrid vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="etiqueta" tick={{ fontSize: 12, fill: "#475569" }} />
+                  <YAxis tick={{ fontSize: 12, fill: "#475569" }} />
+                  <Tooltip cursor={{ fill: "#f1f5f9" }} />
+                  <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} />
+                  {CATEGORIAS.map(([c, color]) => <Bar key={c} dataKey={c} stackId="a" fill={color} />)}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
+        </Bloque>
+
+        <Bloque titulo="Retirados por antigüedad" ayuda={`Equipos desinstalados que todavía no llegaron a la Oficina. Se alerta después de ${datos.retirados.dias_alerta} días.`}>
+          {datos.retirados.pendientes === 0 ? (
+            <div style={{ padding: 20, color: "#15803d", fontSize: 13, fontWeight: 600 }}>No hay retirados pendientes.</div>
+          ) : (
+            <div role="img" aria-label={`Retirados pendientes por antigüedad: ${edades.map((e) => `${e.cantidad} ${e.tramo.toLowerCase()}`).join(", ")}.`} style={{ width: "100%", height: 280 }}>
+              <ResponsiveContainer>
+                <BarChart data={edades} margin={{ top: 20, right: 8, left: -10, bottom: 4 }}>
+                  <CartesianGrid vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="tramo" tick={{ fontSize: 11.5, fill: "#475569" }} interval={0} />
+                  <YAxis tick={{ fontSize: 12, fill: "#475569" }} allowDecimals={false} />
+                  <Tooltip cursor={{ fill: "#f1f5f9" }} content={({ active, payload }) => active && payload?.length ? <CuadroInfo>{payload[0].payload.tramo}: <b>{payload[0].value}</b> equipos</CuadroInfo> : null} />
+                  <Bar dataKey="cantidad" radius={[5, 5, 0, 0]} maxBarSize={56}>
+                    {edades.map((e, i) => <Cell key={e.tramo} fill={COLOR_EDAD[i]} />)}
+                    <LabelList dataKey="cantidad" position="top" style={{ fontSize: 12, fontWeight: 700, fill: "#0f172a" }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <Link href={`${RUTA}/retirados`} style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", minHeight: 36, padding: "0 14px", borderRadius: 8, background: "#1d4e89", color: "#ffffff", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Ver los retirados
+          </Link>
+        </Bloque>
+      </div>
+
+      <Bloque titulo="Estado de cada ubicación"
+        ayuda="Rojo: hay productos que no cierran. Ámbar: el conteo está vencido o no existe. Verde: al día. Tocá una ubicación para ver su stock."
+        derecha={rol === "admin" && (
+          <span style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, color: "#64748b" }}>
+            <label htmlFor="dias-conteo">Conteo vencido después de</label>
+            <input id="dias-conteo" type="number" min="1" max="365" value={diasConteo} onChange={(e) => setDiasConteo(e.target.value)}
+              style={{ ...MONO, width: 64, textAlign: "right", border: "1px solid #cbd5e1", borderRadius: 6, padding: "6px 8px" }} />
+            <span>días</span>
+            <button type="button" onClick={guardarDiasConteo} style={{ border: "none", borderRadius: 8, background: "#1d4e89", color: "#ffffff", fontWeight: 700, fontSize: 12.5, padding: "7px 14px", cursor: "pointer", fontFamily: "inherit" }}>Guardar</button>
+          </span>
+        )}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {agruparPorSegmento(ubicaciones).map(([segmento, items]) => (
+            <div key={segmento.clave}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569", marginBottom: 8 }}>{segmento.nombre}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                {items.map((u) => <Ficha key={u.id} u={u} vencido={conteoVencido(u)} />)}
+              </div>
+            </div>
+          ))}
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
-            <thead>
-              <tr>
-                <th style={TH}>Ubicación</th>
-                <th style={TH}>Último conteo</th>
-                <th style={{ ...TH, textAlign: "right" }}>Productos</th>
-                <th style={{ ...TH, textAlign: "right" }}>Sin explicar</th>
-                <th style={TH}><span className="sr-only">Ver</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {agruparPorSegmento(ubicaciones).map(([segmento, items]) => (
-                <FilaSegmento key={segmento.clave} segmento={segmento} items={items} conteoVencido={conteoVencido} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      </Bloque>
+
+      <Bloque titulo="Todos los productos de la Oficina" ayuda="El detalle completo, y desde acá se fija el mínimo de cada producto."
+        derecha={
+          <button type="button" aria-expanded={verTabla} onClick={() => setVerTabla((v) => !v)}
+            style={{ minHeight: 38, padding: "0 16px", border: "none", borderRadius: 8, fontSize: 13.5, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: "#4a5463" }}>
+            {verTabla ? "Ocultar tabla" : "Ver tabla y fijar mínimos"}
+          </button>
+        }>
+        {verTabla && (
+          <>
+            <input type="search" aria-label="Buscar producto" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por nombre o código"
+              style={{ width: 280, fontSize: 13.5, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 12px" }} />
+            <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
+                <thead>
+                  <tr>
+                    <th style={TH}>Producto</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Stock</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Mínimo</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Por día</th>
+                    <th style={{ ...TH, textAlign: "right" }}>Días</th>
+                    <th style={TH}>Pedir antes del</th>
+                    <th style={TH}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tabla.map((r) => {
+                    const n = NIVELES[r.nivel];
+                    return (
+                      <tr key={r.producto_id}>
+                        <td style={TD}><div style={{ fontWeight: 600 }}>{r.descripcion}</div><div style={{ ...MONO, fontSize: 11, color: "#94a3b8" }}>{r.codigo}</div></td>
+                        <td style={{ ...TD, ...MONO, textAlign: "right", fontWeight: 700 }}>{r.stock}</td>
+                        <td style={{ ...TD, textAlign: "right" }}>
+                          {editando === r.producto_id ? (
+                            <input type="number" min="0" autoFocus defaultValue={r.minimo ?? ""} aria-label={`Mínimo de ${r.descripcion}`}
+                              onBlur={(e) => guardarMinimo(r, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") setEditando(null); }}
+                              style={{ ...MONO, width: 70, textAlign: "right", fontSize: 13.5, border: "1px solid #1d4e89", borderRadius: 6, padding: "4px 6px" }} />
+                          ) : (
+                            <button type="button" onClick={() => setEditando(r.producto_id)} aria-label={`Cambiar el mínimo de ${r.descripcion}`}
+                              style={{ ...MONO, border: "1px dashed #94a3b8", borderRadius: 6, background: "transparent", cursor: "pointer", fontSize: 13.5, padding: "3px 10px", color: r.minimo == null ? "#64748b" : "#0f172a" }}>
+                              {r.minimo ?? "Fijar"}
+                            </button>
+                          )}
+                        </td>
+                        <td style={{ ...TD, ...MONO, textAlign: "right" }}>{r.consumo_por_dia || "—"}</td>
+                        <td style={{ ...TD, ...MONO, textAlign: "right", fontWeight: 700 }}>{r.dias_de_stock == null ? "—" : r.dias_de_stock}</td>
+                        <td style={{ ...TD, ...MONO }}>{r.pedir_el ? fmtFecha(r.pedir_el) : "—"}</td>
+                        <td style={TD}><span style={{ background: n.fondo, color: n.color, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "2px 10px", whiteSpace: "nowrap" }}>{n.texto}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </Bloque>
+
+      <style>{`.stock-fila-2 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } @media (max-width: 900px) { .stock-fila-2 { grid-template-columns: minmax(0, 1fr); } }`}</style>
     </div>
   );
 }
 
-function FilaSegmento({ segmento, items, conteoVencido }) {
+function Ficha({ u, vencido }) {
+  const estado = u.negativos > 0
+    ? { color: COLOR.critico, fondo: "#fef2f2", texto: `${u.negativos} sin explicar` }
+    : vencido ? { color: COLOR.bajo, fondo: "#fffbeb", texto: u.ultimo_conteo ? "Conteo vencido" : "Sin conteo" }
+      : { color: COLOR.ok, fondo: "#f0fdf4", texto: "Al día" };
   return (
-    <>
-      <tr><td colSpan={5} style={{ padding: "7px 12px", background: "#f1f5f9", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>{segmento.nombre}</td></tr>
-      {items.map((u) => {
-        const vencido = conteoVencido(u);
-        return (
-          <tr key={u.id}>
-            <td style={TD}>
-              <div style={{ fontWeight: 600 }}>{u.nombre.trim()}</div>
-              {localidadAMostrar(u) && <div style={{ fontSize: 12, color: "#64748b" }}>{localidadAMostrar(u)}</div>}
-            </td>
-            <td style={{ ...TD, color: vencido ? "#b45309" : "#334155", fontWeight: vencido ? 700 : 400 }}>
-              {u.ultimo_conteo ? `${fmtFecha(u.ultimo_conteo)} · ${hace(u.ultimo_conteo)}` : "Sin conteo"}
-            </td>
-            <td style={{ ...TD, ...NUM }}>{u.productos}</td>
-            <td style={{ ...TD, ...NUM, fontWeight: 700, color: u.negativos ? "#b91c1c" : "#15803d" }}>{u.negativos || "0"}</td>
-            <td style={{ ...TD, textAlign: "right" }}>
-              <Link href={`${RUTA}/ubicaciones?ubicacion=${u.id}`}
-                style={{ display: "inline-flex", alignItems: "center", minHeight: 32, padding: "0 12px", borderRadius: 8, background: "#1d4e89", color: "#ffffff", fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>
-                Ver stock
-              </Link>
-            </td>
-          </tr>
-        );
-      })}
-    </>
+    <Link href={`${RUTA}/ubicaciones?ubicacion=${u.id}`}
+      style={{ textDecoration: "none", color: "inherit", background: estado.fondo, border: "1px solid #e2e8f0", borderLeft: `5px solid ${estado.color}`, borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 3 }}>
+      <span style={{ fontSize: 13.5, fontWeight: 700, color: "#0f172a" }}>{u.nombre.trim()}</span>
+      {localidadAMostrar(u) && <span style={{ fontSize: 12, color: "#64748b" }}>{localidadAMostrar(u)}</span>}
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: estado.color === COLOR.bajo ? "#92400e" : estado.color === COLOR.ok ? "#166534" : "#991b1b" }}>{estado.texto}</span>
+      <span style={{ fontSize: 11.5, color: "#64748b" }}>{u.ultimo_conteo ? `Contado ${hace(u.ultimo_conteo)}` : "Nunca se contó"}</span>
+    </Link>
   );
 }
