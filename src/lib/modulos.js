@@ -63,6 +63,13 @@ export const MODULOS = [
     ],
   },
   {
+    key: "stock_nuevo", nombre: "Stock nuevo",
+    subs: [
+      { key: "ubicaciones", href: "/dashboard/stock-nuevo/ubicaciones", label: "Stock por ubicación" },
+      { key: "envios",      href: "/dashboard/stock-nuevo/envios",      label: "Envíos" },
+    ],
+  },
+  {
     key: "recibos", nombre: "Recibos",
     subs: [
       { key: "recibos", href: "/dashboard/recibos", label: "Recibos de Sueldo" },
