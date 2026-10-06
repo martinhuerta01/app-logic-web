@@ -59,6 +59,7 @@ function Pantalla() {
   const [pegado, setPegado] = useState("");
   const [agregar, setAgregar] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [corrigiendo, setCorrigiendo] = useState(null); // { pid, valor, motivo }
   const [vista, setVista] = useState("propios"); // propios | serenisima
   const [mapeo, setMapeo] = useState([]);
 
@@ -111,6 +112,23 @@ function Pantalla() {
 
   const negativos = filas.filter((f) => f.stock < 0).length;
   const conteo = datos?.conteo;
+
+  const guardarCorreccion = async (f) => {
+    const cantidad = parseInt(corrigiendo.valor, 10);
+    if (Number.isNaN(cantidad) || cantidad < 0) { setMensaje({ tipo: "error", texto: "Escribí una cantidad válida (0 o más)." }); return; }
+    if (cantidad === f.stock) { setCorrigiendo(null); return; }
+    setGuardando(true); setMensaje(null);
+    try {
+      await api.post(`${BASE}/ubicaciones/${sel}/corregir/`, { producto_id: f.producto_id, cantidad, motivo: corrigiendo.motivo || null });
+      setMensaje({ tipo: "ok", texto: `${f.descripcion}: de ${f.stock} a ${cantidad}. Quedó registrado como ajuste.` });
+      setCorrigiendo(null);
+      await Promise.all([cargarStock(sel), cargarUbicaciones()]);
+    } catch (e) {
+      setMensaje({ tipo: "error", texto: mensajeDeError(e) });
+    } finally {
+      setGuardando(false);
+    }
+  };
 
   const verSeries = async (f) => {
     const abierta = !seriesAbiertas[f.producto_id];
@@ -190,6 +208,7 @@ function Pantalla() {
         <h1 style={{ margin: "2px 0 0", fontSize: 24, color: "#0f172a" }}>Qué tiene cada lugar</h1>
       </div>
 
+      <datalist id="motivos-conteo">{MOTIVOS.map((m) => <option key={m} value={m} />)}</datalist>
       {error && <div role="alert" style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", borderRadius: 8, padding: "10px 14px", fontSize: 13 }}>{error}</div>}
       {mensaje && (
         <div role="status" style={{
@@ -355,7 +374,6 @@ function Pantalla() {
                     })}
                   </tbody>
                 </table>
-                <datalist id="motivos-conteo">{MOTIVOS.map((m) => <option key={m} value={m} />)}</datalist>
               </div>
 
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -391,7 +409,7 @@ function Pantalla() {
                     <tr>
                       <th style={TH}>Producto</th>
                       <th style={{ ...TH, textAlign: "right" }}>Último conteo</th>
-                      <th style={{ ...TH, textAlign: "right" }}>Envíos</th>
+                      <th style={{ ...TH, textAlign: "right" }}>Envíos y ajustes</th>
                       <th style={{ ...TH, textAlign: "right" }}>Tickets</th>
                       <th style={{ ...TH, textAlign: "right" }}>Stock ahora</th>
                       <th style={TH}>Estado</th>
@@ -412,7 +430,11 @@ function Pantalla() {
                         const sinSerie = f.lleva_serie ? Math.max(f.stock - (f.series_cargadas || 0), 0) : 0;
                         return (
                           <FilaProducto key={f.producto_id} f={f} neg={neg} esOficina={esOficina} sel={sel} sinSerie={sinSerie}
-                            abierta={!!seriesAbiertas[f.producto_id]} lista={listasSeries[f.producto_id]} onSeries={() => verSeries(f)} />
+                            abierta={!!seriesAbiertas[f.producto_id]} lista={listasSeries[f.producto_id]} onSeries={() => verSeries(f)}
+                            corr={corrigiendo?.pid === f.producto_id ? corrigiendo : null} guardando={guardando}
+                            onEditar={() => setCorrigiendo({ pid: f.producto_id, valor: String(f.stock), motivo: "" })}
+                            onCambiar={(campo, valor) => setCorrigiendo((c) => ({ ...c, [campo]: valor }))}
+                            onGuardar={() => guardarCorreccion(f)} onCancelar={() => setCorrigiendo(null)} />
                         );
                       })}
                     </tbody>
@@ -431,7 +453,7 @@ function Pantalla() {
   );
 }
 
-function FilaProducto({ f, neg, esOficina, sel, sinSerie, abierta, lista, onSeries }) {
+function FilaProducto({ f, neg, esOficina, sel, sinSerie, abierta, lista, onSeries, corr, guardando, onEditar, onCambiar, onGuardar, onCancelar }) {
   return (
     <>
       <tr>
@@ -448,7 +470,12 @@ function FilaProducto({ f, neg, esOficina, sel, sinSerie, abierta, lista, onSeri
         <td style={{ ...TD, ...NUM, color: f.ultimo_conteo == null ? "#cbd5e1" : undefined }}>{f.ultimo_conteo == null ? "—" : f.ultimo_conteo}</td>
         <td style={{ ...TD, ...NUM }}>{f.envios > 0 ? `+${f.envios}` : f.envios}</td>
         <td style={{ ...TD, ...NUM }}>{f.tickets > 0 ? `−${f.tickets}` : "0"}</td>
-        <td style={{ ...TD, ...NUM, fontWeight: 700, color: neg ? "#b91c1c" : "#0f172a" }}>{f.stock}</td>
+        <td style={{ ...TD, textAlign: "right" }}>
+          <button type="button" onClick={onEditar} aria-label={`Corregir la cantidad de ${f.descripcion}`} title="Tocá para corregir la cantidad"
+            style={{ ...MONO, fontSize: 14, fontWeight: 700, color: neg ? "#b91c1c" : "#0f172a", background: corr ? "#e0ecf8" : "transparent", border: "1px dashed #94a3b8", borderRadius: 6, padding: "3px 12px", cursor: "pointer" }}>
+            {f.stock}
+          </button>
+        </td>
         <td style={TD}>
           {neg ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
@@ -465,6 +492,30 @@ function FilaProducto({ f, neg, esOficina, sel, sinSerie, abierta, lista, onSeri
           )}
         </td>
       </tr>
+      {corr && (
+        <tr>
+          <td colSpan={6} style={{ ...TD, background: "#eef5fc" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <label htmlFor={`corr-${f.producto_id}`} style={{ fontSize: 13, fontWeight: 700 }}>Cantidad correcta de {f.descripcion}:</label>
+              <input id={`corr-${f.producto_id}`} type="number" min="0" inputMode="numeric" autoFocus value={corr.valor}
+                onChange={(e) => onCambiar("valor", e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onGuardar(); if (e.key === "Escape") onCancelar(); }}
+                style={{ ...MONO, width: 90, textAlign: "right", fontSize: 16, fontWeight: 700, border: "1px solid #1d4e89", borderRadius: 8, padding: "6px 8px" }} />
+              {corr.valor !== "" && parseInt(corr.valor, 10) !== f.stock && !Number.isNaN(parseInt(corr.valor, 10)) && (
+                <span style={{ ...MONO, fontWeight: 700, color: parseInt(corr.valor, 10) > f.stock ? "#15803d" : "#b91c1c" }}>
+                  {parseInt(corr.valor, 10) > f.stock ? "+" : ""}{parseInt(corr.valor, 10) - f.stock}
+                </span>
+              )}
+              <input list="motivos-conteo" aria-label="Motivo de la corrección" placeholder="Motivo (opcional)" value={corr.motivo} onChange={(e) => onCambiar("motivo", e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onGuardar(); }}
+                style={{ flex: "1 1 220px", minWidth: 180, fontSize: 13.5, border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px" }} />
+              <button type="button" onClick={onGuardar} disabled={guardando} style={{ ...boton("#15803d"), opacity: guardando ? 0.6 : 1 }}>{guardando ? "Guardando…" : "Guardar"}</button>
+              <button type="button" onClick={onCancelar} style={boton("#5b6472")}>Cancelar</button>
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginTop: 6 }}>Queda registrado como ajuste con tu nombre, la fecha y el motivo. No cuenta como conteo de la ubicación.</div>
+          </td>
+        </tr>
+      )}
       {abierta && (
         <tr>
           <td colSpan={6} style={{ ...TD, background: "#f8fafc" }}>
