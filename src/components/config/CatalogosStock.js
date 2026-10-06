@@ -327,7 +327,7 @@ function MapeoSerenisima({ productos }) {
               <tr key={m.id} className="border-b border-slate-100">
                 <td className="py-2 px-2 text-xs font-bold text-center">{m.codigo_serenisima}</td>
                 <td className="py-2 px-2 text-xs">{m.descripcion}</td>
-                <td className="py-2 px-2 text-xs">{getNombresProductos(m.producto_ids)}</td>
+                <td className="py-2 px-2 text-xs">{getNombresProductos(m.producto_ids)}{m.modo === "pares" ? " · conjunto completo" : ""}</td>
                 <td className="py-2 px-2 space-x-2">
                   <button onClick={() => { setEditingId(m.id); setAdding(false); }} className="text-blue-500 hover:underline text-xs">Editar</button>
                   <button onClick={() => eliminar(m.id)} className="text-red-500 hover:underline text-xs">Eliminar</button>
@@ -346,6 +346,7 @@ function MapeoSerenisima({ productos }) {
 function FormMapeo({ productos, item, onDone, onCancel }) {
   const [codigo, setCodigo] = useState(item?.codigo_serenisima || "");
   const [descripcion, setDescripcion] = useState(item?.descripcion || "");
+  const [modo, setModo] = useState(item?.modo || "suma");
   const [selectedIds, setSelectedIds] = useState(
     (item?.producto_ids || []).filter(id => productos.some(p => String(p.id) === String(id)))
   );
@@ -356,7 +357,7 @@ function FormMapeo({ productos, item, onDone, onCancel }) {
 
   const guardar = async (e) => {
     e.preventDefault();
-    const payload = { codigo_serenisima: parseInt(codigo), descripcion, producto_ids: selectedIds };
+    const payload = { codigo_serenisima: parseInt(codigo), descripcion, producto_ids: selectedIds, modo };
     if (item) {
       await api.put(`/stock/mapeo-serenisima/${item.id}`, payload);
     } else {
@@ -384,6 +385,14 @@ function FormMapeo({ productos, item, onDone, onCancel }) {
           <label className="block text-xs text-slate-500 mb-1">Descripción</label>
           <input type="text" value={descripcion} onChange={e => setDescripcion(e.target.value)}
             placeholder="Ej: GPS Comodato" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm w-64" required />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Cómo se cuenta</label>
+          <select value={modo} onChange={e => setModo(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
+            <option value="suma">Sumar los productos</option>
+            <option value="pares">Conjunto completo (el menor de los productos)</option>
+          </select>
         </div>
       </div>
       <div>

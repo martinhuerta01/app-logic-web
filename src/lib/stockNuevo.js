@@ -74,3 +74,17 @@ export const mensajeDeError = (e) => {
   } catch { /* no era JSON */ }
   return texto.replace(/^Error:\s*/, "");
 };
+
+// Valor de un código de La Serenísima a partir de las cantidades de sus productos.
+// modo "suma": suma de los productos. modo "pares": conjunto completo, vale el mínimo (5 machos y 5 hembras = 5 fichas).
+// "sobrantes" son las unidades que quedan solas en el modo pares (por ejemplo, 2 hembras sin su macho).
+export const valorDeCodigo = (entrada, cantidadDe) => {
+  const ids = entrada.producto_ids || [];
+  const cantidades = ids.map((id) => cantidadDe(id));
+  if (entrada.modo === "pares" && ids.length > 0) {
+    const minimo = Math.min(...cantidades);
+    const sobrantes = ids.map((id, i) => ({ id, cantidad: cantidades[i] - minimo })).filter((s) => s.cantidad > 0);
+    return { valor: minimo, sobrantes };
+  }
+  return { valor: cantidades.reduce((a, c) => a + c, 0), sobrantes: [] };
+};

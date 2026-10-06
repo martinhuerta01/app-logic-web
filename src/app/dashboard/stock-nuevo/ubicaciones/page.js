@@ -8,7 +8,10 @@ import {
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
+import { VistaSerenisima, VistaCentros } from "./VistaSerenisima";
+
 const BASE = "/stock-nuevo";
+const CENTROS = "__centros__"; // vista de todos los centros de distribución juntos
 const TH = {
   textAlign: "left", padding: "9px 12px", fontSize: 9.5, fontWeight: 600,
   letterSpacing: "0.07em", textTransform: "uppercase", color: "#94a3b8",
@@ -56,9 +59,14 @@ function Pantalla() {
   const [pegado, setPegado] = useState("");
   const [agregar, setAgregar] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [vista, setVista] = useState("propios"); // propios | serenisima
+  const [mapeo, setMapeo] = useState([]);
 
   const cargarUbicaciones = useCallback(async () => {
-    const [ubs, prods] = await Promise.all([api.get(`${BASE}/ubicaciones/`), api.get(`${BASE}/productos/`)]);
+    const [ubs, prods, map] = await Promise.all([
+      api.get(`${BASE}/ubicaciones/`), api.get(`${BASE}/productos/`), api.get(`${BASE}/mapeo-serenisima/`).catch(() => []),
+    ]);
+    setMapeo(map || []);
     const ordenadas = ordenarUbicaciones(ubs || []);
     setUbicaciones(ordenadas);
     setProductos(prods || []);
@@ -70,7 +78,7 @@ function Pantalla() {
   }, [cargarUbicaciones]);
 
   const cargarStock = useCallback(async (id) => {
-    if (!id) return;
+    if (!id || id === CENTROS) { setCargando(false); return; }
     setCargando(true); setError("");
     try {
       setDatos(await api.get(`${BASE}/ubicaciones/${id}/stock/`));
@@ -87,6 +95,7 @@ function Pantalla() {
   }, [sel, cargarStock]);
 
   const segmentos = useMemo(() => agruparPorSegmento(ubicaciones), [ubicaciones]);
+  const verCentros = vista === "serenisima" && sel === CENTROS;
   const ubicacion = ubicaciones.find((u) => u.id === sel);
   const esOficina = ubicacion?.tipo === "oficina";
   const filas = datos?.filas || [];
@@ -191,6 +200,15 @@ function Pantalla() {
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(200px, 250px) 1fr", gap: 18, alignItems: "start" }}>
         <nav aria-label="Ubicaciones" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 8, display: "flex", flexDirection: "column", gap: 2 }}>
+          {vista === "serenisima" && (
+            <button type="button" onClick={() => setSel(CENTROS)} aria-current={sel === CENTROS}
+              style={{
+                textAlign: "left", border: "none", borderRadius: 8, padding: "9px 12px", cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
+                background: sel === CENTROS ? "#1d4e89" : "#eef2f7", color: sel === CENTROS ? "#ffffff" : "#1e293b", fontSize: 13.5, fontWeight: 700,
+              }}>
+              Todos los centros de distribución
+            </button>
+          )}
           {segmentos.map(([segmento, lista]) => {
             const cerrado = !!segmentosCerrados[segmento.clave] && !lista.some((u) => u.id === sel);
             const sinExplicar = lista.reduce((a, u) => a + u.negativos, 0);
@@ -226,6 +244,27 @@ function Pantalla() {
         </nav>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          {mapeo.length > 0 && (
+            <div role="group" aria-label="Cómo ver los productos" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 12.5, color: "#64748b", fontWeight: 600 }}>Ver por:</span>
+              {[["propios", "Nuestros códigos"], ["serenisima", "Códigos de La Serenísima"]].map(([clave, texto]) => (
+                <button key={clave} type="button" aria-pressed={vista === clave}
+                  onClick={() => { setVista(clave); if (clave === "propios" && sel === CENTROS) setSel(ubicaciones[0]?.id || ""); }}
+                  style={{ minHeight: 38, padding: "0 16px", border: "none", borderRadius: 8, fontSize: 13.5, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: vista === clave ? "#c2410c" : "#4a5463" }}>
+                  {texto}
+                </button>
+              ))}
+            </div>
+          )}
+          {verCentros ? (
+            <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0" }}>
+                <h2 style={{ margin: 0, fontSize: 19, color: "#0f172a" }}>Todos los centros de distribución</h2>
+                <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 2 }}>Stock ahora de cada centro, con los códigos de La Serenísima.</div>
+              </div>
+              <VistaCentros mapeo={mapeo} />
+            </div>
+          ) : (<>
           <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div>
@@ -343,6 +382,8 @@ function Pantalla() {
               <div style={{ padding: 24, color: "#64748b", fontSize: 13 }}>Cargando…</div>
             ) : filas.length === 0 ? (
               <div style={{ padding: 24, color: "#64748b", fontSize: 13 }}>Esta ubicación no tiene productos todavía. Cargá un conteo o registrá un envío.</div>
+            ) : vista === "serenisima" ? (
+              <VistaSerenisima filas={filas} mapeo={mapeo} />
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
@@ -383,6 +424,7 @@ function Pantalla() {
           <div style={{ fontSize: 12.5, color: "#64748b", lineHeight: 1.5 }}>
             Stock ahora = último conteo + envíos registrados − tickets descontados desde esa fecha. En la Oficina no se puede sacar más de lo que hay; en el resto, un número negativo es una pregunta (¿falta un envío?), no un error.
           </div>
+          </>)}
         </div>
       </div>
     </div>
