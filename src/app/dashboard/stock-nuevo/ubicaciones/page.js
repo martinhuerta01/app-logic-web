@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  ordenarUbicaciones, agruparPorSegmento, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
+  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -211,7 +211,10 @@ function Pantalla() {
                       background: u.id === sel ? "#1d4e89" : "transparent", color: u.id === sel ? "#ffffff" : "#1e293b",
                       display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8,
                     }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.nombre.trim()}</span>
+                    <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 600 }}>{u.nombre.trim()}</span>
+                      {localidadAMostrar(u) && <span style={{ fontSize: 11.5, opacity: 0.75 }}>{localidadAMostrar(u)}</span>}
+                    </span>
                     {u.negativos > 0 && (
                       <span title="Productos sin explicar" style={{ ...MONO, fontSize: 11, fontWeight: 700, background: "#b91c1c", color: "#fff", borderRadius: 999, padding: "1px 7px" }}>{u.negativos}</span>
                     )}
@@ -227,6 +230,7 @@ function Pantalla() {
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 19, color: "#0f172a" }}>{ubicacion?.nombre.trim() || "—"}</h2>
+                {ubicacion?.localidad && <div style={{ fontSize: 12.5, color: "#475569", marginTop: 2 }}>Localidad: <b>{ubicacion.localidad}</b></div>}
                 <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 2 }}>
                   {esOficina ? "Todo entra y sale de acá. Es la única ubicación que no puede quedar en negativo." : "Stock calculado desde el último conteo."}
                 </div>

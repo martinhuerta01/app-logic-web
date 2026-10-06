@@ -20,6 +20,7 @@ function FormUbicacion({ onDone }) {
   const [nombre, setNombre] = useState("");
   const [tipo, setTipo] = useState("");
   const [segmento, setSegmento] = useState("");
+  const [localidad, setLocalidad] = useState("");
   const [equipoId, setEquipoId] = useState("");
   const [materialesId, setMaterialesId] = useState("");
   const todasUbicaciones = useUbicaciones();
@@ -27,7 +28,7 @@ function FormUbicacion({ onDone }) {
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, segmento: segmento || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
+    await api.post("/stock/ubicaciones/", { nombre, tipo: tipo || null, segmento: segmento || null, localidad: localidad.trim() || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
     onDone();
   };
 
@@ -49,6 +50,11 @@ function FormUbicacion({ onDone }) {
         </select>
       </div>
       <div>
+        <label className="block text-xs text-slate-500 mb-1">Localidad</label>
+        <input type="text" value={localidad} onChange={e => setLocalidad(e.target.value)}
+          placeholder="Ej: Mendoza" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm" />
+      </div>
+      <div>
         <label className="block text-xs text-slate-500 mb-1">Segmento (Stock nuevo)</label>
         <select value={segmento} onChange={e => setSegmento(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
@@ -65,7 +71,7 @@ function FormUbicacion({ onDone }) {
         </select>
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Materiales de instalación salen de</label>
+        <label className="block text-xs text-slate-500 mb-1">Cable y demás insumos de instalación salen de</label>
         <select value={materialesId} onChange={e => setMaterialesId(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">La misma ubicación</option>
@@ -81,6 +87,7 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
   const [nombre, setNombre] = useState(item.nombre || "");
   const [tipo, setTipo] = useState(item.tipo || "");
   const [segmento, setSegmento] = useState(item.segmento || "");
+  const [localidad, setLocalidad] = useState(item.localidad || "");
   const [equipoId, setEquipoId] = useState(item.equipo_id || "");
   const [materialesId, setMaterialesId] = useState(item.ubicacion_materiales_id || "");
   const todasUbicaciones = useUbicaciones().filter(u => u.id !== item.id);
@@ -88,7 +95,7 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
 
   const guardar = async (e) => {
     e.preventDefault();
-    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, segmento: segmento || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
+    await api.put(`/stock/ubicaciones/${item.id}`, { nombre, tipo: tipo || null, segmento: segmento || null, localidad: localidad.trim() || null, equipo_id: equipoId || null, ubicacion_materiales_id: materialesId || null });
     onDone();
   };
 
@@ -110,6 +117,11 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
         </select>
       </div>
       <div>
+        <label className="block text-xs text-slate-500 mb-1">Localidad</label>
+        <input type="text" value={localidad} onChange={e => setLocalidad(e.target.value)}
+          placeholder="Ej: Mendoza" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm" />
+      </div>
+      <div>
         <label className="block text-xs text-slate-500 mb-1">Segmento (Stock nuevo)</label>
         <select value={segmento} onChange={e => setSegmento(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
@@ -126,7 +138,7 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
         </select>
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Materiales de instalación salen de</label>
+        <label className="block text-xs text-slate-500 mb-1">Cable y demás insumos de instalación salen de</label>
         <select value={materialesId} onChange={e => setMaterialesId(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">La misma ubicación</option>
@@ -443,7 +455,7 @@ export default function CatalogosStock() {
           { key: "tipo", label: "Tipo" },
           { key: "segmento", label: "Segmento", render: (item) => SEGMENTOS.find(s => s.clave === segmentoDe(item))?.nombre || "—" },
           { key: "equipo_id", label: "Equipo", render: (item) => equiposCatalogo.find(e => e.id === item.equipo_id)?.nombre || "—" },
-          { key: "ubicacion_materiales_id", label: "Materiales desde", render: (item) => ubicaciones.find(u => u.id === item.ubicacion_materiales_id)?.nombre || "—" },
+          { key: "localidad", label: "Localidad", render: (item) => item.localidad || "—" },
         ]}
         onAdd={cargarUbicaciones}
         onDelete={eliminarUbicacion}

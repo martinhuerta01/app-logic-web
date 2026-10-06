@@ -3,7 +3,7 @@ import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  ordenarUbicaciones, agruparPorSegmento, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, mensajeDeError,
+  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -159,7 +159,7 @@ function Pantalla() {
             <div key={segmento.clave} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{segmento.nombre}</span>
               {lista.map((u) => (
-                <button key={u.id} type="button" onClick={() => setOrigen(u.id)} aria-pressed={u.id === origen} style={chip(u.id === origen)}>{u.nombre.trim()}</button>
+                <button key={u.id} type="button" onClick={() => setOrigen(u.id)} aria-pressed={u.id === origen} style={chip(u.id === origen)}>{u.nombre.trim()}{localidadAMostrar(u) ? ` · ${localidadAMostrar(u)}` : ""}</button>
               ))}
             </div>
           ))}
@@ -173,7 +173,7 @@ function Pantalla() {
             <div key={segmento.clave} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{segmento.nombre}</span>
               {lista.map((u) => (
-                <button key={u.id} type="button" onClick={() => setDestino(u.id)} aria-pressed={u.id === destino} style={chip(u.id === destino)}>{u.nombre.trim()}</button>
+                <button key={u.id} type="button" onClick={() => setDestino(u.id)} aria-pressed={u.id === destino} style={chip(u.id === destino)}>{u.nombre.trim()}{localidadAMostrar(u) ? ` · ${localidadAMostrar(u)}` : ""}</button>
               ))}
             </div>
           ))}

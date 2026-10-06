@@ -17,6 +17,14 @@ export const SEGMENTOS = [
   { clave: "otras", nombre: "Otras ubicaciones" },
 ];
 
+// Localidad a mostrar junto al nombre, salvo que el nombre ya la diga (por ejemplo "CD Mendoza")
+export const localidadAMostrar = (u) => {
+  const loc = (u.localidad || "").trim();
+  if (!loc) return "";
+  const sinTilde = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return sinTilde(u.nombre).includes(sinTilde(loc)) ? "" : loc;
+};
+
 // Si la ubicación todavía no tiene segmento cargado, se propone uno según su tipo y su nombre
 export const segmentoDe = (u) => {
   if (u.segmento) return u.segmento;
