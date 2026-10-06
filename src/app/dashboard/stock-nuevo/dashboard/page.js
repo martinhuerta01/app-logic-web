@@ -43,6 +43,8 @@ const nivelDe = (r) => {
   }
   return "sinconsumo";
 };
+// Qué productos se ven en el gráfico de la Oficina queda guardado en este navegador
+const CLAVE_GRAFICO = "stock_dashboard_grafico_v1";
 const corto = (s, n = 28) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 function Indicador({ titulo, valor, detalle, color, href }) {
@@ -84,6 +86,22 @@ export default function DashboardStock() {
   const [busqueda, setBusqueda] = useState("");
   const [editando, setEditando] = useState(null);
   const [diasConteo, setDiasConteo] = useState("");
+  const [modoGrafico, setModoGrafico] = useState("auto"); // auto: los que se acaban primero | elegidos: los que marcó el usuario
+  const [elegidos, setElegidos] = useState([]);
+  const [panelElegir, setPanelElegir] = useState(false);
+  const [buscarElegir, setBuscarElegir] = useState("");
+
+  useEffect(() => {
+    try {
+      const g = JSON.parse(localStorage.getItem(CLAVE_GRAFICO) || "null");
+      if (g && (g.modo === "auto" || g.modo === "elegidos") && Array.isArray(g.elegidos)) { setModoGrafico(g.modo); setElegidos(g.elegidos); }
+    } catch { /* sin almacenamiento: queda el modo automático */ }
+  }, []);
+
+  const guardarEleccion = (modo, lista) => {
+    setModoGrafico(modo); setElegidos(lista);
+    try { localStorage.setItem(CLAVE_GRAFICO, JSON.stringify({ modo, elegidos: lista })); } catch { /* no se guarda, sigue funcionando */ }
+  };
 
   const cargar = useCallback(async () => {
     try {
@@ -103,11 +121,33 @@ export default function DashboardStock() {
     return c;
   }, [reposicion]);
 
-  // Barras: los productos con consumo que se acaban primero
-  const barras = useMemo(() => reposicion
+  // Barras: por defecto los que se acaban primero; o los productos que elige el usuario
+  const filaBarra = (r) => ({
+    ...r, nombre: `${r.codigo} · ${corto(r.descripcion, 24)}`, dias: r.dias_de_stock,
+    largo: r.dias_de_stock == null ? 0 : Math.max(r.dias_de_stock, 0.8), // el cero también se ve como una marca
+    etiqueta: r.dias_de_stock == null ? "sin consumo" : `${r.dias_de_stock} d`,
+  });
+  const automaticos = useMemo(() => reposicion
     .filter((r) => r.dias_de_stock != null && r.consumo_por_dia > 0)
-    .sort((a, b) => a.dias_de_stock - b.dias_de_stock).slice(0, 12)
-    .map((r) => ({ ...r, nombre: `${r.codigo} · ${corto(r.descripcion, 24)}`, dias: r.dias_de_stock })), [reposicion]);
+    .sort((a, b) => a.dias_de_stock - b.dias_de_stock).slice(0, 12), [reposicion]);
+  const barras = useMemo(() => {
+    if (modoGrafico === "auto") return automaticos.map(filaBarra);
+    const set = new Set(elegidos);
+    return reposicion.filter((r) => set.has(r.producto_id))
+      .sort((a, b) => (a.dias_de_stock ?? 1e9) - (b.dias_de_stock ?? 1e9) || a.codigo.localeCompare(b.codigo)).map(filaBarra);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoGrafico, elegidos, reposicion, automaticos]);
+
+  const opcionesElegir = useMemo(() => {
+    const q = buscarElegir.trim().toLowerCase();
+    const m = new Map();
+    reposicion.filter((r) => !q || r.codigo.toLowerCase().includes(q) || r.descripcion.toLowerCase().includes(q)).forEach((r) => {
+      m.set(r.categoria, [...(m.get(r.categoria) || []), r]);
+    });
+    return [...m.entries()].sort((a, b) => ordenCategoria(a[0]) - ordenCategoria(b[0]));
+  }, [reposicion, buscarElegir]);
+
+  const alternarProducto = (id) => guardarEleccion("elegidos", elegidos.includes(id) ? elegidos.filter((x) => x !== id) : [...elegidos, id]);
 
   const bajoMinimo = useMemo(() => reposicion.filter((r) => r.minimo != null && r.stock < r.minimo), [reposicion]);
 
@@ -146,7 +186,7 @@ export default function DashboardStock() {
   const conteoVencido = (u) => !u.ultimo_conteo || diasDesde(u.ultimo_conteo) > datos.dias_alerta_conteo;
   const sinConteo = ubicaciones.filter(conteoVencido).length;
   const aPedir = cuenta.critico + cuenta.bajo;
-  const maxDias = Math.max(30, ...barras.map((b) => b.dias));
+  const maxDias = Math.max(30, ...barras.map((b) => b.largo));
 
   const consumo = datos.consumo_mensual.map((m) => ({ ...m, etiqueta: MES_CORTO[parseInt(m.mes.slice(5), 10) - 1] }));
   const hayConsumo = consumo.some((m) => CATEGORIAS.some(([c]) => m[c] > 0));
@@ -180,14 +220,70 @@ export default function DashboardStock() {
       <div className="stock-fila-2" style={{ display: "grid", gap: 14 }}>
         <div style={{ minWidth: 0 }}>
           <Bloque titulo="Qué se acaba primero en la Oficina"
-            ayuda={`Días que alcanza el stock con el consumo de los últimos ${datos.ventana_dias} días. Rojo: ${DIAS_CRITICO} días o menos. Ámbar: hasta ${DIAS_BAJO}.`}>
+            ayuda={`Días que alcanza el stock con el consumo de los últimos ${datos.ventana_dias} días. Rojo: ${DIAS_CRITICO} días o menos. Ámbar: hasta ${DIAS_BAJO}. Podés elegir qué productos ver.`}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <button type="button" aria-pressed={modoGrafico === "auto"} onClick={() => guardarEleccion("auto", elegidos)}
+                style={{ minHeight: 38, padding: "0 14px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: modoGrafico === "auto" ? "#c2410c" : "#4a5463" }}>
+                Los que se acaban primero
+              </button>
+              <button type="button" aria-pressed={modoGrafico === "elegidos"}
+                onClick={() => { guardarEleccion("elegidos", elegidos.length ? elegidos : automaticos.map((r) => r.producto_id)); setPanelElegir(true); }}
+                style={{ minHeight: 38, padding: "0 14px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: modoGrafico === "elegidos" ? "#c2410c" : "#4a5463" }}>
+                Elegir yo ({elegidos.length})
+              </button>
+              {modoGrafico === "elegidos" && (
+                <button type="button" aria-expanded={panelElegir} onClick={() => setPanelElegir((v) => !v)}
+                  style={{ minHeight: 38, padding: "0 14px", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: "#1d4e89" }}>
+                  {panelElegir ? "Cerrar la lista" : "Cambiar los productos"}
+                </button>
+              )}
+            </div>
+
+            {modoGrafico === "elegidos" && panelElegir && (
+              <div style={{ border: "1px solid #cbd5e1", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10, background: "#f8fafc" }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <input type="search" aria-label="Buscar producto para el gráfico" placeholder="Buscar por nombre o código" value={buscarElegir} onChange={(e) => setBuscarElegir(e.target.value)}
+                    style={{ flex: "1 1 220px", fontSize: 13.5, border: "1px solid #cbd5e1", borderRadius: 8, padding: "8px 12px", background: "#fff" }} />
+                  <button type="button" onClick={() => guardarEleccion("elegidos", automaticos.map((r) => r.producto_id))}
+                    style={{ minHeight: 36, padding: "0 12px", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: "#4a5463" }}>
+                    Marcar los 12 que se acaban primero
+                  </button>
+                  <button type="button" onClick={() => guardarEleccion("elegidos", [])}
+                    style={{ minHeight: 36, padding: "0 12px", border: "none", borderRadius: 8, fontSize: 12.5, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: "#b91c1c" }}>
+                    Quitar todos
+                  </button>
+                </div>
+                <div style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {opcionesElegir.length === 0 && <div style={{ fontSize: 13, color: "#64748b" }}>No hay productos con esa búsqueda.</div>}
+                  {opcionesElegir.map(([cat, lista]) => (
+                    <fieldset key={cat} style={{ border: "none", margin: 0, padding: 0 }}>
+                      <legend style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569", marginBottom: 6 }}>{cat}</legend>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 6 }}>
+                        {lista.map((r) => {
+                          const marcado = elegidos.includes(r.producto_id);
+                          return (
+                            <label key={r.producto_id} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, cursor: "pointer", background: marcado ? "#e0ecf8" : "#fff", border: "1px solid #e2e8f0", borderRadius: 8, padding: "6px 10px" }}>
+                              <input type="checkbox" checked={marcado} onChange={() => alternarProducto(r.producto_id)} style={{ accentColor: "#1d4e89", width: 16, height: 16 }} />
+                              <span><span style={{ ...MONO, color: "#64748b" }}>{r.codigo}</span> · {corto(r.descripcion, 30)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {barras.length === 0 ? (
-              <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>Todavía no hay consumo registrado para calcular cuánto dura el stock.</div>
+              <div style={{ padding: 20, color: "#64748b", fontSize: 13 }}>
+                {modoGrafico === "elegidos" ? "Todavía no elegiste ningún producto: abrí la lista y marcá los que quieras ver." : "Todavía no hay consumo registrado para calcular cuánto dura el stock."}
+              </div>
             ) : (
-              <div role="img" aria-label={`Días de stock de los ${barras.length} productos que se acaban primero. El primero es ${barras[0].descripcion} con ${barras[0].dias} días.`}
+              <div role="img" aria-label={`Días de stock de ${barras.length} productos. El primero es ${barras[0].descripcion} con ${barras[0].etiqueta}.`}
                 style={{ width: "100%", height: Math.max(260, barras.length * 34 + 40) }}>
                 <ResponsiveContainer>
-                  <BarChart data={barras} layout="vertical" margin={{ top: 8, right: 44, left: 8, bottom: 8 }}>
+                  <BarChart data={barras} layout="vertical" margin={{ top: 8, right: 70, left: 8, bottom: 8 }}>
                     <CartesianGrid horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" domain={[0, maxDias]} tick={{ fontSize: 12, fill: "#475569" }} unit=" d" />
                     <YAxis type="category" dataKey="nombre" width={190} tick={{ fontSize: 12, fill: "#1e293b" }} />
@@ -198,17 +294,17 @@ export default function DashboardStock() {
                         <CuadroInfo>
                           <b>{r.descripcion}</b><br />
                           Stock: {r.stock}{r.minimo != null ? ` (mínimo ${r.minimo})` : ""}<br />
-                          Consumo: {r.consumo_por_dia} por día<br />
-                          Alcanza: {r.dias} días<br />
-                          Pedir antes del {fmtFecha(r.pedir_el)}
+                          Consumo: {r.consumo_por_dia ? `${r.consumo_por_dia} por día` : "sin consumo en estos días"}<br />
+                          {r.dias != null && <>Alcanza: {r.dias} días<br /></>}
+                          {r.pedir_el && <>Pedir antes del {fmtFecha(r.pedir_el)}</>}
                         </CuadroInfo>
                       );
                     }} />
                     <ReferenceLine x={DIAS_CRITICO} stroke={COLOR.critico} strokeDasharray="5 4" />
                     <ReferenceLine x={DIAS_BAJO} stroke={COLOR.bajo} strokeDasharray="5 4" />
-                    <Bar dataKey="dias" radius={[0, 5, 5, 0]} maxBarSize={22}>
+                    <Bar dataKey="largo" radius={[0, 5, 5, 0]} maxBarSize={22}>
                       {barras.map((b) => <Cell key={b.producto_id} fill={COLOR[b.nivel]} />)}
-                      <LabelList dataKey="dias" position="right" formatter={(v) => `${v} d`} style={{ fontSize: 12, fontWeight: 700, fill: "#0f172a" }} />
+                      <LabelList dataKey="etiqueta" position="right" style={{ fontSize: 12, fontWeight: 700, fill: "#0f172a" }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
