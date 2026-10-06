@@ -3,11 +3,14 @@ import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import {
-  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, mensajeDeError,
+  fmtFecha, ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
 const BASE = "/stock-nuevo";
+
+// Fecha de hoy en formato AAAA-MM-DD según la hora local
+const hoyISO = () => new Date().toLocaleDateString("en-CA");
 
 const chip = (activo) => ({
   minHeight: 40, padding: "0 16px", border: "none", borderRadius: 8, fontSize: 13.5, fontWeight: 700,
@@ -17,6 +20,11 @@ const paso = {
   width: 36, height: 36, border: "none", borderRadius: 8, background: "#4a5463", color: "#ffffff",
   fontSize: 18, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };
+const campo = {
+  width: "100%", minHeight: 44, fontSize: 14.5, fontFamily: "inherit", color: "#0f172a", background: "#fff",
+  border: "1px solid #cbd5e1", borderRadius: 8, padding: "0 12px",
+};
+const etiquetaUbicacion = (u) => `${u.nombre.trim()}${localidadAMostrar(u) ? ` · ${localidadAMostrar(u)}` : ""}`;
 const tarjeta = { background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, padding: 16 };
 const subtitulo = { fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#64748b", marginBottom: 8 };
 
@@ -30,7 +38,8 @@ function Pantalla() {
   const [cantidades, setCantidades] = useState({});
   const [seriesTxt, setSeriesTxt] = useState({});
   const [busqueda, setBusqueda] = useState("");
-  const [cerradas, setCerradas] = useState({});
+  const [abiertas, setAbiertas] = useState({});
+  const [fecha, setFecha] = useState(hoyISO());
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const productoInicial = parametros.get("producto");
@@ -61,6 +70,8 @@ function Pantalla() {
   useEffect(() => {
     if (productoInicial && productos.some((p) => p.id === productoInicial)) {
       setCantidades((c) => (c[productoInicial] ? c : { [productoInicial]: 1 }));
+      const cat = productos.find((p) => p.id === productoInicial)?.categoria;
+      if (cat) setAbiertas((a) => ({ ...a, [ORDEN_CATEGORIAS.includes(cat) ? cat : "Otros"]: true }));
     }
   }, [productoInicial, productos]);
 
@@ -108,7 +119,9 @@ function Pantalla() {
     if (!esOficina && q > disp) return { id: p.id, texto: `Queda en negativo (${disp - q})`, bloquea: false };
     return null;
   }).filter(Boolean);
-  const bloqueado = problemas.some((p) => p.bloquea);
+  const avisosFecha = [origenU, destinoU].filter((u) => u?.ultimo_conteo && fecha <= u.ultimo_conteo)
+    .map((u) => `La fecha es anterior o igual al último conteo de ${u.nombre.trim()} (${fmtFecha(u.ultimo_conteo)}): lo contado ya podría incluir este envío.`);
+  const bloqueado = problemas.some((p) => p.bloquea) || !fecha || fecha > hoyISO();
   const problemaDe = (id) => problemas.find((p) => p.id === id);
 
   const confirmar = async () => {
@@ -117,13 +130,13 @@ function Pantalla() {
     setEnviando(true); setMensaje(null);
     try {
       const r = await api.post(`${BASE}/envios/`, {
-        origen_id: origen, destino_id: destino,
+        origen_id: origen, destino_id: destino, fecha,
         lineas: elegidos.map((p) => ({ producto_id: p.id, cantidad: cantidades[p.id], series: parseSeries(seriesTxt[p.id]) })),
       });
       const neg = r?.negativos || [];
       setMensaje({
         tipo: "ok",
-        texto: `Envío registrado: ${elegidos.length} productos a ${destinoU?.nombre.trim()}.` +
+        texto: `Envío registrado: ${elegidos.length} productos a ${destinoU?.nombre.trim()}, con fecha ${fmtFecha(fecha)}.` +
           (neg.length ? ` Atención: ${origenU?.nombre.trim()} queda en negativo en ${neg.map((n) => `${n.codigo} (${n.queda})`).join(", ")}.` : ""),
       });
       setCantidades({}); setSeriesTxt({});
@@ -153,31 +166,37 @@ function Pantalla() {
       )}
 
       <div style={tarjeta}>
-        <div style={subtitulo}>Desde</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {gruposOrigen.map(([segmento, lista]) => (
-            <div key={segmento.clave} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{segmento.nombre}</span>
-              {lista.map((u) => (
-                <button key={u.id} type="button" onClick={() => setOrigen(u.id)} aria-pressed={u.id === origen} style={chip(u.id === origen)}>{u.nombre.trim()}{localidadAMostrar(u) ? ` · ${localidadAMostrar(u)}` : ""}</button>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14, alignItems: "end" }}>
+          <div>
+            <label htmlFor="envio-desde" style={subtitulo}>Desde</label>
+            <select id="envio-desde" value={origen} onChange={(e) => setOrigen(e.target.value)} style={campo}>
+              {gruposOrigen.map(([segmento, lista]) => (
+                <optgroup key={segmento.clave} label={segmento.nombre}>
+                  {lista.map((u) => <option key={u.id} value={u.id}>{etiquetaUbicacion(u)}</option>)}
+                </optgroup>
               ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={tarjeta}>
-        <div style={subtitulo}>Hacia</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {gruposDestino.map(([segmento, lista]) => (
-            <div key={segmento.clave} style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#475569", minWidth: 150 }}>{segmento.nombre}</span>
-              {lista.map((u) => (
-                <button key={u.id} type="button" onClick={() => setDestino(u.id)} aria-pressed={u.id === destino} style={chip(u.id === destino)}>{u.nombre.trim()}{localidadAMostrar(u) ? ` · ${localidadAMostrar(u)}` : ""}</button>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="envio-hacia" style={subtitulo}>Hacia</label>
+            <select id="envio-hacia" value={destino} onChange={(e) => setDestino(e.target.value)} style={campo}>
+              <option value="">Elegir destino…</option>
+              {gruposDestino.map(([segmento, lista]) => (
+                <optgroup key={segmento.clave} label={segmento.nombre}>
+                  {lista.map((u) => <option key={u.id} value={u.id}>{etiquetaUbicacion(u)}</option>)}
+                </optgroup>
               ))}
-            </div>
-          ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="envio-fecha" style={subtitulo}>Fecha del envío</label>
+            <input id="envio-fecha" type="date" value={fecha} max={hoyISO()} onChange={(e) => setFecha(e.target.value)} style={campo} />
+          </div>
         </div>
+        {fecha && fecha < hoyISO() && (
+          <div style={{ marginTop: 10, fontSize: 12.5, color: "#64748b" }}>Estás cargando un envío con fecha pasada ({fmtFecha(fecha)}).</div>
+        )}
+        {avisosFecha.map((a) => <div key={a} style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600, color: "#b45309" }}>⚠ {a}</div>)}
       </div>
 
       <div style={tarjeta}>
@@ -187,11 +206,11 @@ function Pantalla() {
 
         <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden" }}>
           {grupos.map(([cat, lista]) => {
-            const cerrada = cerradas[cat] && !busqueda;
+            const cerrada = !abiertas[cat] && !busqueda;
             const enGrupo = lista.filter((p) => cantidades[p.id] > 0).length;
             return (
               <div key={cat}>
-                <button type="button" aria-expanded={!cerrada} onClick={() => setCerradas((c) => ({ ...c, [cat]: !c[cat] }))}
+                <button type="button" aria-expanded={!cerrada} onClick={() => setAbiertas((c) => ({ ...c, [cat]: !c[cat] }))}
                   style={{ width: "100%", display: "flex", justifyContent: "space-between", border: "none", background: "#f1f5f9", padding: "9px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, color: "#334155" }}>
                   <span>{cat}</span><span>{enGrupo ? `${enGrupo} elegidos · ` : ""}{lista.length} {cerrada ? "▸" : "▾"}</span>
                 </button>
