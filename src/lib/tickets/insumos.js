@@ -1,7 +1,7 @@
 // Qué insumos descuenta un ticket (§7.2 del spec).
 //
 // Los kits grandes (GPS / cámara / corte) se resuelven contra la tabla
-// `recetas` editable desde /dashboard/stock/kits (no hardcodeados).
+// `recetas` editable desde /dashboard/stock-nuevo/kits (no hardcodeados).
 // Los insumos "sueltos" (sensor, ficha, cable, etc.) sí están hardcodeados
 // acá con el código real del catálogo actual — es un mapeo best-effort,
 // ajustable el día que Tincho limpie el catálogo (no bloqueante, ver plan).

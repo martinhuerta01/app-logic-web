@@ -50,7 +50,7 @@ export function clasificarTicket(ticket, ctx) {
   const productoPorId = new Map((ctx.productos || []).map((p) => [p.id, p]));
   const productoPorCodigo = new Map((ctx.productos || []).map((p) => [String(p.codigo).trim().toUpperCase(), p]));
 
-  // Expandir kits contra recetas (editable desde /dashboard/stock/kits) —
+  // Expandir kits contra recetas (editable desde /dashboard/stock-nuevo/kits) —
   // solo cuando el ticket efectivamente consume algo (no en desinstalaciones puras).
   const cantidadPorProducto = new Map();
   const acumular = (productoId, cantidad) => {

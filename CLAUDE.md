@@ -210,6 +210,16 @@ DELETE /recibos/{id}
 - Un equipo con serie de otro modelo (no S40 nuevo) o ya retirado antes se instala en cantidad 0 (reutilizado)
 - La confirmación es una función atómica de la base (`fn_confirmar_ticket_stock`), un ticket por llamada
 
+## Stock nuevo (stock-nuevo/) — reemplaza al módulo Stock actual
+
+- Modelo: Oficina exacta y sin negativos; el resto de las ubicaciones = último conteo + envíos − tickets. Un negativo fuera de la Oficina es una alerta ("falta un envío o un conteo"), no un error
+- Pantallas: Dashboard (reposición de la Oficina, mínimos, alertas), Stock por ubicación (con conteo y vista por códigos de La Serenísima), Envíos (con fecha y series), Importar tickets, Retirados (recepción en la Oficina y faltantes), Equipos por serie, Movimientos, Herramientas, Kits, Mapeo de talleres, Catálogos
+- Backend: `routers/stock_nuevo.py` (prefijo `/stock-nuevo`). Conteos, envíos y recepciones son funciones atómicas de la base (`fn_confirmar_conteo`, `fn_registrar_envio`, `fn_recibir_retirado`); los tickets usan `fn_confirmar_ticket_stock`
+- Cada ubicación tiene segmento (oficina, cd, taller, tecnico, equipo, otras) y localidad; el menú agrupa por segmento
+- Los códigos de La Serenísima (1 a 10) salen de `mapeo_serenisima`; `modo` = suma o pares (ficha de enganche: el menor entre macho y hembra)
+- Las pantallas Equipos, Movimientos, Herramientas, Kits, Talleres y Catálogos se movieron desde `stock/`; las rutas viejas redirigen
+- Migraciones 006 a 010 en el backend
+
 ## Historial de versiones
 
 ### v1.9 (Sep 2026)

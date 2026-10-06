@@ -65,10 +65,17 @@ export const MODULOS = [
   {
     key: "stock_nuevo", nombre: "Stock nuevo",
     subs: [
+      { key: "dashboard",   href: "/dashboard/stock-nuevo/dashboard",   label: "Dashboard" },
       { key: "ubicaciones", href: "/dashboard/stock-nuevo/ubicaciones", label: "Stock por ubicación" },
       { key: "envios",      href: "/dashboard/stock-nuevo/envios",      label: "Envíos" },
       { key: "tickets",     href: "/dashboard/stock-nuevo/tickets",     label: "Importar tickets" },
       { key: "retirados",   href: "/dashboard/stock-nuevo/retirados",   label: "Retirados" },
+      { key: "equipos",     href: "/dashboard/stock-nuevo/equipos",     label: "Equipos por serie" },
+      { key: "movimientos", href: "/dashboard/stock-nuevo/movimientos", label: "Movimientos" },
+      { key: "herramientas", href: "/dashboard/stock-nuevo/herramientas", label: "Herramientas" },
+      { key: "kits",        href: "/dashboard/stock-nuevo/kits",        label: "Kits" },
+      { key: "talleres",    href: "/dashboard/stock-nuevo/talleres",    label: "Mapeo de talleres" },
+      { key: "catalogos",   href: "/dashboard/stock-nuevo/catalogos",   label: "Catálogos" },
     ],
   },
   {
