@@ -16,6 +16,9 @@ const LABEL_KIT = {
 };
 const KITS_DISPOSITIVO = ["GPS_TICKET", "PORTABLE_TICKET"];
 
+// Marca de cada modelo: en un cambio de equipo el cableado solo se cambia si cambia la marca (Queclink -> S40)
+const MARCA_DE_MODELO = { D01: "trax", D02: "trax", D03: "trax", D04: "trax", D13: "trax", D05: "queclink", D06: "queclink", D07: "queclink" };
+
 // ctx: { ubicaciones, mapeoTalleres, recetas, productos }
 export function clasificarTicket(ticket, ctx) {
   const descripcionNorm = norm(ticket.descripcion);
@@ -149,6 +152,19 @@ export function clasificarTicket(ticket, ctx) {
         yaUsado ? "Equipo ya retirado antes: se reinstala sin descontar unidad nueva"
                 : "Equipo de otro modelo (no S40 nuevo): se instala sin descontar unidad nueva de S40 ni su cable"
       );
+    }
+  }
+
+  // Cambio de equipo de la misma marca (por ejemplo S40 por S40): el cableado no se cambia, no se descuenta.
+  if (accion === "CONSUMO_Y_RETIRO" && tieneGps && serialInstalado && serialRetirado) {
+    const marcaNueva = MARCA_DE_MODELO[detectarModeloPorSerial(serialInstalado)];
+    const marcaVieja = MARCA_DE_MODELO[detectarModeloPorSerial(serialRetirado)];
+    if (marcaNueva && marcaNueva === marcaVieja) {
+      const sinCables = items.filter((it) => productoPorId.get(it.producto_id)?.categoria !== "Cables");
+      if (sinCables.length < items.length) {
+        items = sinCables;
+        advertenciasInformativas.push("Cambio por un equipo de la misma marca: el cableado no se cambia, no se descuenta");
+      }
     }
   }
 

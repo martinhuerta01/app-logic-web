@@ -17,6 +17,7 @@ export function extraerDispoEliminado(descripcion) {
 // no distingue nuevo/usado/GV58LAU, se asume D05 por defecto.
 const PREFIJOS_MODELO = [
   { prefijo: "0104020", codigo: "D03" }, // TRAX S40
+  { prefijo: "00200", codigo: "D01" },   // TRAX S15 (con ceros adelante)
   { prefijo: "200", codigo: "D01" },     // TRAX S15/16 ficha negra
   { prefijo: "300", codigo: "D01" },
   { prefijo: "310", codigo: "D01" },

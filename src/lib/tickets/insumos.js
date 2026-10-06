@@ -31,6 +31,21 @@ export function detectarKits(descripcionOriginalNorm) {
   return kits;
 }
 
+// Qué piezas se esperan de vuelta cuando se desinstala un equipo, según lo que dice la descripción del ticket.
+// Siempre vuelve el dispositivo; lo demás se suma si el ticket lo menciona.
+export function piezasDeRetiro(descripcionOriginalNorm) {
+  const d = descripcionOriginalNorm || "";
+  const piezas = ["Dispositivo"];
+  if (/lectora|rfid/.test(d)) piezas.push("Lectora");
+  if (/temperatura|teperatura/.test(d)) piezas.push("Sensor de temperatura");
+  if (/panico/.test(d)) piezas.push("Botón de pánico");
+  if (/puerta/.test(d)) piezas.push("Sensor de puerta");
+  if (/corte/.test(d)) piezas.push("Corte de corriente");
+  if (/buzzer|buser/.test(d)) piezas.push("Buzzer");
+  if (/giroscop/.test(d)) piezas.push("Giróscopo");
+  return piezas;
+}
+
 export function detectarSueltos(descripcionOriginalNorm) {
   const descripcionNorm = sinNegados(descripcionOriginalNorm);
   const sueltos = [];
