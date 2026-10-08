@@ -151,7 +151,7 @@ function Pantalla() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#c2410c" }}>Stock nuevo</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#c2410c" }}>Stock</div>
         <h1 style={{ margin: "2px 0 0", fontSize: 24, color: "#0f172a" }}>Envíos</h1>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 4, maxWidth: 780 }}>
           Elegí desde dónde sale, a dónde va y cuánto de cada producto. Desde la Oficina no se puede enviar más de lo que hay. Desde un centro sí, y si queda en negativo aparece una alerta.

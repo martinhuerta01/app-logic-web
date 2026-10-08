@@ -41,21 +41,6 @@ export const MODULOS = [
     ],
   },
   {
-    key: "stock", nombre: "Stock",
-    isDynamic: true,
-    subs: [
-      { href: "/dashboard/stock/overview", label: "Dashboard" },
-      { href: "/dashboard/stock/ubicacion",   label: "Stock por ubicación" },
-      { href: "/dashboard/stock/equipos", label: "Equipos por serie" },
-      { href: "/dashboard/stock/movimientos", label: "Movimientos" },
-      { href: "/dashboard/stock/tickets",  label: "Descontar por tickets" },
-      { href: "/dashboard/stock/herramientas", label: "Herramientas" },
-      { href: "/dashboard/stock/kits",     label: "Kits" },
-      { href: "/dashboard/stock/talleres", label: "Mapeo de talleres" },
-      { href: "/dashboard/stock/catalogos", label: "Catálogos" },
-    ],
-  },
-  {
     key: "tareas", nombre: "Tickets",
     subs: [
       { key: "tickets",   href: "/dashboard/tareas",           label: "Tickets" },
@@ -63,7 +48,7 @@ export const MODULOS = [
     ],
   },
   {
-    key: "stock_nuevo", nombre: "Stock nuevo",
+    key: "stock", nombre: "Stock",
     subs: [
       { key: "dashboard",   href: "/dashboard/stock-nuevo/dashboard",   label: "Dashboard" },
       { key: "ubicaciones", href: "/dashboard/stock-nuevo/ubicaciones", label: "Stock por ubicación" },

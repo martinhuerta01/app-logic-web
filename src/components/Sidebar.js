@@ -1,9 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
 import { MODULOS as MODULOS_BASE } from "@/lib/modulos";
 
 // ─── SVG Icons (Tabler-style, 1.5 stroke) ───────────────────────────────────
@@ -113,30 +112,6 @@ const MODULO_ADMIN = {
   subs: [{ href: "/dashboard/admin/usuarios", label: "Usuarios" }],
 };
 
-function buildStockGrupos(ubicaciones) {
-  const cds      = ubicaciones.filter(u => u.tipo === "cd");
-  const generales = ubicaciones.filter(u => u.tipo === "general");
-  return [
-    {
-      nombre: "Oficina",
-      subs: [
-        { href: "/dashboard/stock/oficina?tab=actual",   label: "Actual" },
-        { href: "/dashboard/stock/oficina?tab=entradas", label: "Entradas" },
-        { href: "/dashboard/stock/oficina?tab=salidas",  label: "Salidas" },
-        { href: "/dashboard/stock/oficina?tab=busqueda", label: "Búsqueda" },
-      ],
-    },
-    {
-      nombre: "La Serenísima",
-      subs: cds.map(u => ({ href: `/dashboard/stock/serenisima?cd=${encodeURIComponent(u.nombre)}`, label: u.nombre })),
-    },
-    {
-      nombre: "General",
-      subs: generales.map(u => ({ href: `/dashboard/stock/general?ub=${encodeURIComponent(u.nombre)}`, label: u.nombre })),
-    },
-  ];
-}
-
 // ─── Sub-link atom ────────────────────────────────────────────────────────────
 function SubLink({ href, label, pathname }) {
   const base = href.split("?")[0];
@@ -174,7 +149,7 @@ function SubLink({ href, label, pathname }) {
 }
 
 // ─── Module button + accordion ────────────────────────────────────────────────
-function ModuleItem({ mod, isOpen, onToggle, pathname, openGrupo, setOpenGrupo }) {
+function ModuleItem({ mod, isOpen, onToggle, pathname }) {
   const icon = ICONS[mod.key] || ICONS.admin;
 
   return (
@@ -260,56 +235,6 @@ function ModuleItem({ mod, isOpen, onToggle, pathname, openGrupo, setOpenGrupo }
           </div>
         )}
 
-        {/* Dynamic stock grupos */}
-        {mod.grupos && (
-          <div style={{ paddingBottom: 4 }}>
-            {mod.grupos.map(grupo => (
-              <div key={grupo.nombre}>
-                <button
-                  onClick={() => setOpenGrupo(openGrupo === grupo.nombre ? "" : grupo.nombre)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    width: "100%",
-                    paddingLeft: 50, paddingRight: 10,
-                    paddingTop: 5, paddingBottom: 5,
-                    border: "none", background: "transparent", cursor: "pointer",
-                    fontSize: 12.5, fontWeight: 500,
-                    color: "#c8d3e0",
-                    textAlign: "left",
-                    transition: "color 120ms",
-                  }}
-                >
-                  <span style={{ flex: 1 }}>{grupo.nombre}</span>
-                  <span style={{
-                    color: "rgba(255,255,255,0.15)",
-                    transform: openGrupo === grupo.nombre ? "rotate(90deg)" : "rotate(0deg)",
-                    transition: "transform 200ms ease",
-                    display: "flex",
-                  }}>{CHEVRON}</span>
-                </button>
-
-                <div className={`sub-panel ${openGrupo === grupo.nombre ? "open" : "closed"}`}>
-                  <div style={{ position: "relative" }}>
-                    <div style={{
-                      position: "absolute", left: 58, top: 2, bottom: 2,
-                      width: 1, background: "var(--sidebar-sub-line)",
-                    }}/>
-                    {grupo.subs.length === 0 ? (
-                      <span style={{
-                        display: "block", paddingLeft: 66, paddingTop: 4, paddingBottom: 4,
-                        fontSize: 11.5, color: "rgba(255,255,255,0.15)", fontStyle: "italic",
-                      }}>Sin ubicaciones</span>
-                    ) : (
-                      grupo.subs.map(sub => (
-                        <SubLink key={sub.href} href={sub.href} label={sub.label} pathname={pathname}/>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -320,25 +245,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, rol, modulos, submodulos, logout } = useAuth();
 
-  const [stockGrupos, setStockGrupos] = useState([
-    { nombre: "Oficina", subs: [
-      { href: "/dashboard/stock/oficina?tab=actual",   label: "Actual" },
-      { href: "/dashboard/stock/oficina?tab=entradas", label: "Entradas" },
-      { href: "/dashboard/stock/oficina?tab=salidas",  label: "Salidas" },
-    ]},
-    { nombre: "La Serenísima", subs: [] },
-    { nombre: "General",       subs: [] },
-  ]);
-
-  useEffect(() => {
-    api.get("/stock/ubicaciones/")
-      .then(ubics => setStockGrupos(buildStockGrupos(ubics)))
-      .catch(err  => console.warn("No se pudieron cargar ubicaciones de stock:", err));
-  }, []);
-
   // Filtrar módulos según permisos
   const modulosVisibles = MODULOS_BASE
-    .map(mod => mod.isDynamic ? { ...mod, grupos: stockGrupos } : mod)
     .filter(mod => !modulos || modulos.includes(mod.key))
     .map(mod => {
       if (!submodulos || !submodulos[mod.key] || !mod.subs) return mod;
@@ -357,13 +265,6 @@ export default function Sidebar() {
       if (mod.subs?.some(s => pathname.startsWith(s.href.split("?")[0]))) return mod.nombre;
     }
     return "Servicios";
-  });
-
-  const [openGrupo, setOpenGrupo] = useState(() => {
-    if (pathname.includes("/stock/oficina"))    return "Oficina";
-    if (pathname.includes("/stock/serenisima")) return "La Serenísima";
-    if (pathname.includes("/stock/general"))    return "General";
-    return "";
   });
 
   // Avatar initials
@@ -435,8 +336,6 @@ export default function Sidebar() {
               isOpen={openModulo === mod.nombre}
               onToggle={() => setOpenModulo(openModulo === mod.nombre ? "" : mod.nombre)}
               pathname={pathname}
-              openGrupo={openGrupo}
-              setOpenGrupo={setOpenGrupo}
             />
           ))}
         </div>

@@ -55,7 +55,7 @@ function FormUbicacion({ onDone }) {
           placeholder="Ej: Mendoza" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm" />
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Segmento (Stock nuevo)</label>
+        <label className="block text-xs text-slate-500 mb-1">Segmento</label>
         <select value={segmento} onChange={e => setSegmento(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">Automático</option>
@@ -122,7 +122,7 @@ function EditFormUbicacion({ item, onDone, onCancel }) {
           placeholder="Ej: Mendoza" className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm" />
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Segmento (Stock nuevo)</label>
+        <label className="block text-xs text-slate-500 mb-1">Segmento</label>
         <select value={segmento} onChange={e => setSegmento(e.target.value)}
           className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
           <option value="">Automático</option>

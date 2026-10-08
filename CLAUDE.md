@@ -18,14 +18,8 @@ src/app/dashboard/
   personal/
     horario-tecnico/   → Carga movimientos camioneta + ausencias (incluye parser de Excel LogicTracker)
     historial-camioneta/ → Historial de movimientos por mes
-  stock/
-    overview/          → Dashboard de stock: cards por producto con nivel, consumo/día, días restantes
-    oficina/           → Stock de oficina (actual, entradas, salidas, búsqueda)
-    equipos/           → Equipos por número de serie: estado, ubicación, configuración, cliente, control de retirados
-    tickets/           → Importación del Excel de tickets de soporte (descuento de stock, seriales)
-    kits/, talleres/   → Kits (recetas) y mapeo de talleres editables
-    catalogos/         → Ubicaciones, productos y mapeo de La Serenísima (antes en Configuración)
-    herramientas/      → Herramientas por ubicación
+  stock-nuevo/         → Módulo Stock (menú "Stock"): dashboard, entradas, envíos, stock por ubicación, importar tickets, retirados, equipos por serie, movimientos, herramientas, kits, mapeo de talleres, catálogos
+  stock/               → solo redirige al dashboard del módulo Stock
   personal/equipos/    → Equipos (antes en Configuración)
   opciones-carga/      → Opciones de carga de servicios (antes en Configuración)
   configuracion/, exportar-importar/ → solo redirigen (ya no son módulos)
@@ -85,23 +79,8 @@ DELETE /recibos/{id}
 | Servicios por Responsable | `?tab=responsable` |
 | Servicios por Cliente | `?tab=clientes` |
 | Reporte Cruzado | `?tab=cruzado` |
-| Stock KPI | `?tab=stock` |
+| Consumo de insumos | `?tab=consumo` |
 | Revisiones Frecuentes (patentes) | `?tab=patentes` |
-
-## Dashboard de Stock (stock/overview/)
-
-- Primera sub-página del módulo Stock, accesible desde sidebar antes de "Oficina"
-- Fetches: `/stock/productos/`, `/stock/ubicaciones/`, `/stock/actual/?ubicacion_id=`, `/stock/movimientos/`
-- Grid de tarjetas ordenadas por urgencia: crítico → bajo → ok
-- **Niveles:** crítico ≤ 7 días (o stock 0 reciente), bajo 8–20 días, ok > 20 días, ocasional = sin historial de entradas (no se clasifica por cantidad absoluta; va al final)
-- **Filtro automático:** productos con stock 0 y sin movimientos en los últimos 90 días se ocultan (inactivos)
-- Cada tarjeta: cantidad actual, barra de nivel coloreada, consumo/día, días restantes, fecha sugerida de pedido
-- Filtros UI por nivel de urgencia y categoría
-- Alerta banner si hay productos en stock 0 reciente
-- Vistas: Oficina, La Serenísima (todos los CD juntos), Camioneta 1 y 2 (`VISTAS_STOCK` en `src/lib/stockTipos.js`)
-- Una "entrada" para el cálculo de consumo es ENTRADA/COMPRA en Oficina y una TRANSFERENCIA hacia adentro del pool en las demás vistas
-- Stock mínimo por producto y vista (tabla `stock_minimo`, editable en la tarjeta) y plazo de entrega por producto (`productos.plazo_entrega_dias`, reemplaza los 3 días fijos)
-- Las herramientas no aparecen acá (ver Stock → Herramientas)
 
 ## Consumo de insumos (estadísticas ?tab=consumo)
 
@@ -199,7 +178,7 @@ DELETE /recibos/{id}
 - Los cambios de la base de datos se versionan en `migraciones/` del backend
 - Plan y decisiones: `docs/PLAN_MEJORAS.md`. Instructivo para técnicos: `docs/INSTRUCTIVO_TECNICOS_STOCK.md`
 
-## Importación de tickets de soporte (stock/tickets/)
+## Importación de tickets de soporte (stock-nuevo/tickets/)
 
 - Interpretación de la descripción en `src/lib/tickets/` (módulos puros: exclusión, acción, insumos, serial, ubicación por taller, clasificación)
 - Ubicación: La Serenísima Distribución usa la base; La Serenísima LD y los demás clientes buscan el taller en Base + descripción contra `mapeo_talleres` (`aplica_a` = serenisima u otros); si no coincide, General Rodríguez o Camioneta 1
@@ -210,15 +189,16 @@ DELETE /recibos/{id}
 - Un equipo con serie de otro modelo (no S40 nuevo) o ya retirado antes se instala en cantidad 0 (reutilizado)
 - La confirmación es una función atómica de la base (`fn_confirmar_ticket_stock`), un ticket por llamada
 
-## Stock nuevo (stock-nuevo/) — reemplaza al módulo Stock actual
+## Módulo Stock (stock-nuevo/) — reemplazó al módulo Stock anterior, que se eliminó
 
 - Modelo: Oficina exacta y sin negativos; el resto de las ubicaciones = último conteo + envíos − tickets. Un negativo fuera de la Oficina es una alerta ("falta un envío o un conteo"), no un error
 - Pantallas: Dashboard (reposición de la Oficina, mínimos, alertas), Stock por ubicación (con conteo y vista por códigos de La Serenísima), Envíos (con fecha y series), Importar tickets, Retirados (recepción en la Oficina y faltantes), Equipos por serie, Movimientos, Herramientas, Kits, Mapeo de talleres, Catálogos
 - Backend: `routers/stock_nuevo.py` (prefijo `/stock-nuevo`). Conteos, envíos y recepciones son funciones atómicas de la base (`fn_confirmar_conteo`, `fn_registrar_envio`, `fn_recibir_retirado`); los tickets usan `fn_confirmar_ticket_stock`
 - Cada ubicación tiene segmento (oficina, cd, taller, tecnico, equipo, otras) y localidad; el menú agrupa por segmento
 - Los códigos de La Serenísima (1 a 10) salen de `mapeo_serenisima`; `modo` = suma o pares (ficha de enganche: el menor entre macho y hembra)
-- Las pantallas Equipos, Movimientos, Herramientas, Kits, Talleres y Catálogos se movieron desde `stock/`; las rutas viejas redirigen
-- Migraciones 006 a 010 en el backend
+- El menú se llama "Stock" y usa la clave de permiso `stock` (la que ya tenían los usuarios). Las rutas siguen en `/dashboard/stock-nuevo/...` y la API en `/stock-nuevo/...`
+- Endpoints `/stock/...` del backend: los siguen usando Catálogos, Equipos, Movimientos y Herramientas
+- Migraciones 006 a 012 en el backend
 
 ## Historial de versiones
 

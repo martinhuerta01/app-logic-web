@@ -195,7 +195,7 @@ export default function DashboardStock() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#c2410c" }}>Stock nuevo</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#c2410c" }}>Stock</div>
         <h1 style={{ margin: "2px 0 0", fontSize: 26, color: "#0f172a" }}>Dashboard</h1>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>Qué hay que pedir, qué no cierra y qué falta contar · {fmtFecha(datos.hoy)}</div>
       </div>
