@@ -3,8 +3,11 @@ import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
+import { exportarStockGeneral } from "@/lib/exportaciones";
 import {
-  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
+  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, valorDeCodigo, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -130,6 +133,29 @@ function Pantalla() {
     }
   };
 
+  // Exporta lo que se está viendo: por producto o por código de La Serenísima
+  const exportarUbicacion = () => {
+    const nombre = (ubicacion?.nombre || "ubicacion").trim().replace(/\s+/g, "_");
+    const archivo = `Stock_${nombre}_${new Date().toLocaleDateString("sv-SE")}.xlsx`;
+    if (vista === "serenisima") {
+      const porId = new Map(filas.map((f) => [f.producto_id, f]));
+      const dato = (id, campo) => porId.get(id)?.[campo] ?? 0;
+      return descargarTabla(archivo, "Códigos de La Serenísima",
+        ["Código", "Producto de La Serenísima", "Stock ahora", "Detalle"],
+        mapeo.map((m) => {
+          const v = valorDeCodigo(m, (id) => dato(id, "stock"));
+          const detalle = (m.producto_ids || []).map((id) => `${(porId.get(id)?.codigo || "?")} ${dato(id, "stock")}`).join(" · ");
+          return [m.codigo_serenisima, m.descripcion, v.valor, detalle];
+        }),
+        [10, 40, 12, 60]);
+    }
+    return descargarTabla(archivo, "Stock",
+      ["Código", "Producto", "Categoría", "Último conteo", "Envíos y ajustes", "Tickets", "Stock ahora", "Estado", "Series cargadas"],
+      filas.map((f) => [f.codigo, f.descripcion, f.categoria || "", f.ultimo_conteo ?? "", f.envios, f.tickets, f.stock,
+        f.stock < 0 ? "Sin explicar" : "Con stock", f.lleva_serie ? (f.series_cargadas || 0) : ""]),
+      [10, 38, 14, 14, 16, 10, 12, 14, 14]);
+  };
+
   const verSeries = async (f) => {
     const abierta = !seriesAbiertas[f.producto_id];
     setSeriesAbiertas((s) => ({ ...s, [f.producto_id]: abierta }));
@@ -203,9 +229,12 @@ function Pantalla() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#c2410c" }}>Stock</div>
         <h1 style={{ margin: "2px 0 0", fontSize: 24, color: "#0f172a" }}>Qué tiene cada lugar</h1>
+        </div>
+        <BotonExportar onExportar={exportarStockGeneral}>Exportar todas las ubicaciones</BotonExportar>
       </div>
 
       <datalist id="motivos-conteo">{MOTIVOS.map((m) => <option key={m} value={m} />)}</datalist>
@@ -294,6 +323,7 @@ function Pantalla() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+                <BotonExportar onExportar={exportarUbicacion}>Exportar a Excel</BotonExportar>
                 <button type="button" onClick={abrirConteo} style={boton("#c2410c")}>Cargar conteo</button>
                 <Link href={esOficina ? `/dashboard${BASE}/envios` : `/dashboard${BASE}/envios?hacia=${sel}`} style={boton("#1d4e89")}>Registrar envío</Link>
               </div>

@@ -331,6 +331,29 @@ export async function exportarStock() {
   XS.writeFile(wb, `Stock_Oficina_${hoy}.xlsx`);
 }
 
+// Stock de todas las ubicaciones: una fila por producto y una columna por ubicación (más el total)
+export async function exportarStockGeneral() {
+  const data = await api.get("/stock/actual/");
+  if (!data?.length) throw new Error("No hay datos de stock");
+  const ubicaciones = [...new Map(data.map((s) => [s.ubicacion_id, s.ubicaciones])).entries()]
+    .map(([id, u]) => ({ id, nombre: (u?.nombre || "?").trim(), tipo: u?.tipo }))
+    .sort((x, y) => (x.tipo === "oficina" ? -1 : y.tipo === "oficina" ? 1 : x.nombre.localeCompare(y.nombre)));
+  const productos = new Map();
+  for (const s of data) {
+    const p = s.productos || {};
+    if (p.categoria === "Herramientas") continue;
+    if (!productos.has(s.producto_id)) productos.set(s.producto_id, { codigo: (p.codigo || "").trim(), descripcion: p.descripcion || "", categoria: p.categoria || "", porUbic: {} });
+    productos.get(s.producto_id).porUbic[s.ubicacion_id] = s.cantidad;
+  }
+  const filas = [...productos.values()]
+    .sort((x, y) => x.categoria.localeCompare(y.categoria) || x.codigo.localeCompare(y.codigo))
+    .map((p) => [p.codigo, p.descripcion, p.categoria, ...ubicaciones.map((u) => p.porUbic[u.id] || 0), ubicaciones.reduce((a, u) => a + (p.porUbic[u.id] || 0), 0)]);
+  const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: TZ });
+  descargarTabla(`Stock_todas_las_ubicaciones_${hoy}.xlsx`, "Stock por ubicación",
+    ["Código", "Producto", "Categoría", ...ubicaciones.map((u) => u.nombre), "Total"], filas,
+    [10, 38, 14, ...ubicaciones.map(() => 14), 10]);
+}
+
 // ── Export 4: Servicios ─────────────────────────────────────────────
 export async function exportarServicios(mes, anio) {
   const params = mes ? { mes, anio } : { anio };

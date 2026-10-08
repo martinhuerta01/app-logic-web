@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
 import { ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, mensajeDeError } from "@/lib/stockNuevo";
 
 const BASE = "/stock-nuevo";
@@ -141,6 +143,19 @@ export default function Entradas() {
   }, [historial, buscarHistorial]);
   const unidadesHistorial = entradas.reduce((a, e) => a + e.unidades, 0);
 
+  const exportar = () => {
+    const q = buscarHistorial.trim().toLowerCase();
+    const lineas = historial.filter((m) => !q || (m.proveedores?.nombre || "").toLowerCase().includes(q)
+      || (m.productos?.codigo || "").toLowerCase().includes(q) || (m.productos?.descripcion || "").toLowerCase().includes(q));
+    return descargarTabla(
+      `Entradas_${desde}_a_${hasta}.xlsx`, "Entradas",
+      ["Fecha", "Proveedor", "Código", "Producto", "Categoría", "Cantidad", "Número de serie", "Cargado por"],
+      lineas.map((m) => [fmtFecha(m.fecha), m.proveedores?.nombre || "", (m.productos?.codigo || "").trim(), m.productos?.descripcion || "",
+        m.productos?.categoria || "", m.cantidad, m.serial || "", m.cargado_por || ""]),
+      [12, 24, 10, 38, 14, 10, 20, 22]
+    );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
@@ -256,6 +271,7 @@ export default function Entradas() {
             <label style={{ fontSize: 12, color: "#64748b", display: "flex", flexDirection: "column", gap: 4 }}>Hasta
               <input type="date" value={hasta} min={desde} max={hoyISO()} onChange={(e) => setHasta(e.target.value)} style={{ ...campo, minHeight: 38, width: 160 }} />
             </label>
+            <BotonExportar onExportar={exportar}>Exportar a Excel</BotonExportar>
             <input type="search" aria-label="Buscar en el historial" value={buscarHistorial} onChange={(e) => setBuscarHistorial(e.target.value)} placeholder="Buscar producto o proveedor"
               style={{ ...campo, minHeight: 38, width: 230 }} />
           </div>

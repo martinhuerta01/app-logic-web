@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import Modal, { BtnPrimary, BtnSecondary } from "@/components/Modal";
 import RegistrarMovimiento from "@/components/RegistrarMovimiento";
 import { tipoInfo, signoMov, fmtFecha } from "@/lib/stockTipos";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
 
 const TH = {
   textAlign: "left", padding: "9px 12px", fontSize: 9.5, fontWeight: 600,
@@ -127,6 +129,18 @@ export default function Movimientos() {
   };
   const nombreUbic = (id) => (id ? ubicPorId.get(id)?.nombre || "?" : null);
 
+  // Exporta todos los movimientos que se están viendo con los filtros (no solo los que se muestran en pantalla)
+  const exportar = () => descargarTabla(
+    `Movimientos_stock_${new Date().toLocaleDateString("sv-SE")}.xlsx`, "Movimientos",
+    ["Fecha", "Tipo", "Código", "Producto", "Número de serie", "Desde", "Hacia", "Cantidad", "Observación", "Cargado por"],
+    filtrados.map((m) => {
+      const d = desc(m), s = signoMov(m);
+      return [fmtFecha(m.fecha), tipoInfo(m.tipo).label, d.codigo, d.descripcion, m.serial || "", nombreUbic(m.origen_id) || "", nombreUbic(m.destino_id) || "",
+        s === 0 ? m.cantidad : s * m.cantidad, m.observacion || "", m.cargado_por || ""];
+    }),
+    [12, 14, 10, 38, 20, 22, 22, 10, 40, 22]
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -136,7 +150,10 @@ export default function Movimientos() {
             Todas las entradas, salidas, consumos y ajustes en un solo lugar
           </p>
         </div>
-        <BtnPrimary onClick={() => setRegistrando(true)}>+ Registrar movimiento</BtnPrimary>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <BotonExportar onExportar={exportar}>Exportar a Excel</BotonExportar>
+          <BtnPrimary onClick={() => setRegistrando(true)}>+ Registrar movimiento</BtnPrimary>
+        </div>
       </div>
 
       {error && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#b91c1c" }}>{error}</div>}

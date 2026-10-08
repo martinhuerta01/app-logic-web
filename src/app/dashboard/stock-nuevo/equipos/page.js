@@ -2,6 +2,8 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
 import Modal, { BtnPrimary, BtnSecondary, FieldLabel, FieldInput, FieldSelect } from "@/components/Modal";
 import { ESTADOS_EQUIPO, CONFIGURACIONES, tipoInfo, fmtFecha } from "@/lib/stockTipos";
 
@@ -108,6 +110,16 @@ export default function EquiposPage() {
     });
   }, [delModelo, q, estado, ubic, config]);
 
+  // Exporta los equipos que se están viendo con los filtros
+  const exportar = () => descargarTabla(
+    `Equipos_por_serie_${new Date().toLocaleDateString("sv-SE")}.xlsx`, "Equipos por serie",
+    ["Número de serie", "Código", "Modelo", "Estado", "Ubicación", "Patente", "Configuración", "Cliente", "Recibido en la Oficina", "Actualizado"],
+    filtrados.map((e) => [e.serial, (e.productos?.codigo || "").trim(), e.productos?.descripcion || "", ESTADOS_EQUIPO[e.estado]?.label || e.estado,
+      (e.ubicaciones?.nombre || "").trim(), e.patente || "", e.configuracion || "", e.cliente || "",
+      e.recibido_en ? fmtFecha(e.recibido_en.slice(0, 10)) : "", e.updated_at ? fmtFecha(e.updated_at.slice(0, 10)) : ""]),
+    [20, 9, 28, 30, 22, 12, 16, 28, 20, 14]
+  );
+
   const alternarHistorial = async (serial) => {
     if (abierto === serial) { setAbierto(null); return; }
     setAbierto(serial); setHistorial([]);
@@ -186,11 +198,14 @@ export default function EquiposPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <div>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Equipos por número de serie</h1>
-        <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8" }}>
-          Dónde está cada dispositivo, con qué configuración y para qué cliente. Se actualiza solo al importar tickets.
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Equipos por número de serie</h1>
+          <p style={{ margin: "2px 0 0", fontSize: 13, color: "#94a3b8" }}>
+            Dónde está cada dispositivo, con qué configuración y para qué cliente. Se actualiza solo al importar tickets.
+          </p>
+        </div>
+        <BotonExportar onExportar={exportar}>Exportar a Excel</BotonExportar>
       </div>
 
       {error && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#b91c1c" }}>{error}</div>}

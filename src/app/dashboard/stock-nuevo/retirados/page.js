@@ -2,6 +2,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
 import Modal, { BtnPrimary, BtnSecondary } from "@/components/Modal";
 import { norm, piezasDeRetiro } from "@/lib/tickets";
 import { fmtFecha, mensajeDeError } from "@/lib/stockNuevo";
@@ -55,6 +57,21 @@ export default function Retirados() {
       .filter((r) => !soloAtrasados || (r.dias ?? 0) > datos.dias_alerta)
       .filter((r) => !q || [r.serial, r.modelo, r.ubicacion, r.ticket_numero, r.cliente].some((x) => String(x || "").toLowerCase().includes(q)));
   }, [datos, busqueda, soloAtrasados]);
+
+  const exportarRetirados = () => descargarTabla(
+    `Retirados_pendientes_${new Date().toLocaleDateString("sv-SE")}.xlsx`, "Retirados pendientes",
+    ["Número de serie", "Modelo", "Dónde está", "Ticket", "Cliente", "Fecha del retiro", "Días", "Piezas esperadas", "Texto del ticket"],
+    lista.map((r) => [r.serial, r.modelo || "", (r.ubicacion || "").trim(), r.ticket_numero || "", r.cliente || "", r.fecha ? fmtFecha(r.fecha) : "",
+      r.dias ?? "", piezasEsperadas(r).join(", "), r.descripcion || ""]),
+    [20, 28, 22, 10, 28, 14, 8, 40, 60]
+  );
+
+  const exportarFaltantes = () => descargarTabla(
+    `Faltantes_${new Date().toLocaleDateString("sv-SE")}.xlsx`, "Faltantes",
+    ["Número de serie", "Ticket", "Dónde estaba", "Pieza que falta", "Registrado"],
+    faltantes.map((f) => [f.serial, f.ticket_numero || "", (f.ubicaciones?.nombre || "").trim(), f.pieza, f.creado_en ? fmtFecha(f.creado_en.slice(0, 10)) : ""]),
+    [20, 10, 22, 30, 14]
+  );
 
   const abrirRecepcion = (r) => {
     setRecibiendo(r);
@@ -130,8 +147,12 @@ export default function Retirados() {
           <input type="checkbox" checked={soloAtrasados} onChange={(e) => setSoloAtrasados(e.target.checked)} style={{ accentColor: "#1d4e89", width: 16, height: 16 }} />
           Solo los atrasados
         </label>
+        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 10, flexWrap: "wrap" }}>
+          <BotonExportar onExportar={exportarRetirados}>Exportar retirados</BotonExportar>
+          {faltantes.length > 0 && <BotonExportar onExportar={exportarFaltantes}>Exportar faltantes</BotonExportar>}
+        </span>
         {rol === "admin" && (
-          <span style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto", fontSize: 12.5, color: "#64748b" }}>
+          <span style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12.5, color: "#64748b" }}>
             <label htmlFor="dias-alerta">Alertar después de</label>
             <input id="dias-alerta" type="number" min="1" max="365" value={dias} onChange={(e) => setDias(e.target.value)}
               style={{ ...MONO, width: 64, textAlign: "right", border: "1px solid #cbd5e1", borderRadius: 6, padding: "6px 8px" }} />

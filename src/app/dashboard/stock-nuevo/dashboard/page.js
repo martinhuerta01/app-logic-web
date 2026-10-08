@@ -6,6 +6,8 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
 import { agruparPorSegmento, localidadAMostrar, diasDesde, fmtFecha, hace, mensajeDeError, ordenCategoria } from "@/lib/stockNuevo";
 
 const BASE = "/stock-nuevo";
@@ -176,6 +178,14 @@ export default function DashboardStock() {
       await cargar();
     } catch (e) { setMensaje({ tipo: "error", texto: mensajeDeError(e) }); }
   };
+
+  const exportarReposicion = () => descargarTabla(
+    `Reposicion_Oficina_${new Date().toLocaleDateString("sv-SE")}.xlsx`, "Reposición de la Oficina",
+    ["Código", "Producto", "Categoría", "Stock", "Mínimo", `Consumo ${datos.ventana_dias} días`, "Consumo por día", "Días de stock", "Pedir antes del", "Estado"],
+    [...reposicion].sort((a, b) => NIVELES[a.nivel].orden - NIVELES[b.nivel].orden || (a.dias_de_stock ?? 99999) - (b.dias_de_stock ?? 99999)).map((r) => [
+      r.codigo, r.descripcion, r.categoria, r.stock, r.minimo ?? "", r.consumo_90_dias, r.consumo_por_dia, r.dias_de_stock ?? "", r.pedir_el ? fmtFecha(r.pedir_el) : "", NIVELES[r.nivel].texto]),
+    [10, 38, 14, 10, 10, 16, 16, 14, 16, 14]
+  );
 
   if (error) return <div role="alert" style={{ padding: 16, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, color: "#991b1b", fontSize: 13 }}>{error}</div>;
   if (!datos) return <div style={{ padding: 24, color: "#64748b", fontSize: 13 }}>Cargando…</div>;
@@ -412,10 +422,13 @@ export default function DashboardStock() {
 
       <Bloque titulo="Todos los productos de la Oficina" ayuda="El detalle completo, y desde acá se fija el mínimo de cada producto."
         derecha={
+          <span style={{ display: "inline-flex", gap: 10, flexWrap: "wrap" }}>
+          <BotonExportar onExportar={exportarReposicion}>Exportar a Excel</BotonExportar>
           <button type="button" aria-expanded={verTabla} onClick={() => setVerTabla((v) => !v)}
             style={{ minHeight: 38, padding: "0 16px", border: "none", borderRadius: 8, fontSize: 13.5, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: "#4a5463" }}>
             {verTabla ? "Ocultar tabla" : "Ver tabla y fijar mínimos"}
           </button>
+          </span>
         }>
         {verTabla && (
           <>

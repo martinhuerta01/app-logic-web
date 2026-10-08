@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { api } from "@/lib/api";
+import BotonExportar from "@/components/BotonExportar";
+import { descargarTabla } from "@/lib/exportaciones";
 import { valorDeCodigo, localidadAMostrar, mensajeDeError } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -136,8 +138,19 @@ export function VistaCentros({ mapeo }) {
   const productoPorId = new Map(datos.productos.map((p) => [p.id, p]));
   const cantidadEn = (centroId, id) => datos.stock[centroId]?.[id] ?? 0;
 
+  const exportar = () => descargarTabla(
+    `Stock_centros_de_distribucion_${new Date().toLocaleDateString("sv-SE")}.xlsx`, "Centros de distribución",
+    ["Código", "Producto de La Serenísima", ...datos.centros.map((c) => c.nombre.trim()), "Total"],
+    mapeo.map((m) => {
+      const porCentro = datos.centros.map((c) => valorDeCodigo(m, (id) => cantidadEn(c.id, id)).valor);
+      return [m.codigo_serenisima, m.descripcion, ...porCentro, porCentro.reduce((a, v) => a + v, 0)];
+    }),
+    [10, 40, ...datos.centros.map(() => 14), 10]
+  );
+
   return (
     <div style={{ overflowX: "auto" }}>
+      <div style={{ padding: "10px 16px" }}><BotonExportar onExportar={exportar}>Exportar a Excel</BotonExportar></div>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
         <thead>
           <tr>
