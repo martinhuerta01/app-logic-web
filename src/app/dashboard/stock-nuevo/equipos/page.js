@@ -33,8 +33,16 @@ function Estado({ estado }) {
   );
 }
 
+const mensaje = (e) => {
+  const texto = String(e?.message || e || "");
+  try { const d = JSON.parse(texto).detail; if (typeof d === "string") return d; } catch { /* no era JSON */ }
+  return texto.slice(0, 160);
+};
+
 export default function EquiposPage() {
-  const { user } = useAuth();
+  const { user, rol } = useAuth();
+  const [modelosCatalogo, setModelosCatalogo] = useState([]);
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false);
   const [equipos,     setEquipos]     = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -61,8 +69,11 @@ export default function EquiposPage() {
   const cargar = async () => {
     setError("");
     try {
-      const [eq, ub] = await Promise.all([api.get("/stock/equipos/"), api.get("/stock/ubicaciones/")]);
+      const [eq, ub, pr] = await Promise.all([
+        api.get("/stock/equipos/"), api.get("/stock/ubicaciones/"), api.get("/stock-nuevo/productos/").catch(() => []),
+      ]);
       setEquipos(eq || []); setUbicaciones(ub || []);
+      setModelosCatalogo((pr || []).filter((p) => p.categoria === "Dispositivos"));
     } catch {
       setError("No se pudieron cargar los equipos. Verificá la conexión con el servidor.");
     } finally {
@@ -108,27 +119,38 @@ export default function EquiposPage() {
 
   const abrirEdicion = (e) => {
     setForm({
-      estado: e.estado, ubicacion_id: e.ubicacion_id || "", patente: e.patente || "",
-      configuracion: e.configuracion || "", cliente: e.cliente || "",
+      serial: e.serial, producto_id: e.producto_id || "", estado: e.estado, ubicacion_id: e.ubicacion_id || "",
+      patente: e.patente || "", configuracion: e.configuracion || "", cliente: e.cliente || "",
     });
-    setMsgModal(""); setEditando(e);
+    setMsgModal(""); setConfirmarBorrado(false); setEditando(e);
   };
 
   const guardarEdicion = async () => {
     setGuardando(true); setMsgModal("");
     try {
-      // Solo se mandan los campos con valor: el servidor no borra campos, corrige los que llegan
-      const cuerpo = {};
-      Object.entries(form).forEach(([k, v]) => { if (v !== "" && v !== (editando[k] ?? "")) cuerpo[k] = v; });
-      if (Object.keys(cuerpo).length === 0) { setEditando(null); return; }
-      await api.patch(`/stock/equipos/${encodeURIComponent(editando.serial)}/`, cuerpo);
-      setAviso(`Equipo ${editando.serial} actualizado`);
+      // Se manda el equipo completo: un campo vacío queda vacío (por ejemplo, para sacar una patente)
+      await api.put(`/stock-nuevo/equipos/${editando.id}`, { ...form, ubicacion_id: form.ubicacion_id || null });
+      setAviso(`Equipo ${form.serial} actualizado`);
       setEditando(null);
       await cargar();
     } catch (e) {
-      setMsgModal("Error: " + String(e.message).slice(0, 140));
+      setMsgModal("Error: " + mensaje(e));
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const eliminarEquipo = async () => {
+    setGuardando(true); setMsgModal("");
+    try {
+      await api.delete(`/stock-nuevo/equipos/${editando.id}`);
+      setAviso(`Equipo ${editando.serial} eliminado`);
+      setEditando(null);
+      await cargar();
+    } catch (e) {
+      setMsgModal("Error: " + mensaje(e));
+    } finally {
+      setGuardando(false); setConfirmarBorrado(false);
     }
   };
 
@@ -250,7 +272,7 @@ export default function EquiposPage() {
                           {abierto === e.serial ? "Ocultar historial" : "Historial"}
                         </button>
                         <button onClick={() => abrirEdicion(e)}
-                          style={{ border: "none", background: "none", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Corregir</button>
+                          style={{ border: "none", background: "none", color: "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Editar</button>
                       </td>
                     </tr>
                     {abierto === e.serial && (
@@ -324,20 +346,39 @@ export default function EquiposPage() {
         )}
       </Modal>
 
-      <Modal open={!!editando} onClose={() => { if (!guardando) setEditando(null); }} title="Corregir datos del equipo" width="520px"
+      <Modal open={!!editando} onClose={() => { if (!guardando) setEditando(null); }} title="Editar equipo" width="520px"
         footer={
           <>
-            <span style={{ fontSize: 12, color: msgModal.startsWith("Error") ? "#dc2626" : "#94a3b8" }}>{msgModal || "Corrige el dato sin generar movimientos."}</span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <BtnSecondary onClick={() => setEditando(null)}>Cancelar</BtnSecondary>
-              <BtnPrimary onClick={guardarEdicion} loading={guardando}>Guardar</BtnPrimary>
+            <span style={{ fontSize: 12, color: msgModal.startsWith("Error") ? "#dc2626" : "#94a3b8" }}>{msgModal || "Corrige los datos sin generar movimientos de stock."}</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {rol === "admin" && (confirmarBorrado ? (
+                <>
+                  <span style={{ fontSize: 12.5, color: "#991b1b", fontWeight: 600 }}>¿Eliminar este equipo? El historial queda.</span>
+                  <button type="button" onClick={eliminarEquipo} disabled={guardando}
+                    style={{ border: "none", borderRadius: 8, background: "#b91c1c", color: "#ffffff", fontWeight: 700, fontSize: 13, padding: "8px 14px", cursor: "pointer", fontFamily: "inherit" }}>Sí, eliminar</button>
+                  <BtnSecondary onClick={() => setConfirmarBorrado(false)}>No</BtnSecondary>
+                </>
+              ) : (
+                <button type="button" onClick={() => setConfirmarBorrado(true)}
+                  style={{ border: "none", borderRadius: 8, background: "#b91c1c", color: "#ffffff", fontWeight: 700, fontSize: 13, padding: "8px 14px", cursor: "pointer", fontFamily: "inherit" }}>Eliminar equipo</button>
+              ))}
+              {!confirmarBorrado && <BtnSecondary onClick={() => setEditando(null)}>Cancelar</BtnSecondary>}
+              {!confirmarBorrado && <BtnPrimary onClick={guardarEdicion} loading={guardando}>Guardar</BtnPrimary>}
             </div>
           </>
         }>
         {editando && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <div style={{ gridColumn: "1 / -1", fontSize: 13, color: "#334155" }}>
-              Equipo <strong style={MONO}>{editando.serial}</strong> · {editando.productos?.descripcion}
+            <div>
+              <FieldLabel>Número de serie</FieldLabel>
+              <FieldInput value={form.serial} onChange={(e) => setForm({ ...form, serial: e.target.value })} style={MONO} />
+            </div>
+            <div>
+              <FieldLabel>Modelo</FieldLabel>
+              <FieldSelect value={form.producto_id} onChange={(e) => setForm({ ...form, producto_id: e.target.value })}>
+                {!modelosCatalogo.some((p) => p.id === form.producto_id) && <option value={form.producto_id}>{editando.productos?.descripcion || "—"}</option>}
+                {modelosCatalogo.map((p) => <option key={p.id} value={p.id}>{p.codigo.trim()} · {p.descripcion}</option>)}
+              </FieldSelect>
             </div>
             <div>
               <FieldLabel>Estado</FieldLabel>
@@ -349,6 +390,7 @@ export default function EquiposPage() {
               <FieldLabel>Configuración</FieldLabel>
               <FieldSelect value={form.configuracion} onChange={(e) => setForm({ ...form, configuracion: e.target.value })}>
                 <option value="">Sin configuración</option>
+                {form.configuracion && !CONFIGURACIONES.includes(form.configuracion) && <option value={form.configuracion}>{form.configuracion}</option>}
                 {CONFIGURACIONES.map((c) => <option key={c} value={c}>{c}</option>)}
               </FieldSelect>
             </div>
@@ -364,8 +406,11 @@ export default function EquiposPage() {
               <FieldInput value={form.patente} onChange={(e) => setForm({ ...form, patente: e.target.value.toUpperCase().replace(/[\s.\-]/g, "") })} style={MONO} />
             </div>
             <div style={{ gridColumn: "1 / -1" }}>
-              <FieldLabel>Cliente</FieldLabel>
-              <FieldInput value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} placeholder="Por ejemplo, La Serenisima LD" />
+              <FieldLabel>Cliente (distrito)</FieldLabel>
+              <FieldInput list="clientes-equipos" value={form.cliente} onChange={(e) => setForm({ ...form, cliente: e.target.value })} placeholder="Por ejemplo, La Serenísima LD" />
+              <datalist id="clientes-equipos">
+                {[...new Set(equipos.map((x) => x.cliente).filter(Boolean))].sort().map((c) => <option key={c} value={c} />)}
+              </datalist>
               <p style={{ margin: "6px 0 0", fontSize: 11.5, color: "#94a3b8" }}>
                 Cuando un equipo se reconfigura para otro cliente, cambiá acá la configuración y el cliente.
               </p>
