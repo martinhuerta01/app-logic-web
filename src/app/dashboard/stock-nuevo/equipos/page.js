@@ -45,6 +45,7 @@ export default function EquiposPage() {
   const [estado, setEstado] = useState("");
   const [ubic,   setUbic]   = useState("");
   const [config, setConfig] = useState("");
+  const [modelo, setModelo] = useState("");
   const [limite, setLimite] = useState(100);
 
   const [abierto,   setAbierto]   = useState(null);
@@ -70,22 +71,31 @@ export default function EquiposPage() {
   };
   useEffect(() => { cargar(); }, []);
 
+  // Modelos que hay entre los equipos (S15, S16, S17, S40, Queclink...), sacados de los datos
+  const modelos = useMemo(() => {
+    const m = new Map();
+    equipos.forEach((e) => { if (e.producto_id && !m.has(e.producto_id)) m.set(e.producto_id, e.productos || {}); });
+    return [...m.entries()].sort((a, b) => String(a[1].codigo || "").localeCompare(String(b[1].codigo || "")));
+  }, [equipos]);
+
+  const delModelo = useMemo(() => (modelo ? equipos.filter((e) => e.producto_id === modelo) : equipos), [equipos, modelo]);
+
   const conteo = useMemo(() => {
     const c = {};
-    equipos.forEach((e) => { c[e.estado] = (c[e.estado] || 0) + 1; });
+    delModelo.forEach((e) => { c[e.estado] = (c[e.estado] || 0) + 1; });
     return c;
-  }, [equipos]);
+  }, [delModelo]);
 
   const filtrados = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return equipos.filter((e) => {
+    return delModelo.filter((e) => {
       if (estado && e.estado !== estado) return false;
       if (ubic && e.ubicacion_id !== ubic) return false;
       if (config && e.configuracion !== config) return false;
       if (t && !`${e.serial} ${e.patente || ""} ${e.cliente || ""} ${e.productos?.descripcion || ""}`.toLowerCase().includes(t)) return false;
       return true;
     });
-  }, [equipos, q, estado, ubic, config]);
+  }, [delModelo, q, estado, ubic, config]);
 
   const alternarHistorial = async (serial) => {
     if (abierto === serial) { setAbierto(null); return; }
@@ -150,7 +160,7 @@ export default function EquiposPage() {
   );
 
   const nombreUbic = (id) => ubicaciones.find((u) => u.id === id)?.nombre;
-  const hayFiltros = q || estado || ubic || config;
+  const hayFiltros = q || estado || ubic || config || modelo;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -167,7 +177,7 @@ export default function EquiposPage() {
       {!loading && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-            {kpi("Equipos registrados", equipos.length, "#0f172a", () => setEstado(""))}
+            {kpi("Equipos registrados", delModelo.length, "#0f172a", () => setEstado(""))}
             {kpi("Instalados", conteo.INSTALADO || 0, "#16a34a", () => setEstado("INSTALADO"))}
             {kpi("En stock", conteo.EN_STOCK || 0, "#2563eb", () => setEstado("EN_STOCK"))}
             {kpi("Retirados sin controlar", conteo.RETIRADO_PENDIENTE || 0, (conteo.RETIRADO_PENDIENTE || 0) ? "#ea580c" : "#16a34a", () => setEstado("RETIRADO_PENDIENTE"))}
@@ -176,6 +186,10 @@ export default function EquiposPage() {
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <input value={q} onChange={(e) => { setQ(e.target.value); setLimite(100); }} placeholder="Buscar serie, patente o cliente…" style={{ ...CTRL, flex: 1, minWidth: 220 }} />
+            <select value={modelo} onChange={(e) => { setModelo(e.target.value); setLimite(100); }} style={CTRL} aria-label="Filtrar por modelo">
+              <option value="">Todos los modelos</option>
+              {modelos.map(([id, p]) => <option key={id} value={id}>{(p.descripcion || p.codigo || "?").trim()}</option>)}
+            </select>
             <select value={estado} onChange={(e) => setEstado(e.target.value)} style={CTRL}>
               <option value="">Todos los estados</option>
               {Object.entries(ESTADOS_EQUIPO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -189,7 +203,7 @@ export default function EquiposPage() {
               {CONFIGURACIONES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             {hayFiltros && (
-              <button onClick={() => { setQ(""); setEstado(""); setUbic(""); setConfig(""); }}
+              <button onClick={() => { setQ(""); setEstado(""); setUbic(""); setConfig(""); setModelo(""); }}
                 style={{ ...CTRL, cursor: "pointer", background: "transparent", color: "#2563eb", border: "none", fontWeight: 600 }}>Limpiar</button>
             )}
           </div>
