@@ -67,6 +67,7 @@ export const MODULOS = [
     subs: [
       { key: "dashboard",   href: "/dashboard/stock-nuevo/dashboard",   label: "Dashboard" },
       { key: "ubicaciones", href: "/dashboard/stock-nuevo/ubicaciones", label: "Stock por ubicación" },
+      { key: "entradas",    href: "/dashboard/stock-nuevo/entradas",    label: "Entradas" },
       { key: "envios",      href: "/dashboard/stock-nuevo/envios",      label: "Envíos" },
       { key: "tickets",     href: "/dashboard/stock-nuevo/tickets",     label: "Importar tickets" },
       { key: "retirados",   href: "/dashboard/stock-nuevo/retirados",   label: "Retirados" },
