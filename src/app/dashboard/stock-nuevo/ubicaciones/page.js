@@ -7,7 +7,7 @@ import BotonExportar from "@/components/BotonExportar";
 import { descargarTabla } from "@/lib/exportaciones";
 import { exportarStockGeneral } from "@/lib/exportaciones";
 import {
-  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, valorDeCodigo, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
+  ordenarUbicaciones, agruparPorSegmento, localidadAMostrar, valorDeCodigo, nivelDeReposicion, ordenCategoria, ORDEN_CATEGORIAS, parseSeries, fmtFecha, hace, mensajeDeError,
 } from "@/lib/stockNuevo";
 
 const MONO = { fontFamily: "DM Mono, monospace" };
@@ -63,6 +63,7 @@ function Pantalla() {
   const [agregar, setAgregar] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [corrigiendo, setCorrigiendo] = useState(null); // { pid, valor, motivo }
+  const [soloPedir, setSoloPedir] = useState(false);
   const [vista, setVista] = useState("propios"); // propios | serenisima
   const [mapeo, setMapeo] = useState([]);
 
@@ -102,7 +103,9 @@ function Pantalla() {
   const verCentros = vista === "serenisima" && sel === CENTROS;
   const ubicacion = ubicaciones.find((u) => u.id === sel);
   const esOficina = ubicacion?.tipo === "oficina";
-  const filas = datos?.filas || [];
+  const todasLasFilas = (datos?.filas || []).map((f) => ({ ...f, nivel: esOficina && f.reposicion ? nivelDeReposicion({ ...f.reposicion, stock: f.stock }) : null }));
+  const aPedir = todasLasFilas.filter((f) => f.nivel === "critico" || f.nivel === "bajo");
+  const filas = esOficina && soloPedir ? aPedir : todasLasFilas;
 
   const grupos = useMemo(() => {
     const m = new Map();
@@ -331,6 +334,7 @@ function Pantalla() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
               <Tarjeta titulo="Último conteo" valor={conteo ? fmtFecha(conteo.fecha) : "Sin conteo"} sub={conteo ? hace(conteo.fecha) : "Cargá el conteo inicial"} color={conteo ? undefined : "#b45309"} />
               <Tarjeta titulo="Productos" valor={filas.length} sub="en esta ubicación" />
+              {esOficina && <Tarjeta titulo="Para pedir" valor={aPedir.length} sub={aPedir.length ? "Se están acabando: filtralos abajo" : "Nada por pedir"} color={aPedir.length ? "#b91c1c" : "#15803d"} />}
               <Tarjeta titulo="Sin explicar" valor={negativos} sub={negativos ? "Falta un envío o un conteo" : "Todo cierra"} color={negativos ? "#b91c1c" : "#15803d"} />
             </div>
           </div>
@@ -425,6 +429,15 @@ function Pantalla() {
             </section>
           )}
 
+          {esOficina && aPedir.length > 0 && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" aria-pressed={soloPedir} onClick={() => setSoloPedir((v) => !v)}
+                style={{ minHeight: 38, padding: "0 16px", border: "none", borderRadius: 8, fontSize: 13.5, fontWeight: 700, color: "#ffffff", cursor: "pointer", fontFamily: "inherit", background: soloPedir ? "#c2410c" : "#4a5463" }}>
+                {soloPedir ? "Mostrar todos los productos" : `Ver solo los que hay que pedir (${aPedir.length})`}
+              </button>
+              <span style={{ fontSize: 12.5, color: "#64748b" }}>Los productos que se están acabando también se marcan en cada fila.</span>
+            </div>
+          )}
           <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
             {cargando ? (
               <div style={{ padding: 24, color: "#64748b", fontSize: 13 }}>Cargando…</div>
@@ -483,10 +496,16 @@ function Pantalla() {
   );
 }
 
+const textoPedir = (f) => {
+  const r = f.reposicion || {};
+  if (r.minimo != null && f.stock < r.minimo) return `Por debajo del mínimo (${f.stock} de ${r.minimo})`;
+  return `Alcanza ${r.dias_de_stock} día${r.dias_de_stock === 1 ? "" : "s"}`;
+};
+
 function FilaProducto({ f, neg, esOficina, sel, sinSerie, abierta, lista, onSeries, corr, guardando, onEditar, onCambiar, onGuardar, onCancelar }) {
   return (
     <>
-      <tr>
+      <tr style={{ background: f.nivel === "critico" ? "#fef2f2" : f.nivel === "bajo" ? "#fffbeb" : undefined }}>
         <td style={TD}>
           <div style={{ fontWeight: 600 }}>{f.descripcion}</div>
           <div style={{ ...MONO, fontSize: 11, color: "#94a3b8" }}>{f.codigo}</div>
@@ -516,6 +535,15 @@ function FilaProducto({ f, neg, esOficina, sel, sinSerie, abierta, lista, onSeri
                 <Link href={`/dashboard${BASE}/envios?hacia=${sel}&producto=${f.producto_id}`}
                   style={{ ...boton("#1d4e89"), minHeight: 30, fontSize: 12, padding: "0 12px" }}>Registrar envío</Link>
               )}
+            </div>
+          ) : f.nivel === "critico" || f.nivel === "bajo" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "2px 10px",
+                background: f.nivel === "critico" ? "#fee2e2" : "#fef3c7", color: f.nivel === "critico" ? "#991b1b" : "#92400e" }}>
+                {f.nivel === "critico" ? "Pedir ya" : "Pedir pronto"}
+              </span>
+              <span style={{ fontSize: 12, color: "#475569" }}>{textoPedir(f)}</span>
+              {f.reposicion?.pedir_el && <span style={{ fontSize: 12, color: "#475569" }}>Pedir antes del {fmtFecha(f.reposicion.pedir_el)}</span>}
             </div>
           ) : (
             <span style={{ fontSize: 12, color: "#15803d", fontWeight: 600 }}>Con stock</span>

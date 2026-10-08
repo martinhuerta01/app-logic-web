@@ -88,3 +88,19 @@ export const valorDeCodigo = (entrada, cantidadDe) => {
   }
   return { valor: cantidades.reduce((a, c) => a + c, 0), sobrantes: [] };
 };
+
+// Niveles de reposición de la Oficina: se usan igual en el Dashboard y en Stock por ubicación
+export const DIAS_CRITICO = 7;
+export const DIAS_BAJO = 20;
+
+// r: { stock, minimo, consumo_por_dia, dias_de_stock }
+export const nivelDeReposicion = (r) => {
+  if (!r) return "sinconsumo";
+  if (r.minimo != null && r.stock < r.minimo) return "critico";
+  if (r.consumo_por_dia > 0) {
+    if (r.dias_de_stock <= DIAS_CRITICO) return "critico";
+    if (r.dias_de_stock <= DIAS_BAJO) return "bajo";
+    return "ok";
+  }
+  return "sinconsumo";
+};

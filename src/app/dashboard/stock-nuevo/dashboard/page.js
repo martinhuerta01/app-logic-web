@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import BotonExportar from "@/components/BotonExportar";
 import { descargarTabla } from "@/lib/exportaciones";
-import { agruparPorSegmento, localidadAMostrar, diasDesde, fmtFecha, hace, mensajeDeError, ordenCategoria } from "@/lib/stockNuevo";
+import { agruparPorSegmento, localidadAMostrar, diasDesde, fmtFecha, hace, mensajeDeError, ordenCategoria, DIAS_CRITICO, DIAS_BAJO, nivelDeReposicion as nivelDe } from "@/lib/stockNuevo";
 
 const BASE = "/stock-nuevo";
 const RUTA = "/dashboard/stock-nuevo";
@@ -28,23 +28,12 @@ const NIVELES = {
   ok: { texto: "Con stock", fondo: "#dcfce7", color: "#166534", orden: 2 },
   sinconsumo: { texto: "Sin consumo", fondo: "#e2e8f0", color: "#475569", orden: 3 },
 };
-const DIAS_CRITICO = 7;
-const DIAS_BAJO = 20;
 const CATEGORIAS = [
   ["Dispositivos", "#1d4e89"], ["Cables", "#0e7490"], ["Accesorios", "#7c3aed"], ["Insumos", "#c2410c"],
 ];
 const COLOR_EDAD = ["#16a34a", "#84cc16", "#f59e0b", "#ea580c", "#b91c1c", "#94a3b8"];
 const MES_CORTO = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
-const nivelDe = (r) => {
-  if (r.minimo != null && r.stock < r.minimo) return "critico";
-  if (r.consumo_por_dia > 0) {
-    if (r.dias_de_stock <= DIAS_CRITICO) return "critico";
-    if (r.dias_de_stock <= DIAS_BAJO) return "bajo";
-    return "ok";
-  }
-  return "sinconsumo";
-};
 // Qué productos se ven en el gráfico de la Oficina queda guardado en este navegador
 const CLAVE_GRAFICO = "stock_dashboard_grafico_v1";
 const corto = (s, n = 28) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
