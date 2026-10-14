@@ -71,7 +71,6 @@ export default function CargaDiaPage() {
 
   const tecnicoInterior = interior.find(t => t.nombre === svcResponsable);
   const esInterior = !!tecnicoInterior;
-  const clienteElegido = clientes.find(c => textoCliente(c) === svcCliente);
 
   // La localidad se toma de Contactos al elegir el técnico o taller del interior
   useEffect(() => {
@@ -166,7 +165,6 @@ export default function CargaDiaPage() {
           localidad:      esInterior ? svcLocalidad : null,
           hora_programada:svcHora || null,
           cliente:        svcCliente,
-          cliente_ref:    clienteElegido?.id || null,
           tipo_servicio:  f.tipo,
           dispositivo:    f.dispositivo,
           patente:        f.patente,
