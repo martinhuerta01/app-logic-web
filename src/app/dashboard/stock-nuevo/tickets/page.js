@@ -86,9 +86,14 @@ export default function ImportarTickets() {
   // Avisos que dependen de lo que ya hay en el sistema (no bloquean)
   const avisosDeContexto = (f) => {
     const avisos = [];
-    const ultimo = contexto.ultimos_conteos[f.ubicacionId];
-    if (ultimo && f.fecha && f.fecha <= ultimo) {
-      avisos.push(`Es anterior al último conteo de ${nombreUbic(f.ubicacionId)} (${fmtFecha(ultimo)}): ya está reflejado en lo contado`);
+    // Desde cuándo vale el stock de la ubicación: su último conteo o el día en que se puso en cero, el que sea más nuevo
+    const conteo = contexto.ultimos_conteos[f.ubicacionId];
+    const enCero = contexto.en_cero_desde?.[f.ubicacionId];
+    const base = [conteo, enCero].filter(Boolean).sort().pop();
+    if (base && f.fecha && f.fecha <= base) {
+      avisos.push(base === conteo
+        ? `Es anterior al último conteo de ${nombreUbic(f.ubicacionId)} (${fmtFecha(base)}): ya está reflejado en lo contado`
+        : `Es anterior al día en que se puso en cero ${nombreUbic(f.ubicacionId)} (${fmtFecha(base)}): ya está reflejado`);
     }
     if (f.productoGpsId && f.serialInstalado) {
       const e = equipoPorSerie.get(String(f.serialInstalado));
@@ -98,6 +103,30 @@ export default function ImportarTickets() {
       } else if (e.estado === "INSTALADO") avisos.push(`El número de serie ${f.serialInstalado} ya figura instalado en otro vehículo`);
     }
     return avisos;
+  };
+
+  // Los equipos que vinieron de la plataforma ya están registrados hasta cierta fecha: un ticket de esos días no los vuelve a tocar
+  const equipoYaRegistrado = (f) => {
+    const hasta = contexto.equipos_hasta;
+    if (!hasta || !f.fecha || f.fecha > hasta) return false;
+    const series = [f.serialInstalado, f.serialRetirado].filter(Boolean).map(String);
+    return series.length > 0 && series.every((s) => equipoPorSerie.has(s));
+  };
+
+  // Qué parte de cada ticket hay que registrar: insumos (stock) y/o equipo (números de serie)
+  const evaluar = (f) => {
+    const avisosContexto = avisosDeContexto(f);
+    const stockContado = avisosContexto.some((a) => a.startsWith("Es anterior"));
+    const tieneSerie = !!(f.serialInstalado || f.serialRetirado);
+    const equipoListo = equipoYaRegistrado(f);
+    const stockAplica = f.items.length > 0 && !stockContado;
+    const equipoAplica = tieneSerie && !equipoListo;
+    return {
+      avisosContexto, equipoListo,
+      soloEquipo: !stockAplica && equipoAplica,   // el stock ya está contado: solo se registra el equipo
+      sinEquipo: stockAplica && tieneSerie && equipoListo, // el equipo ya está registrado: solo se descuentan los insumos
+      incluirAuto: stockAplica || equipoAplica,
+    };
   };
 
   const estadoDe = (f) => {
@@ -138,12 +167,9 @@ export default function ImportarTickets() {
         });
       });
       nuevas.forEach((f) => {
-        f.avisosContexto = avisosDeContexto(f);
-        const anteriorAlConteo = f.avisosContexto.some((a) => a.startsWith("Es anterior"));
-        // El stock ya está contado, pero el equipo (retiro e instalación por número de serie) igual se registra
-        f.soloEquipo = anteriorAlConteo && !!(f.serialInstalado || f.serialRetirado);
-        f.incluir = !f.yaImportado && !!f.ubicacionId && f.advertencias.length === 0
-          && (f.items.length > 0 || !!f.serialRetirado) && (!anteriorAlConteo || f.soloEquipo) && f.estado === ESTADO_CERRADO;
+        const ev = evaluar(f);
+        f.avisosContexto = ev.avisosContexto; f.soloEquipo = ev.soloEquipo; f.sinEquipo = ev.sinEquipo; f.equipoListo = ev.equipoListo;
+        f.incluir = !f.yaImportado && !!f.ubicacionId && f.advertencias.length === 0 && ev.incluirAuto && f.estado === ESTADO_CERRADO;
       });
       setArchivo(file.name); setFilas(nuevas); setOmitidos(omit);
     } catch {
@@ -166,8 +192,8 @@ export default function ImportarTickets() {
   };
   const cambiarUbicacion = (ticket, ubicacionId) => patchFila(ticket, (f) => {
     const nueva = { ...f, ubicacionId };
-    nueva.avisosContexto = avisosDeContexto(nueva);
-    nueva.soloEquipo = nueva.avisosContexto.some((a) => a.startsWith("Es anterior")) && !!(nueva.serialInstalado || nueva.serialRetirado);
+    const ev = evaluar(nueva);
+    Object.assign(nueva, { avisosContexto: ev.avisosContexto, soloEquipo: ev.soloEquipo, sinEquipo: ev.sinEquipo, equipoListo: ev.equipoListo });
     return nueva;
   });
 
@@ -198,10 +224,10 @@ export default function ImportarTickets() {
       : f.items;
     const movimientos = itemsAGuardar.map((it) => ({
       ...base, tipo: "INSTALACION", producto_id: it.producto_id, origen_id: origenDeItem(f, it), cantidad: it.cantidad,
-      serial: it.producto_id === f.productoGpsId ? (f.serialInstalado || null) : null,
-      configuracion: it.producto_id === f.productoGpsId ? (f.configuracion || null) : null,
+      serial: it.producto_id === f.productoGpsId && !f.sinEquipo ? (f.serialInstalado || null) : null,
+      configuracion: it.producto_id === f.productoGpsId && !f.sinEquipo ? (f.configuracion || null) : null,
     }));
-    if (f.serialRetirado && (f.productoRetiroId || f.productoGpsId)) {
+    if (f.serialRetirado && !f.sinEquipo && (f.productoRetiroId || f.productoGpsId)) {
       movimientos.push({ ...base, tipo: "RETIRO", producto_id: f.productoRetiroId || f.productoGpsId, cantidad: 1, serial: f.serialRetirado, patente: f.patente });
     }
     return movimientos;
@@ -216,7 +242,7 @@ export default function ImportarTickets() {
         const resp = await api.post(`${BASE}/tickets/confirmar/`, {
           ticket_numero: f.ticket, distrito: f.distrito, archivo_nombre: archivo,
           fila_excel: { descripcion: f.descripcion, patente: f.patente, distrito: f.distrito, base: f.base, fecha: f.fecha, dispositivo: f.dispositivo, incidencia: f.incidencia },
-          movimientos: armarMovimientos(f), serial_retirado: f.serialRetirado || null, retirado_ubicacion_id: f.serialRetirado ? f.ubicacionId : null,
+          movimientos: armarMovimientos(f), serial_retirado: f.sinEquipo ? null : (f.serialRetirado || null), retirado_ubicacion_id: f.serialRetirado && !f.sinEquipo ? f.ubicacionId : null,
         });
         if (resp?.duplicado) duplicados++; else ok++;
       } catch (e) {
@@ -318,6 +344,8 @@ export default function ImportarTickets() {
                         {[...f.advertencias, ...(f.avisosContexto || [])].map((a, i) => <div key={i} style={{ fontSize: 11.5, color: "#b45309", marginTop: 3 }}>⚠ {a}</div>)}
                         {(f.informativas || []).map((a, i) => <div key={"i" + i} style={{ fontSize: 11.5, color: "#64748b", marginTop: 3 }}>ℹ {a}</div>)}
                         {f.soloEquipo && <div style={{ fontSize: 11.5, color: "#1d4e89", fontWeight: 600, marginTop: 3 }}>ℹ El stock de esta ubicación ya está contado: se registra solo el equipo, sin descontar insumos</div>}
+                        {f.sinEquipo && <div style={{ fontSize: 11.5, color: "#1d4e89", fontWeight: 600, marginTop: 3 }}>ℹ El equipo ya está registrado en la app: se descuentan solo los insumos</div>}
+                        {f.equipoListo && !f.sinEquipo && <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 3 }}>ℹ El equipo ya está registrado en la app (cargado de la plataforma): no se vuelve a registrar</div>}
                       </td>
                       <td style={TD}>{f.ubicacionId ? nombreUbic(f.ubicacionId) : <span style={{ color: "#b45309" }}>Elegir</span>}</td>
                       <td style={TD}>
