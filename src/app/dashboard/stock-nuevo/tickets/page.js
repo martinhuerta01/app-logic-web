@@ -140,8 +140,10 @@ export default function ImportarTickets() {
       nuevas.forEach((f) => {
         f.avisosContexto = avisosDeContexto(f);
         const anteriorAlConteo = f.avisosContexto.some((a) => a.startsWith("Es anterior"));
+        // El stock ya está contado, pero el equipo (retiro e instalación por número de serie) igual se registra
+        f.soloEquipo = anteriorAlConteo && !!(f.serialInstalado || f.serialRetirado);
         f.incluir = !f.yaImportado && !!f.ubicacionId && f.advertencias.length === 0
-          && (f.items.length > 0 || !!f.serialRetirado) && !anteriorAlConteo && f.estado === ESTADO_CERRADO;
+          && (f.items.length > 0 || !!f.serialRetirado) && (!anteriorAlConteo || f.soloEquipo) && f.estado === ESTADO_CERRADO;
       });
       setArchivo(file.name); setFilas(nuevas); setOmitidos(omit);
     } catch {
@@ -165,6 +167,7 @@ export default function ImportarTickets() {
   const cambiarUbicacion = (ticket, ubicacionId) => patchFila(ticket, (f) => {
     const nueva = { ...f, ubicacionId };
     nueva.avisosContexto = avisosDeContexto(nueva);
+    nueva.soloEquipo = nueva.avisosContexto.some((a) => a.startsWith("Es anterior")) && !!(nueva.serialInstalado || nueva.serialRetirado);
     return nueva;
   });
 
@@ -190,7 +193,10 @@ export default function ImportarTickets() {
 
   const armarMovimientos = (f) => {
     const base = { fecha: f.fecha, observacion: `Ticket #${f.ticket} · ${f.patente || ""} · ${f.servicio}` };
-    const movimientos = f.items.map((it) => ({
+    const itemsAGuardar = f.soloEquipo
+      ? f.items.filter((it) => it.producto_id === f.productoGpsId && f.serialInstalado).map((it) => ({ ...it, cantidad: 0 }))
+      : f.items;
+    const movimientos = itemsAGuardar.map((it) => ({
       ...base, tipo: "INSTALACION", producto_id: it.producto_id, origen_id: origenDeItem(f, it), cantidad: it.cantidad,
       serial: it.producto_id === f.productoGpsId ? (f.serialInstalado || null) : null,
       configuracion: it.producto_id === f.productoGpsId ? (f.configuracion || null) : null,
@@ -311,6 +317,7 @@ export default function ImportarTickets() {
                         <div style={{ whiteSpace: "pre-wrap", color: "#475569", marginTop: 2 }}>{f.descripcion}</div>
                         {[...f.advertencias, ...(f.avisosContexto || [])].map((a, i) => <div key={i} style={{ fontSize: 11.5, color: "#b45309", marginTop: 3 }}>⚠ {a}</div>)}
                         {(f.informativas || []).map((a, i) => <div key={"i" + i} style={{ fontSize: 11.5, color: "#64748b", marginTop: 3 }}>ℹ {a}</div>)}
+                        {f.soloEquipo && <div style={{ fontSize: 11.5, color: "#1d4e89", fontWeight: 600, marginTop: 3 }}>ℹ El stock de esta ubicación ya está contado: se registra solo el equipo, sin descontar insumos</div>}
                       </td>
                       <td style={TD}>{f.ubicacionId ? nombreUbic(f.ubicacionId) : <span style={{ color: "#b45309" }}>Elegir</span>}</td>
                       <td style={TD}>
